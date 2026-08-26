@@ -23,3 +23,4 @@ What follows — good and bad.
 ## Index
 
 - [0001 — Public GitHub repo, private working notes](0001-public-github-repo.md)
+- [0002 — Bare-metal Ubuntu Server on the first node](0002-bare-metal-first-node.md)
