@@ -13,6 +13,8 @@ decisions were made and why.
 |---|---|---|
 | Laptop | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | not yet provisioned |
 | Raspberry Pi 3B+ | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM | not yet provisioned |
+| Switch | TP-Link TL-SG108 — 8× gigabit | not yet wired |
+| Rack | 10″ 3D-printed — [KWS Rack V2](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) | printing |
 
 ## Repo layout
 

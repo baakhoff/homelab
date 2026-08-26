@@ -20,3 +20,14 @@
 | NIC | Gigabit PHY over USB 2.0 — ~300 Mbit/s practical ceiling |
 | Storage | microSD — quality A1/A2 card; log2ram reduces write wear |
 | Notes | 1 GB RAM limits it to lightweight duties |
+
+## Network
+
+| Field | Value |
+|---|---|
+| Switch | TP-Link TL-SG108 — 8× gigabit, fanless |
+| Topology | Switch uplinks to the home router; lab devices connect to the switch, wired |
+
+## Rack
+
+10-inch 3D-printed rack: [KWS Rack V2 (heavy duty)](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) — print in progress. Switch and Pi get printed 10″ mounts; the laptop lives on a shelf beside it.
