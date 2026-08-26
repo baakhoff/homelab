@@ -1,0 +1,16 @@
+# local env / secrets — real values never get committed
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.age
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# logs & scratch
+*.log
+scratch/
