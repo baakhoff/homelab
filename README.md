@@ -11,7 +11,7 @@ decisions were made and why.
 
 | Device | Specs | Status |
 |---|---|---|
-| Laptop | TBD — see [docs/hardware.md](docs/hardware.md) | not yet provisioned |
+| Laptop | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | not yet provisioned |
 | Raspberry Pi 3B+ | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM | not yet provisioned |
 
 ## Repo layout

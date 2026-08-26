@@ -2,19 +2,14 @@
 
 ## Laptop
 
-Specs TBD. To fill this in, run on the laptop:
-
-```bash
-lscpu | grep -E 'Model name|^CPU\(s\)'; free -h | head -2; lsblk -d -o NAME,SIZE,MODEL,ROTA; ip -br link
-```
-
 | Field | Value |
 |---|---|
-| Model | TBD |
-| CPU | TBD |
-| RAM | TBD |
-| Disk | TBD |
-| NIC | TBD |
+| Model | ultrabook-class, exact model TBD (`sudo dmidecode -s system-product-name`) |
+| CPU | Intel Core i5-1240P (12th gen) — 12 cores (4 P + 8 E), 16 threads |
+| RAM | 16 GB |
+| Disk | 512 GB NVMe SSD (Micron 3400) |
+| NIC | Wi-Fi only — no built-in ethernet port |
+| Notes | Battery doubles as a built-in UPS; Tailscale already installed |
 
 ## Raspberry Pi 3B+
 
