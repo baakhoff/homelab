@@ -2,19 +2,14 @@
 
 ## Laptop
 
-Specs TBD. To fill this in, run on the laptop:
-
-```bash
-lscpu | grep -E 'Model name|^CPU\(s\)'; free -h | head -2; lsblk -d -o NAME,SIZE,MODEL,ROTA; ip -br link
-```
-
 | Field | Value |
 |---|---|
-| Model | TBD |
-| CPU | TBD |
-| RAM | TBD |
-| Disk | TBD |
-| NIC | TBD |
+| Model | ultrabook-class, exact model TBD (`sudo dmidecode -s system-product-name`) |
+| CPU | Intel Core i5-1240P (12th gen) — 12 cores (4 P + 8 E), 16 threads |
+| RAM | 16 GB |
+| Disk | 512 GB NVMe SSD (Micron 3400) |
+| NIC | Wi-Fi only — no built-in ethernet port |
+| Notes | Battery doubles as a built-in UPS; Tailscale already installed |
 
 ## Raspberry Pi 3B+
 
@@ -25,3 +20,7 @@ lscpu | grep -E 'Model name|^CPU\(s\)'; free -h | head -2; lsblk -d -o NAME,SIZE
 | NIC | Gigabit PHY over USB 2.0 — ~300 Mbit/s practical ceiling |
 | Storage | microSD — quality A1/A2 card; log2ram reduces write wear |
 | Notes | 1 GB RAM limits it to lightweight duties |
+
+## Rack
+
+10-inch 3D-printed rack: [KWS Rack V2 (heavy duty)](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) — print in progress. The Pi gets a printed 10″ mount; the laptop lives on a shelf beside it.
