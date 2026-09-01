@@ -1,0 +1,38 @@
+# Prometheus scraping a target that is not a Kubernetes workload at all.
+#
+# Incus runs on node01 outside the cluster and exposes OpenMetrics on :9101,
+# authenticated with mutual TLS. node-exporter already reports node01's real
+# hardware totals - this adds the missing attribution: which Incus container
+# is responsible for that CPU and memory.
+#
+# Note serverName: the Incus server certificate was generated during
+# `incus admin init` and lists only DNS:node01 and the loopback addresses.
+# We connect by the Tailscale address (stable, unlike DHCP) and verify the
+# certificate against the one name it actually claims.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: incus
+  namespace: monitoring
+spec:
+  staticConfigs:
+    - targets:
+        - 100.91.37.2:9101
+      labels:
+        instance: node01
+  metricsPath: /1.0/metrics
+  scheme: HTTPS
+  scrapeInterval: 30s
+  tlsConfig:
+    serverName: node01
+    ca:
+      secret:
+        name: incus-metrics
+        key: server.crt
+    cert:
+      secret:
+        name: incus-metrics
+        key: metrics.crt
+    keySecret:
+      name: incus-metrics
+      key: metrics.key
