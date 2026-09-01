@@ -28,3 +28,13 @@ spec:
         type: LoadBalancer
       ingressClassResource:
         default: true
+      extraArgs:
+        # Serve the lab wildcard for any host without its own certificate, so an
+        # Ingress in any namespace gets valid TLS without referencing a Secret it
+        # cannot reach. Without this the fallback is nginx's self-signed cert.
+        default-ssl-certificate: ingress-nginx/lab-wildcard-tls
+      config:
+        # ssl-redirect only fires for Ingresses that declare TLS themselves, and
+        # after this change none of them do. force-ssl-redirect applies regardless,
+        # so plain HTTP still lands on HTTPS.
+        force-ssl-redirect: "true"

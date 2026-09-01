@@ -1,0 +1,23 @@
+# One wildcard certificate for the whole lab.
+#
+# It lives in the ingress-nginx namespace rather than beside a service, because
+# Kubernetes Secrets do not cross namespaces: a Certificate in `demo` is unusable
+# by an Ingress in `monitoring`. Issuing a copy per namespace would work, but each
+# copy counts against Let's Encrypt's duplicate-certificate rate limit and has to
+# be renewed forever.
+#
+# Instead the controller serves this as its default certificate (see helmrelease.yaml),
+# so every Ingress in every namespace gets valid TLS without declaring any.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lab-wildcard
+  namespace: ingress-nginx
+spec:
+  secretName: lab-wildcard-tls
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+  dnsNames:
+    - lab.baakhoff.com
+    - "*.lab.baakhoff.com"
