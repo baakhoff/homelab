@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: podinfo
+  namespace: demo
+spec:
+  tls:
+    - hosts:
+        - podinfo.lab.baakhoff.com
+      secretName: lab-wildcard-tls
+  rules:
+    - host: podinfo.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: podinfo
+                port:
+                  number: 80
