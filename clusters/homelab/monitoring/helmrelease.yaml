@@ -8,8 +8,7 @@ spec:
   chart:
     spec:
       chart: kube-prometheus-stack
-      # TODO pin exactly once we read back what Flux resolved
-      version: ">=60.0.0"
+      version: "88.6.2"
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
