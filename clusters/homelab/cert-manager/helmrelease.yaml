@@ -8,8 +8,7 @@ spec:
   chart:
     spec:
       chart: cert-manager
-      # TODO pin exactly once we read back what Flux resolved
-      version: "1.x"
+      version: "v1.21.1"
       sourceRef:
         kind: HelmRepository
         name: jetstack
