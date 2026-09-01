@@ -1,0 +1,103 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      # TODO pin exactly once we read back what Flux resolved
+      version: ">=60.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # ---------------------------------------------------------------------
+    # k3s runs the control plane as ONE process, so these four components
+    # have no separately scrapeable endpoint (controller-manager and
+    # scheduler bind 127.0.0.1 only). Left enabled, they show up forever as
+    # failing targets and fire alerts about a control plane that is fine.
+    # ---------------------------------------------------------------------
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeProxy:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+
+    prometheus:
+      prometheusSpec:
+        retention: 15d
+        # Below the PVC size on purpose: Prometheus needs free space to
+        # compact, and hitting a full disk is far worse than losing old data.
+        retentionSize: 8GB
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 10Gi
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        # By default the operator only discovers monitors carrying this
+        # chart's release label, which silently ignores everything added
+        # later - including the Incus ScrapeConfig. Watch the whole cluster.
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        probeSelectorNilUsesHelmValues: false
+        scrapeConfigSelectorNilUsesHelmValues: false
+
+    alertmanager:
+      alertmanagerSpec:
+        resources:
+          requests:
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        storage:
+          volumeClaimTemplate:
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 2Gi
+
+    grafana:
+      admin:
+        existingSecret: grafana-admin
+        userKey: admin-user
+        passwordKey: admin-password
+      persistence:
+        enabled: true
+        size: 2Gi
+      resources:
+        requests:
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+      # No tls block and no ingressClassName: ingress-nginx is the default
+      # class and serves the lab wildcard as its default certificate.
+      ingress:
+        enabled: true
+        hosts:
+          - grafana.lab.baakhoff.com
+      grafana.ini:
+        server:
+          root_url: https://grafana.lab.baakhoff.com
