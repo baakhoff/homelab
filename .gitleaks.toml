@@ -1,0 +1,25 @@
+# gitleaks configuration for this repo.
+#
+# This repository is PUBLIC and holds Kubernetes manifests, so the failure mode
+# we care about is a credential reaching GitHub in plaintext. GitHub's own push
+# protection is the second net; this is the first one, and it runs before the
+# commit exists.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+SOPS-encrypted files are safe by design: their values are AES-256-GCM ciphertext
+and the age recipient block is a public key. Scanning them produces only false
+positives. The pre-commit hook separately asserts that every staged *.sops.yaml
+is ACTUALLY encrypted, so this allowlist cannot be used to smuggle a plaintext
+secret past the scan under a .sops.yaml name.
+"""
+paths = [
+  '''.*\.sops\.ya?ml$''',
+  # SOPS creation rules: contains an age PUBLIC key only.
+  '''^\.sops\.yaml$''',
+  # Flux's own generated component manifests - vendored upstream YAML, ~6k lines.
+  '''^clusters/homelab/flux-system/gotk-components\.yaml$''',
+]

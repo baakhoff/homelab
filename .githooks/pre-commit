@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#
+# Pre-commit secret guard for a PUBLIC repository.
+#
+# Enable it once per clone (hooks are not themselves tracked by git):
+#
+#     git config core.hooksPath .githooks
+#
+# Two independent checks, cheapest and most specific first.
+
+set -uo pipefail
+
+fail() {
+    echo >&2
+    echo "pre-commit: $*" >&2
+    echo "pre-commit: nothing was committed." >&2
+    exit 1
+}
+
+# ---------------------------------------------------------------------------
+# 1. Every staged *.sops.yaml must actually be encrypted.
+#
+# This is the mistake that costs the most: editing a secret, forgetting to run
+# `sops --encrypt`, and committing the plaintext. Read the file from the INDEX
+# (git show :path), not the working tree - what gets committed is what is
+# staged, and those can differ.
+# ---------------------------------------------------------------------------
+staged_sops=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.sops\.ya?ml$' || true)
+
+for f in $staged_sops; do
+    if ! git show ":$f" 2>/dev/null | grep -q 'ENC\['; then
+        fail "$f is staged but NOT encrypted.
+            Run: sops --encrypt --in-place $f"
+    fi
+done
+
+# ---------------------------------------------------------------------------
+# 2. Scan the staged diff for anything that looks like a credential.
+#
+# gitleaks renamed its subcommands in v8.19 (protect -> git), so pick whichever
+# this install understands rather than pinning to one and breaking on upgrade.
+# ---------------------------------------------------------------------------
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo >&2 "pre-commit: WARNING - gitleaks is not installed, secret scan SKIPPED."
+    echo >&2 "pre-commit: install it, or you are relying on GitHub push protection alone."
+    exit 0
+fi
+
+if gitleaks git --help >/dev/null 2>&1; then
+    scan=(gitleaks git --staged)
+else
+    scan=(gitleaks protect --staged)
+fi
+
+if ! "${scan[@]}" --redact --no-banner; then
+    fail "gitleaks flagged a potential secret in the staged changes (above).
+            If it is a false positive, add a rule to .gitleaks.toml - do NOT
+            reach for --no-verify on a public repo."
+fi
