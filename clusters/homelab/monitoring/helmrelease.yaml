@@ -74,6 +74,13 @@ spec:
         podMonitorSelectorNilUsesHelmValues: false
         probeSelectorNilUsesHelmValues: false
         scrapeConfigSelectorNilUsesHelmValues: false
+        # The same trap applied to alert RULES, and worth its own line
+        # because the failure is even quieter: a PrometheusRule we write
+        # ourselves is simply never loaded unless it carries the label
+        # release=kube-prometheus-stack. Not rejected, not logged - it just
+        # never appears in Prometheus and never fires, which is
+        # indistinguishable from an alert that has nothing to complain about.
+        ruleSelectorNilUsesHelmValues: false
 
     alertmanager:
       alertmanagerSpec:

@@ -23,3 +23,22 @@ spec:
   values:
     crds:
       enabled: true
+
+    # cert-manager has always exposed metrics on :9402; what was missing was
+    # anything scraping them. This creates a ServiceMonitor in the
+    # cert-manager namespace, which the monitoring stack discovers because
+    # its serviceMonitorSelector was widened to the whole cluster rather than
+    # to the chart's own release label.
+    #
+    # Two things arrive with it. The certificate expiry and readiness series
+    # that clusters/homelab/monitoring/cert-manager-rules.yaml alerts on -
+    # without which those rules would evaluate against nothing forever, which
+    # looks identical to everything being fine. And free coverage from the
+    # stack's own TargetDown rule, since cert-manager is now a registered
+    # target: it going down is reported without writing a rule for it.
+    #
+    # Lower-case `servicemonitor` is the chart's spelling, not a typo. The
+    # camelCase form is silently ignored, as unknown Helm values always are.
+    prometheus:
+      servicemonitor:
+        enabled: true
