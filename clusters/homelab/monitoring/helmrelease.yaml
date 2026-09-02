@@ -237,6 +237,26 @@ spec:
           memory: 128Mi
         limits:
           memory: 512Mi
+
+      # Loki as a second datasource, defined HERE rather than clicked into the
+      # Grafana UI. A UI-added datasource lives only in Grafana's PVC: it is
+      # invisible in git, survives no reinstall, and is exactly the drift the
+      # dashboards-as-ConfigMaps rule exists to avoid.
+      #
+      # Prometheus stays the default. Metrics are where you start - Loki is
+      # where you go once a metric has told you which pod and which minute to
+      # look at.
+      additionalDataSources:
+        - name: Loki
+          type: loki
+          uid: loki
+          access: proxy
+          url: http://loki.logging.svc.cluster.local:3100
+          jsonData:
+            # Cap what a careless query can drag into the browser. Loki will
+            # happily stream far more than a page can render.
+            maxLines: 1000
+
       # No tls block and no ingressClassName: ingress-nginx is the default
       # class and serves the lab wildcard as its default certificate.
       ingress:
