@@ -36,6 +36,18 @@ spec:
     kubeEtcd:
       enabled: false
 
+    # Disabling the components above removed their ServiceMonitors but NOT
+    # their alert rules, and those rules are written as
+    # `absent(up{job="kube-controller-manager"} == 1)` - i.e. they fire
+    # precisely because nothing is scraping. Left on, the very first thing
+    # Telegram would deliver is four permanent false alarms.
+    defaultRules:
+      rules:
+        kubeControllerManager: false
+        kubeSchedulerAlerting: false
+        kubeProxy: false
+        etcd: false
+
     prometheus:
       prometheusSpec:
         retention: 15d
@@ -77,6 +89,98 @@ spec:
               resources:
                 requests:
                   storage: 2Gi
+        # Mounted by the operator at
+        # /etc/alertmanager/secrets/alertmanager-telegram/<key>
+        # The config below reads the bot token and chat id from those files
+        # rather than inlining them, which keeps the whole routing tree
+        # readable and diffable in a public repo.
+        secrets:
+          - alertmanager-telegram
+
+      config:
+        global:
+          resolve_timeout: 5m
+
+        route:
+          receiver: telegram
+          # One message per (alert, namespace) rather than per namespace:
+          # more messages, but each one is about a single thing.
+          group_by: ["alertname", "namespace"]
+          # Wait 30s before sending a new group, so a burst arrives as one
+          # message; 5m before appending newly-fired alerts to a group.
+          group_wait: 30s
+          group_interval: 5m
+          # A warning that stays firing re-notifies twice a day.
+          repeat_interval: 12h
+          routes:
+            # Watchdog fires CONSTANTLY by design - it is the dead-man's
+            # switch, proving the alert pipeline itself is alive. It is
+            # meant to be watched from OUTSIDE the cluster, so it is
+            # discarded here rather than sent to the phone every 12h.
+            - receiver: "null"
+              matchers:
+                - alertname = "Watchdog"
+            # Ships with the stack purely as the source for the info
+            # inhibit rule below; it is never something to act on.
+            - receiver: "null"
+              matchers:
+                - alertname = "InfoInhibitor"
+            # Same destination, shorter leash: a critical nags hourly
+            # until it is resolved or silenced.
+            - receiver: telegram
+              matchers:
+                - severity = "critical"
+              repeat_interval: 1h
+
+        inhibit_rules:
+          # If a thing is already critical, do not also send the warning
+          # about the same thing in the same namespace.
+          - source_matchers:
+              - severity = "critical"
+            target_matchers:
+              - severity = "warning"
+            equal: ["alertname", "namespace"]
+          - source_matchers:
+              - alertname = "InfoInhibitor"
+            target_matchers:
+              - severity = "info"
+            equal: ["namespace"]
+
+        receivers:
+          # Quoted on purpose: bare null in YAML is the null VALUE, which
+          # makes this receiver nameless and the config invalid.
+          - name: "null"
+
+          - name: telegram
+            telegram_configs:
+              - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot-token
+                chat_id_file: /etc/alertmanager/secrets/alertmanager-telegram/chat-id
+                send_resolved: true
+                parse_mode: HTML
+                # parse_mode HTML is the default and it is a trap: Telegram
+                # rejects the WHOLE message with a 400 if the body contains a
+                # stray < or >, and alert descriptions contain them routinely
+                # ("above 90%", "x > y"). Nothing arrives and the failure is
+                # only visible in Alertmanager's log. So every free-text
+                # annotation below is escaped by hand, & first so the
+                # ampersands introduced by the next two are not re-escaped.
+                # Labels (alertname, severity, namespace) are k8s identifiers
+                # and safe by construction.
+                #
+                # Leading wheel is deliberate: this posts into the same chat
+                # as an unrelated bot that already prefixes its own alerts
+                # with a siren, so cluster alerts need to be tellable apart
+                # at a glance without opening the message.
+                message: |-
+                  ☸ {{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} <b>{{ .Status | toUpper }}</b> · {{ .Alerts | len }} alert(s)
+
+                  {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}<b>{{ $a.Labels.alertname }}</b> [{{ $a.Labels.severity }}]
+                  {{ if $a.Annotations.summary }}{{ $a.Annotations.summary | reReplaceAll "&" "&amp;" | reReplaceAll "<" "&lt;" | reReplaceAll ">" "&gt;" }}
+                  {{ end }}{{ if $a.Annotations.description }}{{ $a.Annotations.description | reReplaceAll "&" "&amp;" | reReplaceAll "<" "&lt;" | reReplaceAll ">" "&gt;" }}
+                  {{ end }}{{ if $a.Labels.namespace }}ns <code>{{ $a.Labels.namespace }}</code>  {{ end }}{{ if $a.Labels.instance }}on <code>{{ $a.Labels.instance }}</code>{{ end }}
+                  {{ if $a.Annotations.runbook_url }}{{ $a.Annotations.runbook_url }}
+                  {{ end }}
+                  {{ end }}{{ end }}
 
     grafana:
       admin:
