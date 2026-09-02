@@ -39,6 +39,19 @@ spec:
   values:
     deploymentMode: Monolithic
 
+    # Setting deploymentMode is NOT sufficient on its own, which is genuinely
+    # surprising. The chart ships non-zero replicas for the SimpleScalable
+    # targets whatever the mode says, so leaving these alone means asking for
+    # two topologies at once - and a validate.yaml template refuses to render
+    # rather than letting you find out in the cluster. deploymentMode declares
+    # the intent; these three are what actually select the shape.
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+
     loki:
       # No tenant header on requests. Multi-tenancy for one person is ceremony.
       auth_enabled: false
