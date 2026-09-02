@@ -96,6 +96,7 @@ spec:
         # readable and diffable in a public repo.
         secrets:
           - alertmanager-telegram
+          - alertmanager-heartbeat
 
       config:
         global:
@@ -113,13 +114,20 @@ spec:
           # A warning that stays firing re-notifies twice a day.
           repeat_interval: 12h
           routes:
-            # Watchdog fires CONSTANTLY by design - it is the dead-man's
-            # switch, proving the alert pipeline itself is alive. It is
-            # meant to be watched from OUTSIDE the cluster, so it is
-            # discarded here rather than sent to the phone every 12h.
-            - receiver: "null"
+            # Watchdog fires CONSTANTLY by design. It is not a problem to
+            # report - it is proof that Prometheus is evaluating rules and
+            # Alertmanager is delivering them, so it goes to an OUTSIDE
+            # service that alerts when the pings STOP. That inverts the
+            # failure mode: nothing on a dead node can report that it died,
+            # so instead the node must keep proving it is alive.
+            # group_wait 0s so a restart re-pings immediately rather than
+            # leaving the external check amber for another 30s.
+            - receiver: heartbeat
               matchers:
                 - alertname = "Watchdog"
+              group_wait: 0s
+              group_interval: 5m
+              repeat_interval: 5m
             # Ships with the stack purely as the source for the info
             # inhibit rule below; it is never something to act on.
             - receiver: "null"
@@ -150,6 +158,24 @@ spec:
           # Quoted on purpose: bare null in YAML is the null VALUE, which
           # makes this receiver nameless and the config invalid.
           - name: "null"
+
+          # Dead-man's switch. Any POST to the ping URL registers a
+          # heartbeat; healthchecks.io raises the alarm when one fails to
+          # arrive inside its period plus grace, and notifies Telegram into
+          # the same chat as everything else.
+          #
+          # The URL is a CREDENTIAL, not just an endpoint: anyone holding it
+          # can keep the check green while node01 is face down, which
+          # silences the one alarm nothing inside the cluster can raise.
+          # Hence url_file and a SOPS secret rather than a literal here.
+          #
+          # send_resolved false: a resolved notification would ping the same
+          # URL and register as a successful heartbeat, which is misleading
+          # even though it is harmless.
+          - name: heartbeat
+            webhook_configs:
+              - url_file: /etc/alertmanager/secrets/alertmanager-heartbeat/url
+                send_resolved: false
 
           - name: telegram
             telegram_configs:
