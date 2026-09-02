@@ -42,3 +42,20 @@ spec:
     prometheus:
       servicemonitor:
         enabled: true
+        # cert-manager reports on Certificates that live in OTHER namespaces,
+        # so its metrics carry a `namespace` label naming the certificate's
+        # namespace - while the operator attaches its own `namespace` label
+        # naming the scraped POD's namespace. On a collision Prometheus
+        # defaults to letting the scraper win and shunts the exporter's
+        # version aside as `exported_namespace`.
+        #
+        # That default is wrong here and quietly so: the alerts below print
+        # namespace/name, so the lab wildcard came out as
+        # cert-manager/lab-wildcard and sent you to a namespace where no such
+        # Certificate exists. honorLabels keeps the exporter's value, because
+        # for these metrics the exporter is the one that knows.
+        #
+        # Safe to set broadly: cert-manager emits no job or instance label of
+        # its own, so nothing else collides, and controller-level metrics that
+        # carry no namespace still inherit the pod's as before.
+        honorLabels: true
