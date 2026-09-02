@@ -1,0 +1,91 @@
+// Dependency updates for a GitOps repo, which is an unusual case worth being
+// deliberate about: merging a PR here does not change a file, it DEPLOYS. Flux
+// reconciles main into the cluster within a minute or two, so a Renovate PR is
+// a production change wearing the clothes of a version bump.
+//
+// Everything here is pinned - cert-manager, ingress-nginx, kube-prometheus-stack
+// and podinfo all carry exact versions. Pinning without a bump mechanism is not
+// stability, it is just rot on a delay, and the usual answer (Dependabot) cannot
+// read a Flux HelmRelease at all. Renovate can.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+
+  // One batch a week rather than a PR whenever an upstream maintainer feels
+  // like releasing. Times are UTC - no timezone is set on purpose, since a
+  // public repo does not need to advertise where its owner sleeps.
+  schedule: ["before 6am on monday"],
+
+  // Do not pick up a release the hour it lands. Charts get yanked and
+  // re-cut, and three days is long enough for the worst of that to surface
+  // somewhere other than this cluster.
+  minimumReleaseAge: "3 days",
+
+  // One issue listing everything pending, including updates deliberately held
+  // back below. Cheaper to read than a pile of open PRs.
+  dependencyDashboard: true,
+
+  // No automerge anywhere, deliberately. There is no staging cluster: the only
+  // environment IS production, and the alerting added in #14-#18 tells you
+  // afterwards rather than preventing anything. A human reads the changelog.
+
+  // ------------------------------------------------------------------
+  // Manager file patterns. BOTH of these are required - neither manager
+  // would see this repo with its defaults.
+  // ------------------------------------------------------------------
+
+  // The flux manager matches ONLY gotk-components.yaml by default, so without
+  // this it would find none of the three HelmReleases. Patterns are merged
+  // with the defaults rather than replacing them.
+  //
+  // Resolving a chart also needs the HelmRelease and its HelmRepository to both
+  // declare metadata.namespace, so Renovate can match sourceRef to a repo URL.
+  // Ours do (flux-system on both sides); if that ever stops being true the
+  // symptom is charts silently not being offered, not an error.
+  flux: {
+    managerFilePatterns: ["/^clusters/homelab/.+\\.ya?ml$/"],
+  },
+
+  // The kubernetes manager ships with an EMPTY pattern list - there is no
+  // agreed convention for naming k8s manifests, so it matches nothing until
+  // told to. This is what picks up plain `image:` fields, e.g. podinfo.
+  kubernetes: {
+    managerFilePatterns: ["/^clusters/homelab/.+\\.ya?ml$/"],
+  },
+
+  packageRules: [
+    {
+      // gotk-components.yaml is matched by both managers above, and the
+      // kubernetes one is wrong for it: it would offer to bump each Flux
+      // controller image on its own, which is exactly how you end up running
+      // a source-controller newer than the CRDs it expects. The flux manager
+      // understands they move as a set.
+      description: "Flux's own components are the flux manager's business, not the kubernetes manager's",
+      matchManagers: ["kubernetes"],
+      matchFileNames: ["clusters/homelab/flux-system/**"],
+      enabled: false,
+    },
+    {
+      // Even the flux manager only rewrites image tags in that file, and a
+      // Flux release can also change CRDs - which a tag bump leaves stale.
+      // The supported upgrade path is re-running `flux bootstrap`, which
+      // regenerates the whole manifest. This also honours the rule already
+      // established for gotk-sync.yaml: never hand-edit generated output.
+      //
+      // So: still tracked, still reported on the dashboard, but no PR unless
+      // it is ticked there. The value here is being TOLD a new Flux exists.
+      description: "Flux upgrades are done by re-running flux bootstrap, not by merging a tag bump",
+      matchFileNames: ["clusters/homelab/flux-system/**"],
+      dependencyDashboardApproval: true,
+    },
+    {
+      // Majors get read, not merged. kube-prometheus-stack in particular
+      // renames values between majors, and a rename is silently ignored by
+      // Helm rather than rejected - the same class of failure as the
+      // lower-case `servicemonitor` key in the cert-manager release.
+      description: "Major bumps wait for a human to read the changelog first",
+      matchUpdateTypes: ["major"],
+      dependencyDashboardApproval: true,
+    },
+  ],
+}
