@@ -1,0 +1,10 @@
+# Logs get their own namespace rather than joining `monitoring`.
+#
+# Not tidiness: per-namespace memory is one of the few numbers that is easy to
+# read off Prometheus, and monitoring is already ~1.15 GB of the cluster's
+# ~1.6 GB total. Keeping Loki separate means its cost shows up as its own line
+# on that graph instead of disappearing into Prometheus's.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logging
