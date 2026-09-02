@@ -1,0 +1,113 @@
+# Grafana Alloy as the log collector, running one pod per node.
+#
+# NOT Promtail. Almost every Loki tutorial still says Promtail; it was
+# deprecated in 2025 and is now end of life. Following those guides installs a
+# dead agent that works right up until it does not.
+#
+# Alloy reads logs through the KUBERNETES API rather than tailing files off the
+# host. That is why there is no hostPath mount here and no privileged
+# container - the pod needs permission, not access to the node's disk. The
+# trade is a little load on the API server, which for one small node is nothing.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy
+  namespace: logging
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: alloy
+      version: "1.12.1"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    controller:
+      type: daemonset
+
+    # The chart's DEFAULT rules are much broader than this - among other things
+    # they grant get/list/watch on secrets and configmaps across every
+    # namespace, because the chart supports Alloy doing far more than collecting
+    # logs. Ours does one job, so it gets one job's permissions. A log collector
+    # has no business being able to read every Secret in the cluster.
+    #
+    # pods/log is the one that actually matters: it is what lets Alloy read logs
+    # through the API instead of off the disk.
+    #
+    # clusterRules is deliberately NOT set, though it is tempting: the chart
+    # renders `rules` and `clusterRules` into one list, and toYaml on an empty
+    # list emits a bare `[]`, which lands under real list items and produces
+    # invalid YAML the chart cannot render. So it keeps its default, which is
+    # read-only access to nodes - unremarkable for a telemetry agent, and not
+    # where the risk was.
+    rbac:
+      create: true
+      rules:
+        - apiGroups: [""]
+          resources: ["pods", "pods/log", "namespaces"]
+          verbs: ["get", "list", "watch"]
+
+    alloy:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+
+      # Alloy's own config language. Components are wired by referencing each
+      # other's outputs, so this reads bottom-up: discover pods, relabel them,
+      # read their logs, push to Loki.
+      #
+      # The relabel block is where the cost of this system is decided. Each rule
+      # promotes one piece of Kubernetes metadata to a Loki label, and every
+      # distinct combination of label values becomes its own stream. These four
+      # are bounded by the size of the cluster. Anything derived from log
+      # CONTENT - a request id, a user id, a trace id - is unbounded and is how
+      # Loki installations die.
+      configMap:
+        content: |-
+          discovery.kubernetes "pods" {
+            role = "pod"
+          }
+
+          discovery.relabel "pod_logs" {
+            targets = discovery.kubernetes.pods.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              target_label  = "namespace"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "pod"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_name"]
+              target_label  = "container"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_node_name"]
+              target_label  = "node"
+            }
+          }
+
+          loki.source.kubernetes "pod_logs" {
+            targets    = discovery.relabel.pod_logs.output
+            forward_to = [loki.write.default.receiver]
+          }
+
+          loki.write "default" {
+            endpoint {
+              url = "http://loki.logging.svc.cluster.local:3100/loki/api/v1/push"
+            }
+          }

@@ -1,0 +1,120 @@
+# Loki in Monolithic mode: one process, local disk, no object storage.
+#
+# The chart offers Monolithic, SimpleScalable and Distributed. The latter two
+# exist for object storage and many nodes; running them here would be modelling
+# a cloud topology on one laptop and paying for it in RAM. "SingleBinary" is the
+# deprecated alias for Monolithic - tutorials still use it.
+#
+# What makes Loki cheap enough to run beside everything else: it indexes only
+# LABELS, and stores the log text compressed and unindexed. That is the whole
+# design. It also tells you how to query it - narrow by labels first, then
+# search within the result. "Find this string across all logs" is the one
+# question Loki is bad at, by construction.
+#
+# COROLLARY, and the way people wreck Loki: every distinct label VALUE creates a
+# separate stream. namespace/pod/container are bounded and fine. Attaching a
+# request id or a user id would create a stream per request and fall over.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: logging
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: loki
+      version: "18.11.7"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana-community
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    deploymentMode: Monolithic
+
+    # Setting deploymentMode is NOT sufficient on its own, which is genuinely
+    # surprising. The chart ships non-zero replicas for the SimpleScalable
+    # targets whatever the mode says, so leaving these alone means asking for
+    # two topologies at once - and a validate.yaml template refuses to render
+    # rather than letting you find out in the cluster. deploymentMode declares
+    # the intent; these three are what actually select the shape.
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+
+    loki:
+      # No tenant header on requests. Multi-tenancy for one person is ceremony.
+      auth_enabled: false
+      commonConfig:
+        # One replica, so nothing to replicate to. The default of 3 makes
+        # writes fail on a single-node cluster.
+        replication_factor: 1
+      schemaConfig:
+        configs:
+          - from: "2024-04-01"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: loki_index_
+              period: 24h
+      storage:
+        type: filesystem
+
+      # RETENTION IS THE SETTING THAT MATTERS HERE, and it is off by default.
+      #
+      # node01 has ONE ext4 root filesystem shared by k3s, containerd, the Incus
+      # pool and every PVC. Logs that grow without limit do not fill "Loki's
+      # disk" - they fill /, and take k3s, the workbench and the OS down
+      # together. 7 days is plenty for a lab where logs answer "what happened
+      # during that alert an hour ago".
+      limits_config:
+        retention_period: 168h
+      compactor:
+        retention_enabled: true
+        delete_request_store: filesystem
+
+    singleBinary:
+      # Chart default is 0 replicas, i.e. nothing runs. Not a typo on our side.
+      replicas: 1
+      persistence:
+        enabled: true
+        size: 10Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+
+    # The chart's caches are separate memcached StatefulSets sized for a real
+    # cluster, and they are the single biggest reason people find this chart
+    # unschedulable on small nodes. One person querying their own logs
+    # occasionally does not need a cache tier.
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+
+    # An nginx proxy in front of exactly one Loki pod. Useful when reads and
+    # writes are separate deployments; here it is a hop and a pod for nothing.
+    gateway:
+      enabled: false
+
+    # Continuously writes and reads back synthetic log lines to prove the
+    # pipeline works. A reasonable idea, but it is a permanently running pod
+    # and a permanently open Telegram alert waiting to happen.
+    lokiCanary:
+      enabled: false
+    test:
+      enabled: false

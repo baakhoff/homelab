@@ -1,0 +1,26 @@
+# TWO repositories, and the split is not obvious.
+#
+# The OSS Loki chart MOVED in March 2026: grafana/helm-charts now carries it for
+# Grafana Enterprise Logs users only, and the open-source chart lives under
+# grafana-community. Following any tutorial written before then lands you on the
+# enterprise chart, which is a different lineage with a different version series
+# (grafana's is 7.x, community's is 18.x) and quietly the wrong thing.
+#
+# Alloy has not moved and still comes from grafana/helm-charts.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana-community
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://grafana-community.github.io/helm-charts/
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://grafana.github.io/helm-charts
