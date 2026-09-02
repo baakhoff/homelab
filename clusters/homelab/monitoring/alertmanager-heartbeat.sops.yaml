@@ -1,0 +1,22 @@
+apiVersion: v1
+data:
+    url: ENC[AES256_GCM,data:YXNA4H/BGrMqRBYrYb2XI2DOiW5X+RxpQXg9AnV5h4xLep4y38T21j5JNBNAXJaKC0kgKbzgx9LQI+7wQAg7y0nXoRwxSaulCMqHVA==,iv:RPTGm04/tCkRpNRheVOAMfa2a3nT9tgS9WIdlSEhVo0=,tag:hU//b4YtKuhpvFbXnwRV8w==,type:str]
+kind: Secret
+metadata:
+    name: alertmanager-heartbeat
+    namespace: monitoring
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSByVmU5RzhGZVZLNXpiZmNS
+            N3RuYkZ5NUk4OVNmcXZXbUVFRXRkRjBtYTI4Cml3L3l6QVNNUDdHNTl2WHFDT0tJ
+            Y2RReUcrMjJ1eVVjZ1RKL2dlbC9kODQKLS0tIDJHaFdTd2x0VlRrVWg4RzBaQ3pC
+            aXFGTkZhSVlQTUd6ajVabUxqTWFtKzgKUDe0mTntmHIW9BCOSPglFMxTSz1D+mV3
+            L8KRgvHAX880cZ0xZXlZdJk47vbgnN6NffC/tS2ZSz2pG/9do6zGUg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-09-02T11:09:21Z"
+    mac: ENC[AES256_GCM,data:FHGUspxmMJHczrj6Z8VjiEyfiKiwg2vk9kwNiKMWaFxultyJNorHk1/b6LyS+084fdbWNDEcHsowDOubgaDfD01CQtIv698XdxZO0Sl39tDm15zwTkG0AHuBwxM3zvb1DU8l26Zn+3tl4km6bToDhT+7NLAaE+zMHyRP2B9BD8M=,iv:UZyvIpAmtOWKP2qv3SRnr89SYoHIh5kBF/JldMLji7U=,tag:Pv5nxgz1V88SoJQddYK/9w==,type:str]
+    version: 3.13.3
