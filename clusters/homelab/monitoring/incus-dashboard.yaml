@@ -1,0 +1,390 @@
+# A Grafana dashboard delivered as a ConfigMap, which is the only way it should
+# ever be done here.
+#
+# Grafana runs a k8s-sidecar container that watches for ConfigMaps carrying the
+# label below and drops their contents into its dashboard directory. That is
+# what makes the Grafana pod 3/3 rather than 1/1. The consequence is the point:
+# a dashboard built by clicking around in the UI exists ONLY in Grafana's PVC.
+# It is invisible in git, survives no reinstall, and cannot be reviewed. This
+# one is a file.
+#
+# The ConfigMap must live in the same namespace as Grafana - the sidecar's
+# searchNamespace defaults to its own - hence `monitoring` rather than beside
+# the ScrapeConfig it draws on.
+#
+# Metric names are taken from Incus's own reference, not from memory. One that
+# reads wrong and is worth knowing: `incus_uptime_seconds` is the DAEMON's
+# uptime. A container's uptime comes from `incus_boot_time_seconds`, which is a
+# unix timestamp, so it has to be subtracted from time().
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: incus-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  incus.json: |-
+    {
+      "uid": "incus-workbench",
+      "title": "Incus containers",
+      "description": "Per-container CPU, memory, disk and network for the Incus host. node-exporter reports node01's real hardware totals; this is the attribution it cannot give.",
+      "tags": ["incus", "homelab"],
+      "editable": true,
+      "schemaVersion": 39,
+      "time": { "from": "now-6h", "to": "now" },
+      "refresh": "30s",
+      "templating": {
+        "list": [
+          {
+            "name": "container",
+            "label": "Container",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "query": { "qryType": 1, "query": "label_values(incus_cpu_effective_total, name)", "refId": "A" },
+            "refresh": 2,
+            "includeAll": true,
+            "allValue": ".*",
+            "multi": true,
+            "sort": 1,
+            "current": { "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "CPU used",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 70 },
+                  { "color": "red", "value": 90 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "100 * sum by (name) (rate(incus_cpu_seconds_total{name=~\"$container\", mode!=\"idle\"}[5m])) / sum by (name) (incus_cpu_effective_total{name=~\"$container\"})",
+              "legendFormat": "{{name}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Memory used",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 75 },
+                  { "color": "red", "value": 90 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "100 * (1 - sum by (name) (incus_memory_MemAvailable_bytes{name=~\"$container\"}) / sum by (name) (incus_memory_MemTotal_bytes{name=~\"$container\"}))",
+              "legendFormat": "{{name}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Filesystem used",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 75 },
+                  { "color": "red", "value": 90 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "colorMode": "value",
+            "graphMode": "area",
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "100 * (1 - sum by (name) (incus_filesystem_avail_bytes{name=~\"$container\"}) / sum by (name) (incus_filesystem_size_bytes{name=~\"$container\"}))",
+              "legendFormat": "{{name}}"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Uptime",
+          "description": "From incus_boot_time_seconds, which is a unix timestamp rather than a duration. incus_uptime_seconds is the Incus daemon, not the container.",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "time() - incus_boot_time_seconds{name=~\"$container\"}",
+              "legendFormat": "{{name}}"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "CPU cores in use",
+          "description": "Rate of non-idle CPU seconds, so the value is cores rather than a percentage. The dashed line is the container's effective core count.",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": ".*cores available" },
+                "properties": [
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [8, 6] } }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (name) (rate(incus_cpu_seconds_total{name=~\"$container\", mode!=\"idle\"}[5m]))",
+              "legendFormat": "{{name}}"
+            },
+            {
+              "refId": "B",
+              "expr": "incus_cpu_effective_total{name=~\"$container\"}",
+              "legendFormat": "{{name}} cores available"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Memory",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": ".*ceiling" },
+                "properties": [
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [8, 6] } }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "incus_memory_MemTotal_bytes{name=~\"$container\"} - incus_memory_MemAvailable_bytes{name=~\"$container\"}",
+              "legendFormat": "{{name}} used"
+            },
+            {
+              "refId": "B",
+              "expr": "incus_memory_MemTotal_bytes{name=~\"$container\"}",
+              "legendFormat": "{{name}} ceiling"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Filesystem",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "incus_filesystem_size_bytes{name=~\"$container\"} - incus_filesystem_avail_bytes{name=~\"$container\"}",
+              "legendFormat": "{{name}} {{device}} used"
+            },
+            {
+              "refId": "B",
+              "expr": "incus_filesystem_size_bytes{name=~\"$container\"}",
+              "legendFormat": "{{name}} {{device}} size"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Processes",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "incus_procs_total{name=~\"$container\"}",
+              "legendFormat": "{{name}}"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Network",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "min": 0,
+              "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(incus_network_receive_bytes_total{name=~\"$container\"}[5m])",
+              "legendFormat": "{{name}} {{device}} rx"
+            },
+            {
+              "refId": "B",
+              "expr": "rate(incus_network_transmit_bytes_total{name=~\"$container\"}[5m])",
+              "legendFormat": "{{name}} {{device}} tx"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Disk I/O",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "min": 0,
+              "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(incus_disk_read_bytes_total{name=~\"$container\"}[5m])",
+              "legendFormat": "{{name}} {{device}} read"
+            },
+            {
+              "refId": "B",
+              "expr": "rate(incus_disk_written_bytes_total{name=~\"$container\"}[5m])",
+              "legendFormat": "{{name}} {{device}} written"
+            }
+          ]
+        }
+      ]
+    }
