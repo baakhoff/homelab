@@ -42,13 +42,19 @@ spec:
     #
     # pods/log is the one that actually matters: it is what lets Alloy read logs
     # through the API instead of off the disk.
+    #
+    # clusterRules is deliberately NOT set, though it is tempting: the chart
+    # renders `rules` and `clusterRules` into one list, and toYaml on an empty
+    # list emits a bare `[]`, which lands under real list items and produces
+    # invalid YAML the chart cannot render. So it keeps its default, which is
+    # read-only access to nodes - unremarkable for a telemetry agent, and not
+    # where the risk was.
     rbac:
       create: true
       rules:
         - apiGroups: [""]
           resources: ["pods", "pods/log", "namespaces"]
           verbs: ["get", "list", "watch"]
-      clusterRules: []
 
     alloy:
       resources:
