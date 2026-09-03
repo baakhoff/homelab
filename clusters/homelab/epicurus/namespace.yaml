@@ -1,0 +1,13 @@
+# This namespace holds no pods.
+#
+# epicurus itself runs as a Docker compose stack inside an Incus container on
+# node01, outside Kubernetes entirely (ADR-0003). What lives here is only the
+# routing in front of it: a Service with no selector, the EndpointSlice that
+# hand-feeds it an address, and an Ingress.
+#
+# A namespace for four objects and no workloads looks odd, but the alternative
+# is scattering them into `default` where nothing explains what they are.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: epicurus
