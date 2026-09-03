@@ -48,6 +48,13 @@ it is the difference between fitting on this node and not.
 The application's own bundled observability stack stays off. It is opt-in upstream, and
 the lab already has Prometheus, Loki, Grafana and Alertmanager.
 
+Updates come from upstream's own pull-reconcile script on a systemd timer, tracking the
+`testing` branch: the box syncs its checkout to the branch head, pulls the images CI
+built from that same commit, and restarts whatever changed. Nothing dials in — the box
+pulls, so this adds no inbound exposure. This is deliberately a dogfooding track rather
+than a pinned release, which is a choice about what this deployment is FOR: it exists to
+run the maintainer's own unreleased work, not to be stable.
+
 ## Consequences
 
 What this buys:
@@ -66,12 +73,19 @@ What this buys:
 
 What it costs, accepted knowingly:
 
-- **epicurus is not reconciled by Flux.** Its version lives in an untracked `.env` on
-  node01, so this repository cannot tell you what is running, and updating is a manual
-  pull-and-restart on the node. This is the single largest thing given up. Partly
-  mitigated by pinning: the node checks out a release tag rather than tracking a branch,
-  and runs the images built from that same commit, so the deployment is at least
-  reproducible and `git describe` on the node answers the version question.
+- **epicurus is not reconciled by Flux, and this repository cannot tell you what is
+  running.** The version lives in an untracked `.env` on node01. It is not unmanaged —
+  upstream's reconcile timer keeps it current — but the control loop belongs to the
+  application, not to the platform, and the two are invisible to each other.
+- **Tracking a branch means the deployment is not reproducible, on purpose.** `testing`
+  is unprotected and unverified by design; whatever is pushed to it runs here within the
+  timer's period. The hard memory limit contains the resource half of that, and rollback
+  is an `.env` edit to a pinned version. Nothing contains the correctness half.
+- **A broken deploy is currently invisible.** `EpicurusContainerDown` watches the Incus
+  container, which stays up while the stack inside it is failing, and no probe touches
+  the URL. Auto-deploy widens this: a bad push is live and silent until someone opens
+  the page. Closing it means a blackbox probe of the Ingress, which is the natural next
+  piece of work.
 - **Its state moves further from a backup.** Postgres, the vector store, object storage
   and the secrets vault are Docker named volumes inside an Incus container — two layers
   below anything the lab backs up today, which is nothing. Backups were already the
