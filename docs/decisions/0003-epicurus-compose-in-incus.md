@@ -67,8 +67,11 @@ What this buys:
 What it costs, accepted knowingly:
 
 - **epicurus is not reconciled by Flux.** Its version lives in an untracked `.env` on
-  node01. Updating is a manual pull-and-restart on the node, and git cannot tell you what
-  is running. This is the single largest thing given up.
+  node01, so this repository cannot tell you what is running, and updating is a manual
+  pull-and-restart on the node. This is the single largest thing given up. Partly
+  mitigated by pinning: the node checks out a release tag rather than tracking a branch,
+  and runs the images built from that same commit, so the deployment is at least
+  reproducible and `git describe` on the node answers the version question.
 - **Its state moves further from a backup.** Postgres, the vector store, object storage
   and the secrets vault are Docker named volumes inside an Incus container — two layers
   below anything the lab backs up today, which is nothing. Backups were already the
