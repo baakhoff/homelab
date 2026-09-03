@@ -1,0 +1,46 @@
+# The address the selector-less Service resolves to, written by hand because
+# nothing in Kubernetes knows this backend exists.
+#
+# THE LABEL IS THE WHOLE MECHANISM. `kubernetes.io/service-name: epicurus` is
+# what binds this slice to the Service of that name - there is no reference
+# field, no ownership, nothing else connecting the two objects. Misspell it and
+# both objects are valid, both apply cleanly, and the Service simply has no
+# endpoints. Likewise `name: http` below must match the Service's port name.
+# Every failure here is a 503, never an error.
+#
+# WHY THIS ADDRESS AND NOT THE CONTAINER'S:
+# 10.233.97.1 is node01's own address on the incusbr0 bridge, and an Incus
+# proxy device listens there and forwards into the container's loopback.
+# Pointing at the container's IP would have worked too, but this is better on
+# three counts:
+#
+#   1. It is stable by construction. The bridge address is configured, not
+#      leased, so there is no DHCP renewal that can silently break routing -
+#      and no static-IP reservation to remember to make.
+#   2. It is an INPUT-chain destination on node01 rather than a FORWARD between
+#      two bridges, so it does not depend on flannel's and Incus's firewall
+#      rules agreeing about cross-bridge traffic.
+#   3. It exposes exactly one port. epicurus binds every service to loopback by
+#      default; the alternative - BIND_ADDRESS=0.0.0.0 - would have opened
+#      Postgres, MinIO, OpenBao, the vector store and thirteen module ports to
+#      every pod in the cluster in order to reach the one that matters.
+#
+# It is NOT reachable from the house LAN: incusbr0 is a NAT bridge with no
+# inbound route. The only path in is through ingress-nginx.
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: epicurus
+  namespace: epicurus
+  labels:
+    kubernetes.io/service-name: epicurus
+addressType: IPv4
+ports:
+  - name: http
+    port: 8088
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 10.233.97.1
+    conditions:
+      ready: true
