@@ -1,0 +1,27 @@
+# A Service with NO selector.
+#
+# Normally a Service selects pods by label and the endpoints controller keeps
+# the address list current. epicurus has no pods - it is a Docker compose stack
+# in an Incus container on node01 (ADR-0003) - so there is nothing to select.
+#
+# Omitting `selector` tells Kubernetes to leave the endpoint list alone, and
+# endpointslice.yaml supplies the address by hand. Everything downstream
+# (Ingress, DNS, kube-proxy) then treats it like any other Service.
+#
+# This is the standard pattern for fronting a non-Kubernetes backend, and it is
+# how a cluster is put in front of legacy VMs during a migration.
+#
+# THE PORT NAME IS LOAD-BEARING. `http` here must match `http` in the
+# EndpointSlice's ports list. A mismatch does not error - the Service simply
+# resolves to no endpoints and the Ingress returns 503.
+apiVersion: v1
+kind: Service
+metadata:
+  name: epicurus
+  namespace: epicurus
+spec:
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088
+      protocol: TCP

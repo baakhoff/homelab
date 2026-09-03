@@ -1,0 +1,41 @@
+# Same shape as podinfo's: host, path, backend, nothing else. No tls block and
+# no ingressClassName - ingress-nginx is the default class and serves the lab
+# wildcard as its default certificate.
+#
+# What is different is what sits behind it: `epicurus` is a Service with no
+# pods, pointing out of the cluster at an Incus container. From the
+# controller's side that distinction does not exist - it resolves endpoints and
+# proxies to them, wherever they are.
+#
+# ACCESS: the platform ships with NO AUTHENTICATION (upstream ADR-0008), and
+# reaching the web UI also reaches /platform/v1/* - agent, files, OAuth - with
+# nothing in front. That is safe here only because the whole lab is
+# tailnet-only: the DNS record points at a Tailscale CGNAT address that does
+# not route from the internet. If anything about that ever changes, this host
+# needs an auth proxy before it needs anything else.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: epicurus
+  namespace: epicurus
+  annotations:
+    # The chat UI streams responses over SSE. nginx's default 60s proxy read
+    # timeout closes a stream that goes quiet for a minute, which a local model
+    # thinking about a long prompt will do routinely.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Never buffer the response: SSE tokens must reach the browser as they are
+    # produced, not when nginx decides it has a full buffer.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  rules:
+    - host: epicurus.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: epicurus
+                port:
+                  number: 8088

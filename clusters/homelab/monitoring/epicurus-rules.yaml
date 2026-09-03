@@ -1,0 +1,72 @@
+# Two alerts covering the failure modes this deployment INTRODUCES - the ones
+# no existing rule can see, because from Kubernetes' point of view epicurus is
+# an IP address and nothing more.
+#
+# Deliberately NOT here: node01 memory. kube-prometheus-stack already ships
+# NodeMemoryHighUtilization (fires above 90% used for 15m - about 1.5 GB
+# available on this node) and NodeMemoryMajorPagesFaults, both live because
+# defaultRules.rules.nodeExporterAlerting is left at its default. With swap
+# off, major page faults ARE the thrashing signal. A hand-written duplicate
+# would only drift from them. Checked, not assumed: the helmrelease disables
+# four rule groups and nodeExporterAlerting is not one of them.
+#
+# Also deliberately NOT here: a probe of the URL itself. That needs
+# blackbox-exporter, which the cluster does not run. `absent()` on the Incus
+# metrics covers the same ground for free - if the container is not running,
+# Incus stops reporting it.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: epicurus
+  namespace: monitoring
+spec:
+  groups:
+    - name: epicurus
+      rules:
+        # The Service has no selector, so nothing reconciles its endpoint
+        # against reality. If the container stops, the EndpointSlice keeps
+        # pointing at an address with nothing behind it and the Ingress
+        # answers 503 forever, silently. This is the alert that notices.
+        #
+        # absent() returns a series carrying the matcher's own labels, which
+        # is why $labels.name resolves below even though nothing is being
+        # measured.
+        - alert: EpicurusContainerDown
+          expr: absent(incus_cpu_seconds_total{name="epicurus"})
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: The epicurus Incus container is not reporting metrics
+            description: >-
+              Incus has stopped reporting the epicurus container on node01, so
+              it is stopped, crashed, or was deleted. epicurus.lab.baakhoff.com
+              is serving 503 - the Service has no selector, so its endpoint is
+              hand-written and will keep pointing at a dead address.
+
+        # The container runs under a hard memory limit precisely so that a
+        # runaway epicurus kills something inside itself instead of leaving
+        # the kernel to pick a victim from k3s. That containment working looks
+        # like containers dying, so it is worth knowing BEFORE it happens.
+        #
+        # MemTotal for a limited Incus container reports the LIMIT, not the
+        # host's RAM - the same behaviour the memory panel in the Incus
+        # dashboard relies on.
+        - alert: EpicurusContainerMemoryNearLimit
+          expr: |-
+            incus_memory_MemAvailable_bytes{name="epicurus"}
+              /
+            incus_memory_MemTotal_bytes{name="epicurus"}
+              < 0.10
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: epicurus is within 10% of its memory limit
+            description: >-
+              Only {{ $value | humanizePercentage }} of the epicurus
+              container's memory limit is free. Past zero the kernel starts
+              killing processes inside the container - Postgres and Qdrant are
+              the usual first casualties because they are the largest. Either
+              raise limits.memory on the container or drop modules from the
+              compose include list.
