@@ -261,6 +261,15 @@ spec:
       # class and serves the lab wildcard as its default certificate.
       ingress:
         enabled: true
+        # Discovered by Homepage. href given explicitly because there is no tls
+        # block here, so it would otherwise be inferred as http:// and redirect.
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/name: Grafana
+          gethomepage.dev/group: Platform
+          gethomepage.dev/icon: grafana.png
+          gethomepage.dev/description: Metrics, logs and alerting
+          gethomepage.dev/href: https://grafana.lab.baakhoff.com
         hosts:
           - grafana.lab.baakhoff.com
       grafana.ini:

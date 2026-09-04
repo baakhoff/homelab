@@ -1,0 +1,96 @@
+# Homepage reads a fixed set of files from /app/config. The Deployment mounts
+# each one individually with subPath, which has a sharp edge worth knowing:
+# a subPath naming a key that does not exist in this ConfigMap does not fall
+# back to a default, it fails the MOUNT - the pod sticks in ContainerCreating
+# with the reason buried in `kubectl describe`. So every key mounted there must
+# exist here, including the ones deliberately left empty.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage
+  namespace: homepage
+data:
+  # `mode: cluster` means authenticate with the pod's own ServiceAccount rather
+  # than a kubeconfig. `ingress: true` is what turns on annotation discovery.
+  kubernetes.yaml: |
+    mode: cluster
+    ingress: true
+
+  # Groups are declared here so their ORDER is fixed. A group that appears only
+  # on an Ingress annotation still renders, just wherever Homepage decides -
+  # which changes as services come and go.
+  settings.yaml: |
+    title: homelab
+    headerStyle: clean
+    theme: dark
+    color: slate
+    layout:
+      Platform:
+        style: row
+        columns: 2
+      Services:
+        style: row
+        columns: 2
+      Cluster:
+        style: row
+        columns: 2
+      Lab:
+        style: row
+        columns: 2
+
+  # Everything with an Ingress discovers itself from annotations - see the
+  # gethomepage.dev/* keys on each Ingress. What is left here is the things
+  # that have no Ingress and therefore no URL to discover.
+  #
+  # Prometheus and Alertmanager are reachable only through a port-forward, so
+  # the href is where they land AFTER you run the command in the description.
+  # Clicking before forwarding gets a connection refused, which is the honest
+  # behaviour: they are genuinely not exposed.
+  services.yaml: |
+    - Cluster:
+        - Prometheus:
+            icon: prometheus.png
+            href: http://localhost:9090
+            description: port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
+        - Alertmanager:
+            icon: mdi-bell-alert
+            href: http://localhost:9093
+            description: port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9093
+
+  bookmarks.yaml: |
+    - Elsewhere:
+        - Repo:
+            - abbr: GH
+              href: https://github.com/baakhoff/homelab
+        - Heartbeat:
+            - abbr: HC
+              href: https://healthchecks.io/
+
+  # Deliberately no service widgets. Those pull live status from each service
+  # and every one of them wants an API key, which would mean a SOPS secret per
+  # widget for a dashboard whose job is links. The cluster widget below is the
+  # exception because it needs no credential - it reads the API with the same
+  # ServiceAccount already used for discovery.
+  widgets.yaml: |
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+          label: homelab
+        nodes:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+    - search:
+        provider: duckduckgo
+        target: _blank
+
+  # Present and empty on purpose - see the subPath note at the top. docker.yaml
+  # in particular must NOT be populated: reaching the workbench's Docker socket
+  # from the cluster would mean exposing it over the network.
+  docker.yaml: ""
+  custom.css: ""
+  custom.js: ""

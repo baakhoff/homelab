@@ -75,6 +75,15 @@ spec:
     # renders an Ingress that routes nothing.
     ingress:
       enabled: true
+      # Discovered by Homepage. href given explicitly because there is no tls
+      # block here, so it would otherwise be inferred as http:// and redirect.
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: Headlamp
+        gethomepage.dev/group: Platform
+        gethomepage.dev/icon: mdi-kubernetes
+        gethomepage.dev/description: Cluster UI - pods, logs, events, Flux state
+        gethomepage.dev/href: https://headlamp.lab.baakhoff.com
       hosts:
         - host: headlamp.lab.baakhoff.com
           paths:

@@ -7,6 +7,17 @@ kind: Ingress
 metadata:
   name: podinfo
   namespace: demo
+  annotations:
+    # Discovered by Homepage. The href is given explicitly because these
+    # Ingresses carry no tls block - the wildcard comes from the controller's
+    # default certificate - so Homepage would otherwise infer http:// and every
+    # link would take a 308 on the way in.
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: podinfo
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: mdi-test-tube
+    gethomepage.dev/description: GitOps canary and ingress test target
+    gethomepage.dev/href: https://podinfo.lab.baakhoff.com
 spec:
   rules:
     - host: podinfo.lab.baakhoff.com
