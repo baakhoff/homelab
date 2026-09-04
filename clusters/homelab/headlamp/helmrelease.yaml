@@ -1,0 +1,82 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: headlamp
+      version: "0.45.0"
+      sourceRef:
+        kind: HelmRepository
+        name: headlamp
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # ---------------------------------------------------------------------
+    # THE LINE THAT MATTERS. The chart's default for clusterRoleName is
+    # `cluster-admin` - the pod's ServiceAccount is bound to full control of
+    # the cluster unless you say otherwise, and nothing in the chart's own
+    # README flags it. Its inline comment even suggests overriding it, which
+    # is a strong hint about what the default is really for (kicking the
+    # tyres on a throwaway cluster).
+    #
+    # Anything that reaches this pod inherits whatever is bound here, so on a
+    # cluster holding the sops-age key it is the difference between a
+    # container escape being bad and being terminal.
+    #
+    # `view` excludes secrets, which is exactly why it is the right ceiling.
+    # If some page of the UI is unexpectedly and permanently empty, this is
+    # the first thing to check - a denied read renders as no data, not as an
+    # error.
+    # ---------------------------------------------------------------------
+    clusterRoleBinding:
+      create: true
+      clusterRoleName: view
+
+    config:
+      # Already the chart default; written down because it is the setting
+      # that decides whether this URL has a login at all. Set to true,
+      # Headlamp stops asking for a token and serves EVERY visitor as the pod
+      # ServiceAccount - i.e. an unauthenticated console for anyone who can
+      # reach the host. Upstream names the value "unsafe" for that reason.
+      #
+      # Being honest about what this line buys: Helm ignores unknown keys
+      # silently, so if upstream ever renames it this becomes a no-op that
+      # still reads as protection. The real check is behavioural - the login
+      # screen asking for a token is the proof, not this line.
+      unsafeUseServiceAccountToken: false
+
+    # Small Go backend serving a static frontend; it holds no data and does no
+    # work between requests. Memory limit to enforce, no cpu limit - throttling
+    # causes more mystery latency than it prevents.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+
+    # No tls block and no ingressClassName: ingress-nginx is the default class
+    # and serves the lab wildcard as its default certificate. Flat hostname, so
+    # *.lab covers it with no new certificate and no new DNS record.
+    #
+    # NOTE the shape - this chart wants a LIST OF OBJECTS with host + paths,
+    # while the Grafana chart next door takes a plain list of hostname strings
+    # for the same-looking key. Getting it wrong here does not error, it just
+    # renders an Ingress that routes nothing.
+    ingress:
+      enabled: true
+      hosts:
+        - host: headlamp.lab.baakhoff.com
+          paths:
+            - path: /
+              type: Prefix

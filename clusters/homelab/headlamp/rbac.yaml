@@ -1,0 +1,108 @@
+# The identity a HUMAN logs in as, which is deliberately NOT the identity the
+# Headlamp pod runs as (that one is set by clusterRoleBinding.clusterRoleName in
+# helmrelease.yaml). Keeping them separate means the pod's permissions and the
+# operator's permissions can diverge without touching the chart - in particular
+# it leaves room to add a second, admin-scoped ServiceAccount later without
+# widening what a compromised pod could do.
+#
+# WHY READ-ONLY, and it is not paranoia. This cluster's Secrets include the
+# sops-age private key in flux-system, which decrypts every encrypted file in a
+# PUBLIC repo. Also the scoped Cloudflare API token, the Telegram bot token
+# (shared with a production bot), the healthchecks.io ping URL, the Grafana
+# admin password and the Incus metrics client cert. A token that can read
+# Secrets is therefore a token that can read all of those, and it will be
+# pasted into a browser on whichever machine is to hand. Read-only makes a
+# leaked token a disclosure problem instead of a total-compromise problem.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp-user
+  namespace: headlamp
+---
+# The built-in `view` role does the bulk of the work and is maintained upstream,
+# so it keeps up as Kubernetes adds resources. Two things about it matter here:
+#
+#   1. It EXCLUDES secrets. That exclusion is the whole point of choosing it -
+#      verified in kubernetes/kubernetes bootstrappolicy/policy.go, not assumed.
+#   2. It includes pods/log and events, so logs and the describe-style event
+#      list - the two things you actually reach for when something breaks -
+#      both work.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-user-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: headlamp-user
+    namespace: headlamp
+---
+# `view` is scoped to namespaced resources only: it grants NO access to nodes,
+# persistentvolumes, storageclasses or CRDs. Bound on its own it produces a UI
+# where the Nodes page is empty and every custom resource is missing - which
+# looks like a broken install rather than a permissions boundary. This role
+# fills exactly that cluster-scoped gap, and nothing else.
+#
+# ROAD NOT TAKEN, worth knowing it exists: `view` is an AGGREGATED role, so
+# labelling this one rbac.authorization.k8s.io/aggregate-to-view=true would
+# fold these rules into `view` itself automatically. That is tidier and it is
+# the wrong call here - it silently widens `view` for every present and future
+# subject in the cluster, to fix one consumer's UI. A second explicit binding
+# keeps the blast radius at this ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: headlamp-cluster-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "persistentvolumes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses", "csidrivers", "csinodes", "volumeattachments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingressclasses"]
+    verbs: ["get", "list", "watch"]
+  # Powers the CPU/memory columns. Silently returns nothing if metrics-server
+  # is ever disabled, which is a missing graph rather than a broken page.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]
+  # The custom resources this lab is actually built out of. Without these the
+  # UI can list the CRDs above but not a single object of those kinds, so Flux
+  # sync state, alert rules and certificate expiry stay invisible - i.e. the
+  # things most worth looking at from a phone.
+  #
+  # Safe to read broadly: none of these objects carry credentials. Flux,
+  # Alertmanager and cert-manager all reference Secrets BY NAME and the Secret
+  # itself stays unreadable, which is the same file-reference pattern used for
+  # the Telegram token and the heartbeat URL.
+  - apiGroups:
+      - source.toolkit.fluxcd.io
+      - kustomize.toolkit.fluxcd.io
+      - helm.toolkit.fluxcd.io
+      - notification.toolkit.fluxcd.io
+      - monitoring.coreos.com
+      - cert-manager.io
+      - acme.cert-manager.io
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-user-cluster-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: headlamp-cluster-reader
+subjects:
+  - kind: ServiceAccount
+    name: headlamp-user
+    namespace: headlamp
