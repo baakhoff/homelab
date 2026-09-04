@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: homepage
+    spec:
+      serviceAccountName: homepage
+      automountServiceAccountToken: true
+      containers:
+        - name: homepage
+          # Pinned, never :latest - upstream's own manifest ships :latest with
+          # imagePullPolicy: Always, which in GitOps means the running version
+          # is whatever was current when the pod last restarted and is not
+          # recorded anywhere. Renovate's kubernetes manager already watches
+          # plain image fields under clusters/homelab, so this gets a PR like
+          # podinfo does.
+          image: ghcr.io/gethomepage/homepage:v2.2.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            # MANDATORY, and it fails in a way that looks like a broken app.
+            # Homepage rejects requests whose Host header is not listed here.
+            # The kubelet's probe connects to the POD IP, not the hostname, so
+            # omitting the first entry makes the liveness probe 4xx forever and
+            # the pod restart-loops while the app itself is perfectly healthy.
+            # MY_POD_IP must stay declared above this one for $() to expand.
+            - name: HOMEPAGE_ALLOWED_HOSTS
+              value: "$(MY_POD_IP):3000,home.lab.baakhoff.com"
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          # Both, doing opposite jobs: readiness keeps the Service from routing
+          # to a pod that has not finished booting, liveness restarts one that
+          # has stopped answering.
+          readinessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            # Next.js server, so give it room above the request. Memory limit
+            # to enforce, no cpu limit - throttling causes more mystery latency
+            # than it prevents.
+            limits:
+              memory: 384Mi
+          # Mounted file-by-file with subPath, following upstream, because a
+          # whole-directory mount would make /app/config read-only and Homepage
+          # writes there on startup.
+          #
+          # THE TRADE-OFF, worth knowing before it confuses someone: subPath
+          # mounts do NOT pick up later ConfigMap changes. Edit configmap.yaml,
+          # merge, and Flux updates the ConfigMap while this pod keeps serving
+          # the old file until it is restarted:
+          #   kubectl -n homepage rollout restart deployment/homepage
+          # This matters less than it looks. Adding a service does not touch
+          # this ConfigMap at all - it is an annotation on that service's own
+          # Ingress, and discovery is read live from the API on each request.
+          volumeMounts:
+            - { name: config, mountPath: /app/config/kubernetes.yaml, subPath: kubernetes.yaml }
+            - { name: config, mountPath: /app/config/settings.yaml, subPath: settings.yaml }
+            - { name: config, mountPath: /app/config/services.yaml, subPath: services.yaml }
+            - { name: config, mountPath: /app/config/bookmarks.yaml, subPath: bookmarks.yaml }
+            - { name: config, mountPath: /app/config/widgets.yaml, subPath: widgets.yaml }
+            - { name: config, mountPath: /app/config/docker.yaml, subPath: docker.yaml }
+            - { name: config, mountPath: /app/config/custom.css, subPath: custom.css }
+            - { name: config, mountPath: /app/config/custom.js, subPath: custom.js }
+            - { name: logs, mountPath: /app/config/logs }
+      volumes:
+        - name: config
+          configMap:
+            name: homepage
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: homepage
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP

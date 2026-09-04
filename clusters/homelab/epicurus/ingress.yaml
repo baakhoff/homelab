@@ -19,6 +19,14 @@ metadata:
   name: epicurus
   namespace: epicurus
   annotations:
+    # Discovered by Homepage. href given explicitly because there is no tls
+    # block here, so it would otherwise be inferred as http:// and redirect.
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: epicurus
+    gethomepage.dev/group: Services
+    gethomepage.dev/icon: mdi-brain
+    gethomepage.dev/description: Agent platform - compose stack in Incus
+    gethomepage.dev/href: https://epicurus.lab.baakhoff.com
     # The chat UI streams responses over SSE. nginx's default 60s proxy read
     # timeout closes a stream that goes quiet for a minute, which a local model
     # thinking about a long prompt will do routinely.

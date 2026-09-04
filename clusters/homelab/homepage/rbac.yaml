@@ -1,0 +1,51 @@
+# Homepage builds its own link list by READING Ingresses across the cluster, so
+# it needs cluster-scoped read access. That is the entire cost of the
+# annotation-driven approach: a hand-written services.yaml would need none of
+# this, at the price of drifting the first time a service is added and the list
+# is not.
+#
+# Nothing here can read Secrets, and nothing here can write anything.
+#
+# TWO RULE SETS FROM UPSTREAM ARE DELIBERATELY OMITTED: traefik.io/ingressroutes
+# and gateway.networking.k8s.io/httproutes+gateways. k3s was installed with
+# --disable traefik and there is no Gateway API here, so neither CRD exists.
+# Granting access to resources that do not exist is harmless but misleading -
+# it reads as though this cluster has a Traefik to discover.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: homepage
+  namespace: homepage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: homepage
+rules:
+  # namespaces/pods/nodes back the cluster widget; ingresses are the discovery
+  # source itself.
+  - apiGroups: [""]
+    resources: ["namespaces", "pods", "nodes"]
+    verbs: ["get", "list"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list"]
+  # CPU and memory numbers on the header widget. k3s bundles metrics-server, so
+  # this resolves; if it is ever disabled the widget shows blanks rather than
+  # failing, which is worth knowing before treating it as a bug.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: homepage
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: homepage
+subjects:
+  - kind: ServiceAccount
+    name: homepage
+    namespace: homepage
