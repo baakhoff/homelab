@@ -18,6 +18,12 @@ spec:
     spec:
       serviceAccountName: homepage
       automountServiceAccountToken: true
+      # fsGroup makes the kubelet chown mounted volumes to this group and set
+      # the setgid bit, which is what lets the container's uid 1000 write into
+      # the emptyDir mounted at /app/config below. Without it that directory is
+      # root-owned and Homepage cannot create the skeleton files it insists on.
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: homepage
           # Pinned, never :latest - upstream's own manifest ships :latest with
@@ -78,19 +84,37 @@ spec:
             # than it prevents.
             limits:
               memory: 384Mi
-          # Mounted file-by-file with subPath, following upstream, because a
-          # whole-directory mount would make /app/config read-only and Homepage
-          # writes there on startup.
+          # TWO LAYERS, and the order is the whole point.
           #
-          # THE TRADE-OFF, worth knowing before it confuses someone: subPath
-          # mounts do NOT pick up later ConfigMap changes. Edit configmap.yaml,
-          # merge, and Flux updates the ConfigMap while this pod keeps serving
-          # the old file until it is restarted:
+          # Homepage v2 does not just read /app/config, it INITIALISES it: on
+          # every start it copies a skeleton from /app/src/skeleton for each
+          # config file it expects and does not find, then exits if a copy
+          # fails. The set it expects is larger than the set upstream's own
+          # Kubernetes manifest declares - proxmox.yaml is the one that bites
+          # first - and /app/config in the image is root-owned while the
+          # container runs as uid 1000. So the documented manifest crash-loops
+          # on v2 with `EACCES ... copyfile` and, because config init never
+          # completes, Next.js serves the built-in sample dashboard for the few
+          # seconds it stays up. Looks like a config that is being ignored;
+          # is actually a container that is dying.
+          #
+          # So: an emptyDir provides a WRITABLE /app/config that Homepage can
+          # populate with whatever it wants, and the ConfigMap files are mounted
+          # on top of it so ours win. Chasing the skeleton list instead would
+          # work until the next release adds a file and a Renovate bump
+          # crash-loops the dashboard.
+          #
+          # Deeper paths mount after shallower ones, so the per-file mounts land
+          # inside the emptyDir rather than being hidden by it.
+          #
+          # THE TRADE-OFF that stays: subPath mounts do NOT pick up later
+          # ConfigMap changes. Editing configmap.yaml needs
           #   kubectl -n homepage rollout restart deployment/homepage
           # This matters less than it looks. Adding a service does not touch
           # this ConfigMap at all - it is an annotation on that service's own
           # Ingress, and discovery is read live from the API on each request.
           volumeMounts:
+            - { name: config-runtime, mountPath: /app/config }
             - { name: config, mountPath: /app/config/kubernetes.yaml, subPath: kubernetes.yaml }
             - { name: config, mountPath: /app/config/settings.yaml, subPath: settings.yaml }
             - { name: config, mountPath: /app/config/services.yaml, subPath: services.yaml }
@@ -99,12 +123,14 @@ spec:
             - { name: config, mountPath: /app/config/docker.yaml, subPath: docker.yaml }
             - { name: config, mountPath: /app/config/custom.css, subPath: custom.css }
             - { name: config, mountPath: /app/config/custom.js, subPath: custom.js }
-            - { name: logs, mountPath: /app/config/logs }
       volumes:
         - name: config
           configMap:
             name: homepage
-        - name: logs
+        # Ephemeral on purpose. Everything worth keeping is in the ConfigMap
+        # above; this exists so the skeleton copies and the log directory have
+        # somewhere writable to go, and it is rebuilt on every restart.
+        - name: config-runtime
           emptyDir: {}
 ---
 apiVersion: v1
