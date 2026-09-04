@@ -1,0 +1,23 @@
+# Host, path, backend, nothing else - the established template. No tls block
+# and no ingressClassName: ingress-nginx is the default class and serves the
+# lab wildcard as its default certificate.
+#
+# Deliberately carries NO gethomepage.dev annotations. Discovery would happily
+# pick this Ingress up and put a link to the dashboard on the dashboard.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homepage
+  namespace: homepage
+spec:
+  rules:
+    - host: home.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: homepage
+                port:
+                  number: 3000
