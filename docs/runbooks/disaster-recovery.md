@@ -257,6 +257,65 @@ usually faster than guessing at snapshot ids.
 
 ---
 
+## Scenario E — the password vault
+
+**Try the export first.** A password-protected export imported into any
+Bitwarden client takes a minute and needs no lab, no cluster and no restic. Use
+this scenario only when the export is stale or missing.
+
+The vault is the one workload with **two copies in every snapshot**, and they
+are not equivalent:
+
+| In the snapshot | Use it? |
+|---|---|
+| `/var/backups/node01-inventory/vaultwarden_vaultwarden-data.sqlite3` | **Yes.** Taken with SQLite's online-backup API and integrity-checked at backup time |
+| `.../pvc-*_vaultwarden_vaultwarden-data/db.sqlite3` + `-wal` + `-shm` | Fallback only. Copied file-by-file from a live database, so the three may not belong together |
+
+1. Scale it down, so nothing is writing while you work:
+
+```
+kubectl -n vaultwarden scale deployment vaultwarden --replicas=0
+```
+
+2. Restore the consistent dump:
+
+```
+sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; restic restore latest --target /restore --include "/var/backups/node01-inventory/vaultwarden_vaultwarden-data.sqlite3"'
+```
+
+3. Find the live directory — the uuid is new if the cluster was rebuilt:
+
+```
+ls -d /var/lib/rancher/k3s/storage/pvc-*_vaultwarden_vaultwarden-data
+```
+
+4. Put the dump in place as `db.sqlite3`, and **delete the old `-wal` and
+   `-shm`**. This step is not optional: the dump is a single complete database
+   with no write-ahead log, and leaving a WAL from a different database behind
+   means SQLite tries to replay frames that do not belong to it.
+
+```
+sudo rm -f <pvcdir>/db.sqlite3-wal <pvcdir>/db.sqlite3-shm
+sudo cp /restore/var/backups/node01-inventory/vaultwarden_vaultwarden-data.sqlite3 <pvcdir>/db.sqlite3
+sudo chown 1000:1000 <pvcdir>/db.sqlite3
+```
+
+The `chown` matters — the pod runs unprivileged as uid 1000, and a
+root-owned database presents as CrashLoopBackOff rather than a permission
+message anywhere obvious.
+
+5. Scale back up and log in:
+
+```
+kubectl -n vaultwarden scale deployment vaultwarden --replicas=1
+```
+
+`rsa_key.pem` and the attachments live beside the database in the same PVC
+directory and come back with a normal Scenario C restore. **Attachments are not
+in a Bitwarden export**, so for those the restic copy is the only one.
+
+---
+
 ## What this does not cover
 
 - **Anything created after the last nightly run.** The window is up to 24
