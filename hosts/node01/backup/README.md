@@ -72,6 +72,15 @@ HC_PRUNE_URL=<healthchecks.io ping URL, weekly prune check>
 restic's S3 backend reads the standard `AWS_*` variable names regardless of
 provider — Hetzner is S3-compatible, not AWS.
 
+The repository URL above is **path-style** (bucket after the host). Hetzner also
+serves **virtual-hosted** style, and if the client and the endpoint disagree the
+symptom is a bucket-not-found or a signature error rather than anything that
+names the real problem. The alternative form, if the one above will not connect:
+
+```
+RESTIC_REPOSITORY=s3:https://baakhoff-lab-backup.hel1.your-objectstorage.com
+```
+
 The repository URL is in this file rather than in the units because there is no
 reason to publish where the backups live, even though a bucket name is not a
 secret and is useless without the keys.

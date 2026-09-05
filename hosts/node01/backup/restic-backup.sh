@@ -91,17 +91,19 @@ dump_inventory() {
     incus config show "$inst" --expanded > "$INVENTORY/incus-config-${inst}.yaml"
   done < <(incus list --format csv --columns n)
 
+  # `profile list` and `network list` do not take --columns the way `list` does,
+  # so the first CSV field is taken by hand. Both `show` calls are guarded:
+  # `network list` includes unmanaged host interfaces that `show` refuses, and
+  # losing one optional dump is never a reason to fail the whole backup.
   while read -r prof; do
     [ -n "$prof" ] || continue
-    incus profile show "$prof" > "$INVENTORY/incus-profile-${prof}.yaml"
-  done < <(incus profile list --format csv --columns n)
+    incus profile show "$prof" > "$INVENTORY/incus-profile-${prof}.yaml" 2>/dev/null || true
+  done < <(incus profile list --format csv 2>/dev/null | cut -d, -f1)
 
-  # `network list` includes unmanaged host interfaces, which `show` refuses -
-  # not an error worth failing the backup over.
   while read -r net; do
     [ -n "$net" ] || continue
     incus network show "$net" > "$INVENTORY/incus-network-${net}.yaml" 2>/dev/null || true
-  done < <(incus network list --format csv --columns n)
+  done < <(incus network list --format csv 2>/dev/null | cut -d, -f1)
 
   # Rebuilding node01 means reinstalling k3s, incus, tailscale, sing-box and
   # the rest. This is the list of what was here - a reference, not a promise
