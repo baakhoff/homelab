@@ -34,7 +34,18 @@ log "applying retention policy"
 # --keep-tag keep: anything tagged `keep` is never forgotten. That is the
 # escape hatch for a deliberate "before I touch something risky" snapshot,
 # mirroring why snapshots.expiry.manual is left unset on the Incus side.
+#
+# --group-by host is load-bearing, not cosmetic. The default is `host,paths`,
+# which puts snapshots with different path sets into DIFFERENT groups and
+# applies the whole policy to each one separately. A group of one snapshot
+# keeps that snapshot forever, since it is trivially the most recent daily.
+# The path set changes whenever a backup path is added or removed, so the
+# default would strand every pre-change snapshot in its own immortal group -
+# and the failure is silent, because forget reports success either way and
+# prune dutifully frees nothing. Grouping by host alone means the policy
+# always applies across everything node01 has ever written.
 restic forget \
+  --group-by host \
   --keep-daily 7 \
   --keep-weekly 4 \
   --keep-monthly 6 \
