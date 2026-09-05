@@ -220,6 +220,9 @@ and the lifecycle rule reclaims space normally. If a `DefaultRetention` block is
 present, `NoncurrentDays` must be at least its `Days` value or the rule is a
 no-op until each lock expires.
 
+This bucket returns the first form — enabled, no default retention — which is
+what the console's create-time toggle produces on its own.
+
 ### Apply it
 
 Hetzner has no console UI for lifecycle rules; this is the API or nothing. The
@@ -228,8 +231,16 @@ the existing env file is enough — but it needs a region, which is not in that
 file:
 
 ```
-sudo apt install awscli
+sudo snap install aws-cli --classic
 ```
+
+Not `apt install awscli` — that package has been dropped from the Ubuntu
+archive, because v1 is end-of-life upstream and v2 is not packaged for Debian
+or Ubuntu. `apt` reports it as `has no installation candidate` rather than as
+missing, which reads like a broken sources list and is not one. The snap is
+AWS's own build of v2 and updates itself, the same argument used above for
+preferring the distro `restic` to a downloaded binary. `--classic` is required;
+the snap will not install without it.
 
 ```
 sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; \
@@ -265,6 +276,21 @@ Whether it is working shows up as a bucket that stops growing after a prune,
 not as anything in the restic logs. Lifecycle evaluation is asynchronous and
 Hetzner does not document the interval, so give it a day before concluding
 anything.
+
+Nothing visible happens for the first month, and that is correct rather than
+broken. A delete marker only becomes *expired* — and therefore reapable by the
+second rule — once no versions remain beneath it, which cannot happen until the
+first rule has aged those versions out at 30 days. The two rules run in that
+order by construction. Counting delete markers the next morning and finding the
+same number is the expected result:
+
+```
+sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; \
+  AWS_DEFAULT_REGION=fsn1 aws s3api list-object-versions \
+  --bucket baakhoff-lab-backup \
+  --endpoint-url https://fsn1.your-objectstorage.com \
+  --query "length(DeleteMarkers)"'
+```
 
 ## Known limitations
 
