@@ -1,0 +1,23 @@
+{
+  "Rules": [
+    {
+      "ID": "expire-noncurrent-versions",
+      "Status": "Enabled",
+      "Prefix": "",
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 30
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    },
+    {
+      "ID": "expire-delete-markers",
+      "Status": "Enabled",
+      "Prefix": "",
+      "Expiration": {
+        "ExpiredObjectDeleteMarker": true
+      }
+    }
+  ]
+}

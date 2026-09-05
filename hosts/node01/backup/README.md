@@ -162,17 +162,109 @@ a flood is something else:
 journalctl -u restic-backup.service | grep -iE 'changed while|no such file'
 ```
 
-## Object Lock and versioning
+## Object Lock, versioning, and the lifecycle rule
 
-If the bucket was created with Object Lock enabled, versioning is on
-permanently. That changes what pruning does: `restic forget --prune` deletes
-objects, but under versioning a delete creates a *noncurrent version* rather
-than freeing space. Storage keeps growing even though the retention policy is
-working correctly.
+This bucket was created with Object Lock enabled, which turns versioning on
+**permanently** — S3 allows suspending versioning, but not on a bucket where
+Object Lock has ever been enabled.
 
-The fix is a bucket lifecycle rule expiring noncurrent versions after a short
-window. Without one, watch the bucket size rather than trusting the retention
-policy to bound it.
+That changes what pruning does. `restic forget --prune` repacks the repository
+and deletes the pack files it no longer needs, but on a versioned bucket a
+delete does not remove anything: it writes a *delete marker* and demotes the
+real object to a **noncurrent version**, which is still stored and still
+billed. Retention works exactly as configured and the repository still grows
+without bound. `restic stats` would report a small repository while the bucket
+kept getting larger — the two numbers measure different things, and only the
+bucket is on the invoice.
+
+`lifecycle.json` in this directory is the fix. Two rules:
+
+| Rule | Effect |
+|---|---|
+| `expire-noncurrent-versions` | permanently deletes a version 30 days after it became noncurrent, and cleans up multipart uploads abandoned for 7 days |
+| `expire-delete-markers` | removes delete markers once the last version beneath them is gone |
+
+30 days is a deliberate margin, not a minimum. It is how long a mistake stays
+reversible: a bad `forget` that drops snapshots it should have kept can be
+undone from the noncurrent versions within that window. The cost of the margin
+is a month of pruned data still sitting in the bucket, which at this repository
+size is noise against the included terabyte.
+
+The second rule matters less than it looks — delete markers are zero-byte — but
+without it they accumulate forever, and every `restic` operation lists the
+bucket.
+
+**Do not copy the example policy from Hetzner's documentation.** It contains an
+`"Expiration": {"Days": 90}` clause alongside the noncurrent rule. That clause
+applies to *current* objects: pointed at a restic repository it would delete
+live pack files after 90 days and destroy the backup. `lifecycle.json` has no
+`Expiration.Days` for exactly that reason. Nothing in this policy may ever
+expire a current version.
+
+### Check the lock configuration first
+
+A lifecycle rule cannot delete a version that is under an active Object Lock
+retention — the lock wins, and lifecycle simply retries until it lapses. So the
+rule's usefulness depends on whether the bucket carries a *default retention*
+in addition to having Object Lock enabled:
+
+```
+aws s3api get-object-lock-configuration \
+  --bucket baakhoff-lab-backup \
+  --endpoint-url https://fsn1.your-objectstorage.com
+```
+
+`ObjectLockEnabled: Enabled` with **no** `Rule` block means no default
+retention: nothing is actually immutable, versioning is the only real effect,
+and the lifecycle rule reclaims space normally. If a `DefaultRetention` block is
+present, `NoncurrentDays` must be at least its `Days` value or the rule is a
+no-op until each lock expires.
+
+### Apply it
+
+Hetzner has no console UI for lifecycle rules; this is the API or nothing. The
+AWS CLI reads the same `AWS_*` variables the backup already uses, so sourcing
+the existing env file is enough — but it needs a region, which is not in that
+file:
+
+```
+sudo apt install awscli
+```
+
+```
+sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; \
+  AWS_DEFAULT_REGION=fsn1 aws s3api put-bucket-lifecycle-configuration \
+  --bucket baakhoff-lab-backup \
+  --endpoint-url https://fsn1.your-objectstorage.com \
+  --lifecycle-configuration file://lifecycle.json'
+```
+
+That path is relative to the working directory, so run it from this directory —
+same convention as installing the units above. `file://` with a relative path is
+a real trap here: the AWS CLI reports a missing file as a parse error rather
+than as "no such file".
+
+Sourcing rather than passing the keys as arguments keeps them out of `ps` and
+out of shell history, the same reasoning as `restic init` above.
+
+A successful put returns nothing at all. Read it back to confirm:
+
+```
+sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; \
+  AWS_DEFAULT_REGION=fsn1 aws s3api get-bucket-lifecycle-configuration \
+  --bucket baakhoff-lab-backup \
+  --endpoint-url https://fsn1.your-objectstorage.com'
+```
+
+This call replaces the whole configuration rather than merging into it, so
+`lifecycle.json` is the complete desired state and editing the bucket means
+editing this file and putting it again. It also has to be re-applied by hand if
+the bucket is ever recreated — it is not part of `restic init`.
+
+Whether it is working shows up as a bucket that stops growing after a prune,
+not as anything in the restic logs. Lifecycle evaluation is asynchronous and
+Hetzner does not document the interval, so give it a day before concluding
+anything.
 
 ## Known limitations
 
@@ -206,7 +298,11 @@ during a restore:
   that distinguishes ten files from ten thousand.
 - **node01 can delete its own backups.** The credential in
   `/etc/restic/backup.env` has full access to the bucket, so a compromise of the
-  machine is a compromise of the backup. Object Lock retention or a bucket
-  policy denying `DeleteObject` outside the `locks/` prefix would break that
-  link; neither is configured.
+  machine is a compromise of the backup. Object Lock being enabled does not
+  change this: without a default retention period nothing carries a retain-until
+  date, and a Hetzner S3 key is project-scoped rather than bucket-scoped, so the
+  key that writes the backups could bypass governance retention anyway. Breaking
+  the link needs a bucket policy denying deletion to this key outside the
+  `locks/` prefix, with pruning moved to a machine holding a different
+  credential. Not configured.
 - **No drift detection**, as above.
