@@ -1,0 +1,17 @@
+[Unit]
+Description=Nightly restic backup of node01
+Documentation=https://github.com/baakhoff/homelab/tree/main/hosts/node01/backup
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# Spreads the start so the run does not land on the same second every night,
+# and leaves room for more nodes to join without all of them saturating the
+# uplink together.
+RandomizedDelaySec=30m
+# node01 is a laptop. Lids close, machines reboot, and without this a missed
+# 03:00 is simply skipped - the gap being completely invisible is the problem.
+# Persistent runs it on the next boot instead.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
