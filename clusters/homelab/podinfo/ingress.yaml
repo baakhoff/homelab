@@ -18,6 +18,11 @@ metadata:
     gethomepage.dev/icon: mdi-test-tube
     gethomepage.dev/description: GitOps canary and ingress test target
     gethomepage.dev/href: https://podinfo.lab.baakhoff.com
+    # Homepage's health badge defaults to the selector
+    # `app.kubernetes.io/name=<name inferred from the Ingress>`. These pods
+    # predate that convention and carry a plain `app: podinfo`, so the default
+    # matches nothing and the card reads NOT FOUND while the service is fine.
+    gethomepage.dev/pod-selector: "app=podinfo"
 spec:
   rules:
     - host: podinfo.lab.baakhoff.com
