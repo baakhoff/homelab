@@ -27,6 +27,14 @@ metadata:
     gethomepage.dev/icon: mdi-brain
     gethomepage.dev/description: Agent platform - compose stack in Incus
     gethomepage.dev/href: https://epicurus.lab.baakhoff.com
+    # NO pod-selector here, and none is possible. Homepage's health badge asks
+    # which pods back the service; this one has none, because the Service is
+    # selector-less and its EndpointSlice points out of the cluster at an Incus
+    # container. So the card reads NOT FOUND permanently and that is CORRECT -
+    # Kubernetes really does have no workload for epicurus. Do not go looking
+    # for a selector that fixes it. The honest fix would be an HTTP probe of the
+    # URL, which is what a blackbox exporter would give us and what ADR-0003
+    # already names as the open gap.
     # The chat UI streams responses over SSE. nginx's default 60s proxy read
     # timeout closes a stream that goes quiet for a minute, which a local model
     # thinking about a long prompt will do routinely.
