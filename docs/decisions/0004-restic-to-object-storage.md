@@ -91,11 +91,26 @@ pool is `dir`, where a snapshot is a full 58G copy — correct but too expensive
 to take nightly. The imperfect version was shipped deliberately: without it, a
 dead NVMe loses the workbench entirely.
 
+**Object Lock makes versioning permanent, which makes pruning a no-op without a
+lifecycle rule.** The bucket was created with Object Lock enabled, and a bucket
+that has ever had it enabled cannot have versioning suspended again. Under
+versioning, the deletes `restic prune` issues write delete markers instead of
+freeing space, so the repository would have grown without bound while retention
+appeared to work. A bucket lifecycle policy expiring noncurrent versions after
+30 days is therefore load-bearing rather than housekeeping, and it lives in
+`hosts/node01/backup/lifecycle.json` because Hetzner exposes lifecycle rules
+only through the S3 API — there is no console for it, and nothing re-applies it
+if the bucket is rebuilt.
+
 **node01 can delete its own backups.** The credential in
 `/etc/restic/backup.env` has full bucket access, so compromising the machine
-compromises the backup. Object Lock retention, or a bucket policy denying
-`DeleteObject` outside the `locks/` prefix with pruning moved to another
-machine, would break that link. Neither is configured.
+compromises the backup. Enabling Object Lock did not close this: lock without a
+default retention period sets no retain-until date on anything, and Hetzner's S3
+credentials are project-scoped rather than bucket-scoped, so the key that writes
+the backups can also bypass governance-mode retention. Actually breaking the
+link needs a bucket policy that denies deletion to this key outside the `locks/`
+prefix, with pruning moved to a machine holding a different credential. That is
+not configured.
 
 **These files are outside GitOps.** systemd units on the host are not
 Kubernetes objects, so `hosts/node01/` is installed by hand and nothing detects
