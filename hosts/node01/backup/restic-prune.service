@@ -3,10 +3,21 @@ Description=restic retention pass and integrity check
 Documentation=https://github.com/baakhoff/homelab/tree/main/hosts/node01/backup
 After=network-online.target
 Wants=network-online.target
-# Never prune while a backup is running. restic locks the repository so the
-# second one would fail safely rather than corrupt anything, but a failed run
-# is still a red check to investigate for no reason.
-Conflicts=restic-backup.service
+# NOT Conflicts=restic-backup.service, and the reason is worth recording.
+# Conflicts= is symmetric and it does not mean "do not run together" - it means
+# "starting either one STOPS the other". The prune timer fires at 05:05 and the
+# backup at 03:18, so a backup still running after 1h47 would be KILLED by the
+# scheduled prune. That trades a harmless problem for a real one.
+#
+# restic already arbitrates this correctly: it locks the repository, so a prune
+# that collides simply fails with "unable to create lock" and runs again next
+# week. Losing a prune costs a few gigabytes of unreclaimed space for seven
+# days. Losing a backup costs a backup.
+#
+# After= only orders them when BOTH are queued at once, which is exactly what
+# Persistent=true produces after the machine has been off across a Sunday
+# 03:00 and 05:00. It imposes nothing when they are triggered independently.
+After=restic-backup.service
 
 [Service]
 Type=oneshot
