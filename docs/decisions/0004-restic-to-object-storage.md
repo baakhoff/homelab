@@ -34,7 +34,7 @@ are needed and neither substitutes for the other.
 ## Decision
 
 **restic**, driven by a systemd timer on node01, writing to **Hetzner Object
-Storage** (bucket `baakhoff-lab-backup`, Helsinki), nightly, with a weekly
+Storage** (bucket `baakhoff-lab-backup`, Falkenstein), nightly, with a weekly
 retention pass and integrity check.
 
 Scope is **default-include with an exclude list**: everything under `/etc`,

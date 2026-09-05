@@ -61,13 +61,20 @@ sudo nano /etc/restic/backup.env
 Shape of the file — **real values go here and nowhere else, never into git**:
 
 ```
-RESTIC_REPOSITORY=s3:https://hel1.your-objectstorage.com/baakhoff-lab-backup
+RESTIC_REPOSITORY=s3:https://fsn1.your-objectstorage.com/baakhoff-lab-backup
 RESTIC_PASSWORD=<restic repository password>
 AWS_ACCESS_KEY_ID=<Hetzner S3 access key>
 AWS_SECRET_ACCESS_KEY=<Hetzner S3 secret key>
 HC_URL=<healthchecks.io ping URL, nightly backup check>
 HC_PRUNE_URL=<healthchecks.io ping URL, weekly prune check>
 ```
+
+**The location in that hostname must match the bucket's actual location.**
+Getting it wrong does not produce a "not found" error: restic cannot see a
+bucket at the wrong endpoint, so it tries to *create* one, and the failure
+comes back as `client.MakeBucket: The location constraint differs from the
+location you are trying to access`. That message is about the create attempt,
+not about your repository — the real problem is one word in the URL.
 
 restic's S3 backend reads the standard `AWS_*` variable names regardless of
 provider — Hetzner is S3-compatible, not AWS.
@@ -78,7 +85,7 @@ symptom is a bucket-not-found or a signature error rather than anything that
 names the real problem. The alternative form, if the one above will not connect:
 
 ```
-RESTIC_REPOSITORY=s3:https://baakhoff-lab-backup.hel1.your-objectstorage.com
+RESTIC_REPOSITORY=s3:https://baakhoff-lab-backup.fsn1.your-objectstorage.com
 ```
 
 The repository URL is in this file rather than in the units because there is no
