@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly restic retention pass and integrity check
+Documentation=https://github.com/baakhoff/homelab/tree/main/hosts/node01/backup
+
+[Timer]
+# Sunday morning, two hours after the nightly backup would have finished.
+OnCalendar=Sun *-*-* 05:00:00
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

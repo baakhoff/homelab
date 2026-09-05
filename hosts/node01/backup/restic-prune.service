@@ -1,0 +1,23 @@
+[Unit]
+Description=restic retention pass and integrity check
+Documentation=https://github.com/baakhoff/homelab/tree/main/hosts/node01/backup
+After=network-online.target
+Wants=network-online.target
+# Never prune while a backup is running. restic locks the repository so the
+# second one would fail safely rather than corrupt anything, but a failed run
+# is still a red check to investigate for no reason.
+Conflicts=restic-backup.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/restic/backup.env
+ExecStart=/usr/local/sbin/restic-prune.sh
+
+Nice=15
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+TimeoutStartSec=6h
+
+[Install]
+WantedBy=multi-user.target
