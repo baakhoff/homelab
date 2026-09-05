@@ -1,0 +1,31 @@
+[Unit]
+Description=restic backup of node01 to object storage
+Documentation=https://github.com/baakhoff/homelab/tree/main/hosts/node01/backup
+# network-online rather than plain network.target: reaching an S3 endpoint
+# needs actual routing, and network.target only promises the stack is
+# configured. incus.service because the inventory dump talks to the daemon.
+After=network-online.target incus.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Root-owned, 0600, created by hand - never in git. Holds RESTIC_REPOSITORY,
+# RESTIC_PASSWORD, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and HC_URL.
+EnvironmentFile=/etc/restic/backup.env
+ExecStart=/usr/local/sbin/restic-backup.sh
+
+# node01 is a working machine and the backup is never the important job.
+# Nice covers the zstd compression; best-effort priority 7 is the lowest
+# non-idle I/O class - deprioritised without being starved outright, which
+# `idle` risks when the workbench is busy all night.
+Nice=15
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+# A backup that hangs forever is worse than one that fails: it blocks the next
+# run and the heartbeat never fires, which is at least noticed. Six hours is
+# far beyond a normal run - if this ever trips, something is genuinely wrong.
+TimeoutStartSec=6h
+
+[Install]
+WantedBy=multi-user.target

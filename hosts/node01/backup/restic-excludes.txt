@@ -1,0 +1,50 @@
+# restic exclude patterns for node01.
+#
+# A pattern containing a / is matched against the FULL PATH; one without is
+# matched against the basename only. Everything here is anchored deliberately.
+#
+# The rule this file implements is default-include: everything under the paths
+# listed in restic-backup.sh is backed up unless it appears here. An include
+# list would fail by silently missing whatever was added last month.
+
+# ---------------------------------------------------------------------------
+# Incus snapshots
+#
+# We are already backing up the thing these are snapshots OF, and on a `dir`
+# storage pool every snapshot is a FULL COPY rather than copy-on-write - the
+# two manual ones alone are 19G. Including them would store the same container
+# three times over.
+# ---------------------------------------------------------------------------
+/var/lib/incus/storage-pools/*/containers-snapshots
+
+# ---------------------------------------------------------------------------
+# Observability data - excluded because it is worth less than it costs
+#
+# Prometheus: 15d retention and an 8GB retentionSize, so it already deletes
+# itself. Its TSDB blocks churn constantly, so every nightly run would ship
+# gigabytes of new chunks nobody will ever restore. Losing it costs HISTORY,
+# not capability - and long-term metrics is a remote-write problem, not a
+# backup one.
+# ---------------------------------------------------------------------------
+/var/lib/rancher/k3s/storage/*_monitoring_prometheus-*
+
+# Loki: same argument at 7d retention, and its logs only start from the moment
+# Alloy was first deployed anyway. There is no history here to protect.
+/var/lib/rancher/k3s/storage/*_logging_storage-loki-*
+
+# NOTE ON WHAT IS *NOT* HERE, because both look like tempting exclusions:
+#
+# Grafana and Alertmanager PVCs stay IN. Both are small and near-static, so
+# they dedup to almost nothing after the first run, and Grafana's holds any
+# UI-created state the dashboards-as-ConfigMaps rule has not caught.
+#
+# Docker's overlay2 inside the `agents` workbench stays IN. Excluding it would
+# drop the writable layer of every container there, so anything written outside
+# a named volume would vanish on restore. Image layers dedup and compress well;
+# the space is cheap and the correctness is not negotiable.
+
+# ---------------------------------------------------------------------------
+# Live daemon runtime state - not data, and it changes on every run
+# ---------------------------------------------------------------------------
+/var/lib/incus/unix.socket
+/var/lib/incus/unix.socket.user
