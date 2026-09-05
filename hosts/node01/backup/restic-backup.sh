@@ -39,7 +39,27 @@ set -Eeuo pipefail
 EXCLUDES="${RESTIC_EXCLUDES:-/etc/restic/excludes.txt}"
 
 # Written fresh each run, backed up, then removed. See dump_inventory().
-INVENTORY="$(mktemp -d /var/tmp/node01-inventory.XXXXXX)"
+#
+# A FIXED PATH, AND IT MUST STAY ONE. This was `mktemp -d
+# /var/tmp/node01-inventory.XXXXXX`, which gave every run a different
+# directory name - and since restic records the paths it was given, that
+# changed the snapshot's PATH SET every single night. Two things break
+# quietly when that happens, and neither reports an error:
+#
+#   1. PARENT SNAPSHOT DETECTION. `restic backup` defaults to
+#      --group-by host,paths when looking for a parent, so a changed path set
+#      means no parent is found and every file is re-read and re-chunked from
+#      scratch. Dedup still stops it re-uploading, so the only symptom is a
+#      nightly run that is inexplicably slow.
+#   2. RETENTION. `restic forget` groups the same way, so each snapshot lands
+#      in a group of ONE, where it is trivially the most recent daily and is
+#      therefore never forgotten. The prune job reports success every week
+#      while freeing nothing at all, and the repository grows forever.
+#
+# /var/backups rather than /var/tmp on purpose: /var/tmp is world-writable
+# with the sticky bit, so a predictable name there is a symlink-race target.
+# /var/backups is root-owned 0755.
+INVENTORY=/var/backups/node01-inventory
 
 # ---------------------------------------------------------------------------
 # Reporting
@@ -82,6 +102,12 @@ log() { printf '==> %s\n' "$*"; }
 # ---------------------------------------------------------------------------
 dump_inventory() {
   log "collecting host inventory"
+
+  # Recreated from scratch so a file that stops being produced does not linger
+  # in the backup for months looking current.
+  rm -rf "$INVENTORY"
+  mkdir -p "$INVENTORY"
+  chmod 0700 "$INVENTORY"
 
   incus list --format yaml           > "$INVENTORY/incus-instances.yaml"
   incus storage list --format yaml   > "$INVENTORY/incus-storage.yaml"
