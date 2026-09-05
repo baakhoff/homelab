@@ -1,0 +1,23 @@
+# The whole vault lives here: the SQLite database, attachments, sends, the icon
+# cache, and the RSA keypair Vaultwarden generates on first boot.
+#
+# 5Gi is nominal. local-path does not enforce quotas - it hands out a directory
+# on the node's root filesystem, so the number is documentation rather than a
+# reservation, and the real limit is node01's 346G of free space.
+#
+# This path IS covered by the nightly restic backup: it lands under
+# /var/lib/rancher/k3s/storage, which the backup includes by default, and it is
+# not in the exclude list. See hosts/node01/backup/ - and note the restore
+# caveat there about local-path directory names embedding the PVC uuid.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vaultwarden-data
+  namespace: vaultwarden
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

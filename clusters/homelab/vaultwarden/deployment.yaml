@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaultwarden
+  namespace: vaultwarden
+spec:
+  # One replica, and this is not a capacity decision. Vaultwarden keeps
+  # everything in a single SQLite file on the volume below. Two replicas would
+  # be two processes writing one database.
+  replicas: 1
+  # Recreate, NOT the default RollingUpdate - the most consequential line in
+  # this file. RollingUpdate starts the new pod BEFORE terminating the old one,
+  # and on a single node both pods can mount the same ReadWriteOnce volume, so
+  # every image bump would briefly run two Vaultwarden processes against one
+  # SQLite database. WAL mode makes that survivable more often than not, which
+  # is the worst property a corruption risk can have: it fails rarely, silently,
+  # and inside the data rather than in the logs.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vaultwarden
+  template:
+    metadata:
+      labels:
+        # Homepage builds its health-badge selector as
+        # `app.kubernetes.io/name=<name inferred from the Ingress>`. Following
+        # the convention here means the Ingress needs no pod-selector
+        # annotation, unlike podinfo and Grafana which both predate it.
+        app.kubernetes.io/name: vaultwarden
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        # kubelet chowns the volume to this GID and sets setgid on it, which is
+        # what lets an unprivileged uid write to a freshly provisioned PV. Drop
+        # this and the container cannot create its database, which presents as
+        # CrashLoopBackOff with a permission error in `logs --previous` - the
+        # same shape as the Homepage config-directory failure in PR #26.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vaultwarden
+          image: vaultwarden/server:1.37.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Required, and not cosmetic. DOMAIN is the origin Vaultwarden
+            # hands to WebAuthn, so getting it wrong does not break the site -
+            # it breaks hardware security keys, at the moment you need them.
+            # It also builds the links in any email the server sends.
+            - name: DOMAIN
+              value: https://vault.lab.baakhoff.com
+            # Vaultwarden listens on 80 by default, and binding below 1024
+            # needs CAP_NET_BIND_SERVICE - which the capability drop above
+            # removes. Moving the listener above 1024 is what makes running
+            # unprivileged with no capabilities possible at all.
+            - name: ROCKET_PORT
+              value: "8080"
+            # TEMPORARY. Flip to "false" once your account exists; there is no
+            # other way to create the first one. Until then the whitelist below
+            # is what stands between an open registration form and a stranger.
+            - name: SIGNUPS_ALLOWED
+              value: "true"
+            - name: SIGNUPS_DOMAINS_WHITELIST
+              value: baakhoff.com
+            # Explicitly at its default so the behaviour is visible in git
+            # rather than assumed. Vaultwarden fetches a favicon for every
+            # entry in the vault, from the server, which means node01 makes an
+            # outbound request to every site you hold an account with. Set this
+            # to "true" to stop that; the cost is a vault list with no icons.
+            - name: DISABLE_ICON_DOWNLOAD
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8080
+          # /alive is Vaultwarden's own health endpoint and returns the server
+          # time. Deliberately not probing / - that serves the web vault's
+          # static assets and would report healthy with a broken database
+          # underneath it.
+          readinessProbe:
+            httpGet:
+              path: /alive
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            initialDelaySeconds: 20
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vaultwarden-data
