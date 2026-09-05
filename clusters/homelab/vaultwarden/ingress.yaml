@@ -1,0 +1,37 @@
+# No tls: block, following the template in clusters/homelab/podinfo/ingress.yaml
+# - the controller serves the lab wildcard as its default certificate, so every
+# Ingress gets HTTPS without naming a Secret.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vaultwarden
+  namespace: vaultwarden
+  annotations:
+    # ingress-nginx caps request bodies at 1m by default, and Vaultwarden allows
+    # attachments up to 100m. Without this, uploading a file to a vault entry
+    # fails with a 413 that mentions nginx and not Vaultwarden, which sends you
+    # looking in the wrong logs.
+    nginx.ingress.kubernetes.io/proxy-body-size: "128m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Vaultwarden
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: mdi-shield-key
+    gethomepage.dev/description: Password vault
+    # Given explicitly because this Ingress carries no tls block, so Homepage
+    # would otherwise infer http:// and every click would take a 308.
+    gethomepage.dev/href: https://vault.lab.baakhoff.com
+    # No pod-selector annotation needed: the Deployment labels its pods
+    # app.kubernetes.io/name=vaultwarden, which is exactly what Homepage infers
+    # from this Ingress's name.
+spec:
+  rules:
+    - host: vault.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vaultwarden
+                port:
+                  number: 80
