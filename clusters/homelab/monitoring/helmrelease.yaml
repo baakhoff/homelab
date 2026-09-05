@@ -270,6 +270,12 @@ spec:
           gethomepage.dev/icon: grafana.png
           gethomepage.dev/description: Metrics, logs and alerting
           gethomepage.dev/href: https://grafana.lab.baakhoff.com
+          # This Ingress is chart-generated and called
+          # kube-prometheus-stack-grafana, so Homepage's inferred health-check
+          # selector carries the release prefix while the pods themselves carry
+          # the short `app.kubernetes.io/name: grafana`. Without this the card
+          # reads NOT FOUND against a perfectly healthy Grafana.
+          gethomepage.dev/pod-selector: "app.kubernetes.io/name=grafana"
         hosts:
           - grafana.lab.baakhoff.com
       grafana.ini:
