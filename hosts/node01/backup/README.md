@@ -155,10 +155,11 @@ A snapshot listing is the only thing that proves the backup exists. A green
 systemd unit proves the script exited zero, which is not the same claim.
 
 Grep the journal for consistency warnings, which are expected in small numbers
-and worth reading:
+and worth reading — a handful is the ClickHouse merge churn described below,
+a flood is something else:
 
 ```
-journalctl -u restic-backup.service | grep -i 'changed while'
+journalctl -u restic-backup.service | grep -iE 'changed while|no such file'
 ```
 
 ## Object Lock and versioning
@@ -183,6 +184,26 @@ during a restore:
   cut — recoverable by design, but a file can change mid-walk. A copy-on-write
   storage pool would make this atomic; this pool is `dir`. Full reasoning is in
   the header of `restic-backup.sh`.
+
+  This is not theoretical. The very first run reported ten unreadable files,
+  all of them ClickHouse MergeTree parts under
+  `analytix-platform_ch_data`: ClickHouse merges parts continuously, so restic
+  listed a directory and the entries were deleted before it could stat them.
+  Those files are simply absent from that snapshot.
+
+  For ClickHouse specifically that is the weakest point in this design. Parts
+  are immutable and ClickHouse quarantines anything incomplete into
+  `detached/` on startup, so a restore is expected to come up — but "expected
+  to" is doing real work in that sentence, and the honest fix for a database
+  is a database-native dump (`BACKUP TABLE`, `clickhouse-backup`) or an atomic
+  filesystem snapshot, not a file walk.
+
+- **restic exit code 3 is treated as success.** It means the snapshot was
+  saved but some sources could not be read, which is the normal steady state
+  here for the reason above. Reporting it as a failure would page every night
+  and train you to ignore the alarm. The trade is that a run where a *lot* of
+  files were unreadable still reports green — the journal is the only place
+  that distinguishes ten files from ten thousand.
 - **node01 can delete its own backups.** The credential in
   `/etc/restic/backup.env` has full access to the bucket, so a compromise of the
   machine is a compromise of the backup. Object Lock retention or a bucket
