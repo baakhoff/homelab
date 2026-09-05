@@ -146,6 +146,77 @@ dump_inventory() {
 }
 
 # ---------------------------------------------------------------------------
+# Application-consistent SQLite dumps
+#
+# THE PROBLEM: a SQLite database in WAL mode is three files - db, -wal and
+# -shm - and the file walk copies them one at a time over several minutes. A
+# write landing between them produces a set that does not belong together, and
+# the failure is silent: the backup succeeds, the repository looks healthy, and
+# you find out during a restore. That is an acceptable risk for a workbench and
+# a poor one for the vault holding every password and TOTP seed you own.
+#
+# THE FIX: `.backup` is SQLite's online-backup API. It takes a read lock,
+# copies page by page, and restarts if a writer changes the file underneath it,
+# so the result is a single file that was never half-written. Locks are POSIX
+# advisory locks on the same kernel and the same inode, so they arbitrate
+# correctly with the process inside the container.
+#
+# The dump lands in $INVENTORY, which means it is backed up by the run that
+# follows and removed by the exit trap - a consistent copy exists on disk only
+# for the length of the backup window.
+#
+# THE LIVE FILES ARE STILL BACKED UP TOO, deliberately. If this step ever fails
+# quietly, a possibly-torn copy beats no copy at all. The runbook says which to
+# restore from.
+# ---------------------------------------------------------------------------
+
+# GLOBS, not fixed paths: local-path names directories pvc-<uuid>_<ns>_<name>
+# and generates a NEW uuid whenever the PVC is recreated, so anything
+# hardcoded here would silently stop matching after a rebuild - the same trap
+# the recovery runbook documents for restores. One line per database.
+sqlite_dumps=(
+  /var/lib/rancher/k3s/storage/pvc-*_vaultwarden_vaultwarden-data/db.sqlite3
+)
+
+dump_sqlite() {
+  if ! command -v sqlite3 >/dev/null; then
+    log "WARNING: sqlite3 not installed - no consistent database dumps taken."
+    log "WARNING: live files are still backed up, but a restore may be torn."
+    log "WARNING: fix with: apt install sqlite3"
+    return 0
+  fi
+
+  local db dir out
+  for db in "${sqlite_dumps[@]}"; do
+    # An unmatched glob expands to itself, so test for a real file rather than
+    # trusting that the loop variable is a path.
+    [ -f "$db" ] || continue
+
+    # pvc-<uuid>_vaultwarden_vaultwarden-data -> vaultwarden_vaultwarden-data.
+    # Dropping the uuid keeps the dump's name STABLE across a cluster rebuild,
+    # so the runbook can name the file it wants. Safe because a uuid contains
+    # no underscores, making pvc-*_ the shortest possible match.
+    dir=$(basename "$(dirname "$db")")
+    out="$INVENTORY/${dir#pvc-*_}.sqlite3"
+
+    log "dumping $db"
+    if sqlite3 -cmd ".timeout 10000" "$db" ".backup '$out'"; then
+      chmod 0600 "$out"
+      # Verified HERE rather than discovered during a restore. It costs a
+      # second on a database this size, and the entire point of the exercise
+      # is not learning that the copy was bad at the moment you need it.
+      if [ "$(sqlite3 "$out" 'PRAGMA integrity_check;' 2>&1)" = "ok" ]; then
+        log "dump OK: ${out##*/} passed integrity_check"
+      else
+        log "WARNING: integrity_check FAILED on ${out##*/} - do NOT restore from it"
+      fi
+    else
+      log "WARNING: sqlite3 .backup failed for $db - live files only for this run"
+    fi
+  done
+}
+
+# ---------------------------------------------------------------------------
 # What gets backed up
 #
 # DEFAULT-INCLUDE WITH AN EXCLUDE LIST, on purpose. An include list fails by
@@ -198,6 +269,7 @@ main() {
   restic version
 
   dump_inventory
+  dump_sqlite
 
   log "backing up"
   # --tag lets `restic snapshots --tag nightly` separate these from any
