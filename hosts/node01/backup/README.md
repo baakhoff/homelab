@@ -29,6 +29,17 @@ Plus a small inventory dumped fresh on each run: Incus instance/profile/network
 configs as text, `dpkg --get-selections`, kernel and OS release, and the
 local-path PVC directory listing.
 
+Alongside it, an **application-consistent copy of each SQLite database** named
+in the `sqlite_dumps` array, taken with SQLite's own online-backup API. This
+exists because the file walk copies `db.sqlite3`, `-wal` and `-shm` one at a
+time over several minutes, and a write landing between them yields a set that
+does not belong together — a silent failure that only surfaces during a
+restore. Currently one entry, Vaultwarden. Adding a service is one line.
+
+The live database files are still backed up as well. If the dump step ever
+fails quietly, a possibly-torn copy beats no copy — but the dump is the one to
+restore from. See the recovery runbook.
+
 **Kubernetes objects are deliberately absent.** Flux rebuilds every one of them
 from `main` given the age key. Backing them up would store a worse copy of what
 git already holds. See [the disaster recovery runbook](../../../docs/runbooks/disaster-recovery.md).
@@ -37,11 +48,15 @@ git already holds. See [the disaster recovery runbook](../../../docs/runbooks/di
 
 Everything below runs on **node01**.
 
-### 1. restic
+### 1. restic and sqlite3
 
 ```
-sudo apt install restic
+sudo apt install restic sqlite3
 ```
+
+`sqlite3` is used to take application-consistent dumps of the SQLite databases
+listed in `restic-backup.sh` before the file walk starts. Without it the backup
+still runs — it logs a warning and falls back to the live files.
 
 The distro package rather than a downloaded binary, because `unattended-upgrades`
 is already enabled here and will patch it. A hand-placed binary in
@@ -302,6 +317,11 @@ during a restore:
   cut — recoverable by design, but a file can change mid-walk. A copy-on-write
   storage pool would make this atomic; this pool is `dir`. Full reasoning is in
   the header of `restic-backup.sh`.
+
+  **Exception:** the SQLite databases in the `sqlite_dumps` array get a
+  consistent copy taken before the walk. That covers Vaultwarden. It does not
+  cover the databases inside the Incus containers, which is the larger and
+  still-open half of this problem.
 
   This is not theoretical. The very first run reported ten unreadable files,
   all of them ClickHouse MergeTree parts under
