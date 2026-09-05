@@ -176,6 +176,25 @@ main() {
   log "backing up"
   # --tag lets `restic snapshots --tag nightly` separate these from any
   # hand-made snapshot taken before something risky.
+  #
+  # EXIT CODE 3 IS NOT A FAILURE HERE, and treating it as one is the trap this
+  # block exists to avoid. restic returns 3 when the snapshot was saved but
+  # some source files could not be read. On this host that is the NORMAL
+  # STEADY STATE, not an anomaly: ClickHouse inside the `agents` workbench
+  # merges MergeTree parts continuously, so restic lists a directory, and by
+  # the time it stats the entries some of them have been merged away and
+  # deleted. The first run hit ten of them.
+  #
+  # Left unhandled, `set -e` kills the script on a perfectly good backup and
+  # the heartbeat reports FAILED every single night. An alarm that cries wolf
+  # nightly is worse than no alarm - it trains you to ignore the one that
+  # matters. Same lesson as the four permanently-red scrape targets in #11.
+  #
+  # What it does NOT mean is that the backup is complete. The vanished files
+  # are absent from the snapshot, and for a database that is a real (if
+  # usually recoverable) gap - see the consistency note at the top of this
+  # file. The warning is loud in the journal on purpose.
+  set +e
   restic backup \
     --exclude-file="$EXCLUDES" \
     --exclude-caches \
@@ -183,6 +202,23 @@ main() {
     --tag node01 \
     "${backup_paths[@]}" \
     "$INVENTORY"
+  local rc=$?
+  set -e
+
+  case "$rc" in
+    0)
+      log "backup complete, all sources read"
+      ;;
+    3)
+      log "WARNING: snapshot saved, but some files vanished mid-walk (restic exit 3)."
+      log "WARNING: expected for ClickHouse part merges; grep this unit's journal"
+      log "WARNING: for 'no such file' to see which paths, and read them."
+      ;;
+    *)
+      log "restic backup FAILED with exit $rc"
+      return "$rc"
+      ;;
+  esac
 
   log "repository stats"
   restic stats --mode raw-data latest || true
