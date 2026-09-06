@@ -43,6 +43,25 @@ metadata:
     # Never buffer the response: SSE tokens must reach the browser as they are
     # produced, not when nginx decides it has a full buffer.
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # UPLOADS - the other direction. ingress-nginx caps request bodies at 1m
+    # by default, so a file sent to epicurus fails with a 413 that names nginx
+    # and not the application - the same failure Vaultwarden's Ingress fixes
+    # with 128m. "0" removes nginx's cap entirely rather than picking a number,
+    # and leaves any limit to the application. Acceptable only because the lab
+    # is tailnet-only: nobody who cannot already reach the host can send a body
+    # at all. If this Ingress is ever exposed further, put a real number here
+    # before doing anything else.
+    #
+    # These two can be set on the live object with kubectl annotate and appear
+    # to work, and they belong HERE because Flux enforces exactly the fields
+    # written in this file: a key added by hand survives every reconcile as
+    # drift Flux cannot see, and a rebuild from git would silently drop it.
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    # Stream the upload to the backend as it arrives instead of spooling the
+    # whole body to nginx's disk first. With no cap above, that spool could be
+    # arbitrarily large, and the application sees nothing until nginx holds
+    # the last byte.
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 spec:
   rules:
     - host: epicurus.lab.baakhoff.com
