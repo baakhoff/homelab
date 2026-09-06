@@ -61,11 +61,16 @@ spec:
             # unprivileged with no capabilities possible at all.
             - name: ROCKET_PORT
               value: "8080"
-            # TEMPORARY. Flip to "false" once your account exists; there is no
-            # other way to create the first one. Until then the whitelist below
-            # is what stands between an open registration form and a stranger.
+            # Closed. This was "true" only long enough to create the first
+            # account, because there is no other way to create one. Adding a
+            # user now costs a PR to flip this, a registration, and a PR to
+            # flip it back - which is the right amount of friction for an
+            # action that opens a password vault to public registration.
             - name: SIGNUPS_ALLOWED
-              value: "true"
+              value: "false"
+            # Inert while signups are closed, and kept anyway. If this is ever
+            # flipped back on, the whitelist is already in place rather than
+            # being a second thing to remember at the moment it matters.
             - name: SIGNUPS_DOMAINS_WHITELIST
               value: baakhoff.com
             # Explicitly at its default so the behaviour is visible in git
