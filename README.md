@@ -11,16 +11,35 @@ decisions were made and why.
 
 | Device | Specs | Status |
 |---|---|---|
-| Laptop | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | not yet provisioned |
-| Raspberry Pi 3B+ | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM | not yet provisioned |
+| Laptop `node01` | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | in service: k3s + Flux, Incus workbench |
+| Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router |
+| 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | Ubuntu Server installed, not yet in service |
 | Rack | 10″ 3D-printed — [KWS Rack V2](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) | printing |
+
+## Where things run
+
+- **node01** — k3s (single node) reconciled by Flux from `clusters/homelab/`:
+  ingress-nginx with cert-manager certificates, kube-prometheus-stack and Loki,
+  Headlamp, Homepage, Vaultwarden. Beside the cluster, two Incus containers: the
+  epicurus stack and the Claude Code workbench. Nightly restic backup to object
+  storage ([how](hosts/node01/backup/README.md)).
+- **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
+  and for the tailnet (through Tailscale's DNS override); Tailscale exit node and
+  subnet router, so LAN-only things are reachable from anywhere on the tailnet
+  ([how](docs/runbooks/pi-exitnode.md)).
+- **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
 
 ## Repo layout
 
 ```
+clusters/homelab/   # Flux-reconciled Kubernetes manifests, one directory per component
+hosts/              # host-level config installed by hand, outside GitOps
+  node01/backup/    #   restic units, script, excludes, bucket lifecycle policy
+  exitnode/         #   the Pi: sshd hardening, forwarding sysctl, cloud-init guard
 docs/
-  hardware.md     # hardware inventory and specs
-  decisions/      # architecture decision records (ADRs)
+  hardware.md       # hardware inventory and specs
+  decisions/        # architecture decision records (ADRs)
+  runbooks/         # rebuilding things: disaster recovery, the Pi
 ```
 
 ## Principles
