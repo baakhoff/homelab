@@ -316,6 +316,26 @@ in a Bitwarden export**, so for those the restic copy is the only one.
 
 ---
 
+## Scenario F — exitnode (the Pi) is gone
+
+The Pi holds nothing worth restoring. What it holds is the house's DNS, and
+the symptom of losing it is that nothing resolves while the internet is
+otherwise fine — every device, at once.
+
+1. **Give the house its names back first.** Router → DHCP → DNS: set the
+   field back to automatic. Clients pick it up at the next lease renewal;
+   toggling Wi-Fi forces one. Two minutes, no lab needed.
+2. **Tailnet devices** using the global nameserver override lose DNS wherever
+   they are. Tailscale console → DNS → switch **Override DNS servers** off
+   until the Pi is back.
+3. **Rebuild** from a blank card with the [Pi runbook](pi-exitnode.md).
+   Nothing is restored; the router's DHCP reservation keeps the address, and
+   the allowlist is recreated from the query log as things break.
+4. Point the router's DNS field back at the Pi **last**, after the rebuilt Pi
+   has answered queries for a while from where it lives.
+
+---
+
 ## What this does not cover
 
 - **Anything created after the last nightly run.** The window is up to 24
