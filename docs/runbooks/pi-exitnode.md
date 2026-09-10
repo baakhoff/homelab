@@ -160,10 +160,10 @@ jsDelivr, then gravity rebuilt:
 pihole -g
 ```
 
-Hagezi's multi-tier lists already fold in the regional lists (Russian,
-Ukrainian, Serbo-Croatian and others), so nothing regional needs adding.
-Expect a larger gravity database and slower `pihole -g` runs on a 3B+; false
-positives are allowlisted from the query log.
+Hagezi's multi-tier lists already fold in the regional lists for most
+languages, so nothing regional needs adding on top. Expect a larger gravity
+database and slower `pihole -g` runs on a 3B+; false positives are allowlisted
+from the query log.
 
 Verify **on the Pi**, against Pi-hole directly:
 
