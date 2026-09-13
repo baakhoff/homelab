@@ -27,3 +27,4 @@ What follows — good and bad.
 - [0003 — epicurus runs as a compose stack in Incus](0003-epicurus-compose-in-incus.md)
 - [0004 — restic to S3 object storage for backups](0004-restic-to-object-storage.md)
 - [0005 — The Pi is the house DNS and the tailnet's door, outside the cluster](0005-pi-house-dns-and-tailnet-door.md)
+- [0006 — Claude Code instances run in the cluster as Remote Control server pods](0006-claude-code-remote-control-pods.md)
