@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: agents
+  namespace: agents
+spec:
+  hard:
+    # Sized for node01 while the platform is proven there: one or two pods
+    # beside the Incus workbench. Raise it when the three-node cluster exists.
+    #
+    # A quota on a resource also forces every container in the namespace to
+    # DECLARE that resource - a project file without requests and limits is
+    # rejected at admission rather than scheduled unbounded. limits.cpu is
+    # deliberately absent so containers need no CPU limit: throttling an
+    # agent's build causes more mystery latency than it prevents.
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.memory: 6Gi
+    pods: "4"
