@@ -88,4 +88,24 @@
       dependencyDashboardApproval: true,
     },
   ],
+
+  // ------------------------------------------------------------------
+  // The agent image pins the Claude Code CLI as a build ARG. No built-in
+  // manager reads `npm install -g pkg@version` inside a Dockerfile, so this
+  // regex teaches Renovate that the ARG is an npm dependency. The dockerfile
+  // manager covers the FROM and COPY --from lines in the same file by default,
+  // and the kubernetes manager above picks up the image tag the Deployments
+  // pin once the workflow has published it - see images/claude-agent/README.md
+  // for the two-PR flow that produces.
+  // ------------------------------------------------------------------
+  customManagers: [
+    {
+      customType: "regex",
+      description: "Claude Code CLI version pinned in the agent image",
+      managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],
+      matchStrings: ["ARG CLAUDE_CODE_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "@anthropic-ai/claude-code",
+      datasourceTemplate: "npm",
+    },
+  ],
 }
