@@ -32,6 +32,18 @@
 # Alloy was first deployed anyway. There is no history here to protect.
 /var/lib/rancher/k3s/storage/*_logging_storage-loki-*
 
+# ---------------------------------------------------------------------------
+# Agent pod volumes (namespace `agents`) - excluded because nothing on them is
+# an original
+#
+# Each holds a git clone, the Claude Code login, session history and dependency
+# caches (node_modules, virtualenvs). The clone is on GitHub, the login is
+# re-made in a minute, the caches are churn that would dominate every nightly
+# run. Uncommitted work is the one thing at risk, and the rule for it is the
+# same as on any laptop: commit or push before you rely on it existing.
+# ---------------------------------------------------------------------------
+/var/lib/rancher/k3s/storage/*_agents_*
+
 # NOTE ON WHAT IS *NOT* HERE, because both look like tempting exclusions:
 #
 # Grafana and Alertmanager PVCs stay IN. Both are small and near-static, so
