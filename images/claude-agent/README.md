@@ -30,12 +30,16 @@ until it is restarted (`imagePullPolicy: IfNotPresent`). When the image must
 change for a reason other than a CLI release, bump the version anyway or
 restart the pods after the build.
 
-## First publish
+## Visibility
 
-GHCR creates a new package as **private**, and a private package needs an
-image-pull secret in the cluster. This image holds nothing secret, so after the
-first successful build make the package public instead:
-GitHub → your profile → Packages → `claude-agent` → Package settings → Danger
+The cluster pulls this image anonymously: there is no image-pull secret, so the
+package must be **public**. This image holds nothing secret, so that is fine.
+
+The first build published it public without any manual step: the workflow's
+`org.opencontainers.image.source` label links the package to this repository,
+and the package took the repository's visibility. Check the package page after
+the first build of any new image all the same. If it shows Private, change it:
+GitHub → your profile → Packages → the package → Package settings → Danger
 zone → Change visibility → Public. Once. Every later build lands in the same
 package.
 
