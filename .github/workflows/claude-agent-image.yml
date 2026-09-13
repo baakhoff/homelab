@@ -1,0 +1,52 @@
+# Builds images/claude-agent and publishes it to GHCR, tagged with the Claude
+# Code version pinned in the Dockerfile. Runs when that directory changes on
+# main, or by hand from the Actions tab.
+#
+# The tag is the CLI version rather than a git SHA so Renovate's docker
+# datasource can offer a new tag to the Deployment that pins it. See
+# images/claude-agent/README.md for the two-PR update flow and its one trade.
+name: claude-agent image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - images/claude-agent/**
+      - .github/workflows/claude-agent-image.yml
+  workflow_dispatch:
+
+# The default GITHUB_TOKEN, scoped down: read the checkout, write the package.
+# No repository write, no secrets beyond the token the runner already holds.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pinned Claude Code version
+        id: version
+        run: |
+          version=$(sed -n 's/^ARG CLAUDE_CODE_VERSION=//p' images/claude-agent/Dockerfile)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: images/claude-agent
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/claude-agent:${{ steps.version.outputs.version }}
+          # The source label is what links the package to this repository on
+          # GitHub, so it shows up on the repo page and inherits its access.
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}

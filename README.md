@@ -38,6 +38,8 @@ clusters/homelab/   # Flux-reconciled Kubernetes manifests, one directory per co
 hosts/              # host-level config installed by hand, outside GitOps
   node01/backup/    #   restic units, script, excludes, bucket lifecycle policy
   exitnode/         #   the Pi: sshd hardening, forwarding sysctl, cloud-init guard
+images/
+  claude-agent/     # container image for the Claude Code agent pods, built by GitHub Actions
 docs/
   hardware.md       # hardware inventory and specs
   decisions/        # architecture decision records (ADRs)
