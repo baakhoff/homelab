@@ -71,6 +71,10 @@ URL:
 kubectl -n agents logs deploy/homelab -f
 ```
 
+What a healthy server prints: a `Connected · homelab` line, the capacity
+(`1/32` with one session), a note that new sessions get an isolated worktree,
+and a claude.ai/code link.
+
 Open claude.ai/code or the app: the session is listed under the project name
 with a green dot. For permission prompts on your phone, run `/config` in a
 session and enable "Push when actions required".
@@ -98,8 +102,11 @@ expects `200`. And the Kubernetes API:
 kubectl -n agents exec deploy/homelab -- curl -sS -m 5 https://kubernetes.default.svc/; echo "exit $?"
 ```
 
-expects a timeout, exit code 28. A certificate error instead means the API
-server answered, so the policy is not being enforced.
+expects the connection to fail before any TLS handshake: either refused at
+once, exit code 7, or a timeout, exit code 28. Which one depends on the policy
+controller: k3s's rejects denied packets, so it is exit 7 here. A certificate
+error, exit code 60, means the API server answered, so the policy is not
+being enforced.
 
 ## When the login expires
 
