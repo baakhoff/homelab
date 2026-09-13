@@ -20,9 +20,11 @@ decisions were made and why.
 
 - **node01** — k3s (single node) reconciled by Flux from `clusters/homelab/`:
   ingress-nginx with cert-manager certificates, kube-prometheus-stack and Loki,
-  Headlamp, Homepage, Vaultwarden. Beside the cluster, two Incus containers: the
-  epicurus stack and the Claude Code workbench. Nightly restic backup to object
-  storage ([how](hosts/node01/backup/README.md)).
+  Headlamp, Homepage, Vaultwarden, and the agent pods: Claude Code Remote Control
+  servers, one per project ([how](docs/runbooks/agent-pods.md)). Beside the
+  cluster, two Incus containers: the epicurus stack and the Claude Code
+  workbench. Nightly restic backup to object storage
+  ([how](hosts/node01/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
   and for the tailnet (through Tailscale's DNS override); Tailscale exit node and
   subnet router, so LAN-only things are reachable from anywhere on the tailnet
