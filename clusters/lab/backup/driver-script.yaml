@@ -1,0 +1,300 @@
+# The backup driver, as a shell script in a ConfigMap.
+#
+# WHY A DRIVER EXISTS AT ALL, since it looks like ceremony: the pod that
+# mounts the clone cannot be the pod that creates it. A pod whose PVC does not
+# exist yet is never scheduled - the volume is bound before any container
+# runs, so an initContainer that would create the claim never gets the chance.
+# So one pod creates snapshot and clone and then creates a SECOND pod that
+# mounts it. That is the whole reason this is not a single CronJob.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-driver
+  namespace: backup
+data:
+  backup.sh: |
+    #!/bin/sh
+    #
+    # For each target volume: snapshot it, clone the snapshot into a throwaway
+    # PVC, run restic against the clone in a Job, then delete all three.
+    #
+    # POSIX sh, not bash - the driver image is Alpine-based and bash is not
+    # guaranteed. No arrays, no `local`, no pipefail.
+    set -eu
+
+    log() { printf '==> %s\n' "$*"; }
+
+    # Best-effort, exactly as on node01: a healthchecks.io outage must never
+    # turn a good backup into a failed one.
+    hc() {
+      [ -n "${HC_URL:-}" ] || return 0
+      wget -q -T 10 -O /dev/null "${HC_URL}${1:-}" 2>/dev/null || true
+    }
+
+    # Every exit path reports, including the ones nobody planned for. Without
+    # this, `set -e` killing the script on an unexpected kubectl failure would
+    # send nothing at all - and while silence does eventually raise the alarm
+    # once healthchecks.io's grace period lapses, an explicit failure ping
+    # raises it immediately and says so on the dashboard.
+    finish() {
+      _rc=$?
+      hc "/$_rc"
+      exit "$_rc"
+    }
+    trap finish EXIT
+
+    # Names for the temporary objects belonging to one target.
+    #
+    # DERIVED AND STABLE, not timestamped. A Job name becomes a label value and
+    # a pod name prefix, so it is capped at 63 characters - and the PVC names
+    # this has to cope with are not short. kube-prometheus-stack's Alertmanager
+    # claim is 98 characters of operator-generated StatefulSet naming, so
+    # anything that embeds the source name whole is already invalid.
+    #
+    # Truncate to 24 characters for something a human can recognise in
+    # `kubectl get`, then append six characters of sha1 over the FULL
+    # namespace/name so two volumes that share a 24-character prefix cannot
+    # collide. Trailing non-alphanumerics are stripped because a Kubernetes
+    # name may not end in a dash, and truncation lands on one often.
+    #
+    # Stable rather than unique per run is deliberate: it makes cleanup
+    # idempotent. A run that died halfway leaves objects this run can find and
+    # delete by name, instead of an accumulating pile of timestamped orphans
+    # nobody is looking at. The CronJob sets concurrencyPolicy: Forbid so two
+    # runs can never race over the same names.
+    objname() {
+      _short=$(printf '%s' "$2" | cut -c1-24 | sed 's/[^a-z0-9]*$//')
+      _hash=$(printf '%s/%s' "$1" "$2" | sha1sum | cut -c1-6)
+      printf 'bk-%s-%s' "$_short" "$_hash"
+    }
+
+    # Order matters. The Job holds the PVC, the PVC holds the snapshot, and
+    # deleting a PVC a pod still has mounted blocks until that pod is gone -
+    # so the Job goes first with foreground cascade, which waits for its pods
+    # rather than orphaning them.
+    cleanup() {
+      _ns=$1; _name=$2
+      kubectl -n "$_ns" delete job "$_name" \
+        --ignore-not-found --cascade=foreground --timeout=3m >/dev/null 2>&1 || true
+      kubectl -n "$_ns" delete pvc "$_name" \
+        --ignore-not-found --timeout=3m >/dev/null 2>&1 || true
+      kubectl -n "$_ns" delete volumesnapshot "$_name" \
+        --ignore-not-found --timeout=3m >/dev/null 2>&1 || true
+    }
+
+    # Deliberately outlives the Job's own activeDeadlineSeconds by two
+    # minutes, so in a stall the JOB dies first and this loop observes a
+    # clean failure instead of timing out on its own and leaving a live
+    # pod behind for cleanup to race with.
+    wait_for_job() {
+      _ns=$1; _name=$2
+      _end=$(( $(date +%s) + JOB_TIMEOUT_SECONDS + 120 ))
+      while :; do
+        _s=$(kubectl -n "$_ns" get job "$_name" -o jsonpath='{.status.succeeded}' 2>/dev/null || true)
+        _f=$(kubectl -n "$_ns" get job "$_name" -o jsonpath='{.status.failed}' 2>/dev/null || true)
+        [ "${_s:-0}" -ge 1 ] 2>/dev/null && return 0
+        # .status.failed counts failed PODS, and a pod that never starts is
+        # not a failed pod - it sits in CreateContainerConfigError being
+        # retried indefinitely. The Failed CONDITION is what a deadline
+        # breach sets instead, so both have to be read or a job that cannot
+        # start looks exactly like one still working.
+        _c=$(kubectl -n "$_ns" get job "$_name" \
+               -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)
+        [ "${_f:-0}" -ge 1 ] 2>/dev/null && return 1
+        [ "$_c" = "True" ] && return 1
+        if [ "$(date +%s)" -ge "$_end" ]; then
+          log "TIMEOUT waiting for job $_name after ${JOB_TIMEOUT_SECONDS}s"
+          return 1
+        fi
+        sleep 10
+      done
+    }
+
+    backup_one() {
+      ns=$1; pvc=$2
+      name=$(objname "$ns" "$pvc")
+      log "--- $ns/$pvc (as $name)"
+
+      # Fail loudly on a name that does not resolve. A backup that silently
+      # skips the volume it was asked about is the single worst outcome
+      # available here: every dashboard stays green and there is nothing in
+      # the repository when it matters. Operator-generated claim names change
+      # shape between chart versions, so this WILL catch something eventually.
+      if ! kubectl -n "$ns" get pvc "$pvc" >/dev/null 2>&1; then
+        log "ERROR: no PVC $pvc in namespace $ns - check BACKUP_TARGETS"
+        return 1
+      fi
+
+      # THE CREDENTIALS ARE CHECKED BEFORE ANY SNAPSHOT IS TAKEN, and this
+      # check earns its place by what happens without it.
+      #
+      # Secrets do not cross namespaces, so restic-repo has to be copied into
+      # every namespace named in BACKUP_TARGETS. When it is missing the Job is
+      # still created and its pod sits in CreateContainerConfigError being
+      # retried - which is not a failed pod, so nothing increments
+      # .status.failed and nothing sets a Failed condition either. The run
+      # would wait out the whole timeout achieving nothing, once per target,
+      # and concurrencyPolicy: Forbid would then skip the following night too.
+      #
+      # Two keys rather than mere existence: an empty or half-written Secret
+      # fails in the same way and looks the same in `kubectl get`.
+      for _k in RESTIC_REPOSITORY RESTIC_PASSWORD; do
+        if ! kubectl -n "$ns" get secret "$RESTIC_SECRET" \
+             -o "jsonpath={.data.$_k}" 2>/dev/null | grep -q .; then
+          log "ERROR: secret $RESTIC_SECRET in $ns is missing or has no $_k"
+          log "ERROR: see clusters/lab/backup/README.md - it must exist in EVERY"
+          log "ERROR: namespace named in BACKUP_TARGETS, not only in backup."
+          return 1
+        fi
+      done
+
+      # Leftovers from a previous run that did not finish.
+      cleanup "$ns" "$name"
+
+      log "snapshotting"
+      kubectl apply -f - >/dev/null <<EOF
+    apiVersion: snapshot.storage.k8s.io/v1
+    kind: VolumeSnapshot
+    metadata:
+      name: $name
+      namespace: $ns
+    spec:
+      volumeSnapshotClassName: $SNAPSHOT_CLASS
+      source:
+        persistentVolumeClaimName: $pvc
+    EOF
+
+      # readyToUse is the only signal that the snapshot exists in Ceph rather
+      # than merely as an API object. Cloning from one that is not ready
+      # leaves the PVC Pending forever with nothing obviously wrong.
+      if ! kubectl -n "$ns" wait --for=jsonpath='{.status.readyToUse}'=true \
+           "volumesnapshot/$name" --timeout="${SNAPSHOT_TIMEOUT:-10m}"; then
+        log "ERROR: snapshot $name never became ready"
+        cleanup "$ns" "$name"
+        return 1
+      fi
+
+      # Size comes from the snapshot, not from the source claim. A PVC that was
+      # expanded reports its requested size, while restoreSize is what the
+      # snapshot actually holds - and a clone smaller than its source is
+      # rejected.
+      size=$(kubectl -n "$ns" get "volumesnapshot/$name" -o jsonpath='{.status.restoreSize}')
+      log "cloning ($size)"
+      kubectl apply -f - >/dev/null <<EOF
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: $name
+      namespace: $ns
+    spec:
+      storageClassName: $STORAGE_CLASS
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: $size
+      dataSource:
+        kind: VolumeSnapshot
+        apiGroup: snapshot.storage.k8s.io
+        name: $name
+    EOF
+
+      log "backing up"
+      # MOUNTED READ-WRITE, which looks wrong for a backup and is not.
+      #
+      # The snapshot was taken while the source filesystem was live, so the
+      # ext4 in it can have an unreplayed journal - exactly the state a power
+      # cut leaves behind. The kernel replays that journal at mount time, and
+      # it cannot do so on a read-only mount: the mount either fails or comes
+      # up with the journal unreplayed and the newest writes missing. The
+      # clone is deleted minutes later, so there is nothing to protect by
+      # forbidding writes to it.
+      #
+      # runAsUser 0 for the same class of reason. This reads every file on
+      # someone else's volume - Grafana's is owned by uid 472 - and a backup
+      # that silently skips what it cannot read is not a backup.
+      #
+      # --host is set explicitly and this is the load-bearing flag. restic
+      # defaults it to the pod's hostname, which is generated fresh for every
+      # Job; that changes the snapshot's group on every run, so no parent is
+      # ever found (every file re-read and re-chunked) and `forget` puts each
+      # snapshot in a group of one where it is trivially the newest daily and
+      # is never removed. Same failure node01 hit with a mktemp'd inventory
+      # path, arriving by a different route: the repository grows forever
+      # while every job reports success.
+      kubectl apply -f - >/dev/null <<EOF
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: $name
+      namespace: $ns
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 3600
+      # Belt to the preflight check's braces. That check catches the cause we
+      # know about; this catches every other way a pod fails to make progress
+      # - unschedulable, an RBD image that will not map, an image pull that
+      # never lands - none of which mark a Job failed on their own.
+      activeDeadlineSeconds: $JOB_TIMEOUT_SECONDS
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 0
+          containers:
+            - name: restic
+              image: $RESTIC_IMAGE
+              args:
+                - backup
+                - --host
+                - $RESTIC_HOST
+                - --tag
+                - nightly
+                - --tag
+                - $ns/$pvc
+                - /data/$ns/$pvc
+              envFrom:
+                - secretRef:
+                    name: $RESTIC_SECRET
+              volumeMounts:
+                - name: data
+                  mountPath: /data/$ns/$pvc
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: $name
+    EOF
+
+      rc=0
+      wait_for_job "$ns" "$name" || rc=1
+      # The restic output is the useful half of this run's log, so it is
+      # pulled back here before the Job is deleted - success or failure.
+      kubectl -n "$ns" logs "job/$name" --tail=50 2>/dev/null | sed 's/^/    | /' || true
+      cleanup "$ns" "$name"
+
+      [ "$rc" -eq 0 ] || { log "ERROR: restic job failed for $ns/$pvc"; return 1; }
+      log "ok"
+      return 0
+    }
+
+    hc "/start"
+    log "lab backup starting"
+
+    failed=0
+    for target in $BACKUP_TARGETS; do
+      ns=${target%%/*}
+      pvc=${target#*/}
+      backup_one "$ns" "$pvc" || failed=$((failed + 1))
+    done
+
+    if [ "$failed" -gt 0 ]; then
+      log "FAILED: $failed target(s) did not back up"
+      exit 1
+    fi
+
+    log "all targets backed up"
