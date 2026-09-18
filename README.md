@@ -57,6 +57,8 @@ Incus containers — all of it on this.
   the nodes got here](docs/runbooks/node-bring-up.md)). Its Grafana answers to
   the same name as node01's and is not reached yet: both clusters hold a
   certificate for `*.lab.baakhoff.com`, and DNS decides which one you get.
+  Nightly restic backup of its volumes to object storage, taken from CSI
+  snapshots ([how](clusters/lab/backup/README.md)).
 - **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
 
 Every lab machine except `node01`, a laptop with no ethernet port, is wired to
