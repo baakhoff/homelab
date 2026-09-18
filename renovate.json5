@@ -42,15 +42,21 @@
   // declare metadata.namespace, so Renovate can match sourceRef to a repo URL.
   // Ours do (flux-system on both sides); if that ever stops being true the
   // symptom is charts silently not being offered, not an error.
+  //
+  // Both clusters are listed. `clusters/lab/` was invisible to Renovate until
+  // now, which meant the Rook operator and the ceph-csi drivers were pinned
+  // with nothing watching them - the rot-on-a-delay this file opens by warning
+  // about, in the one place where a stale version is a data risk rather than a
+  // feature gap.
   flux: {
-    managerFilePatterns: ["/^clusters/homelab/.+\\.ya?ml$/"],
+    managerFilePatterns: ["/^clusters/(homelab|lab)/.+\\.ya?ml$/"],
   },
 
   // The kubernetes manager ships with an EMPTY pattern list - there is no
   // agreed convention for naming k8s manifests, so it matches nothing until
   // told to. This is what picks up plain `image:` fields, e.g. podinfo.
   kubernetes: {
-    managerFilePatterns: ["/^clusters/homelab/.+\\.ya?ml$/"],
+    managerFilePatterns: ["/^clusters/(homelab|lab)/.+\\.ya?ml$/"],
   },
 
   packageRules: [
@@ -62,7 +68,10 @@
       // understands they move as a set.
       description: "Flux's own components are the flux manager's business, not the kubernetes manager's",
       matchManagers: ["kubernetes"],
-      matchFileNames: ["clusters/homelab/flux-system/**"],
+      matchFileNames: [
+        "clusters/homelab/flux-system/**",
+        "clusters/lab/flux-system/**",
+      ],
       enabled: false,
     },
     {
@@ -75,7 +84,10 @@
       // So: still tracked, still reported on the dashboard, but no PR unless
       // it is ticked there. The value here is being TOLD a new Flux exists.
       description: "Flux upgrades are done by re-running flux bootstrap, not by merging a tag bump",
-      matchFileNames: ["clusters/homelab/flux-system/**"],
+      matchFileNames: [
+        "clusters/homelab/flux-system/**",
+        "clusters/lab/flux-system/**",
+      ],
       dependencyDashboardApproval: true,
     },
     {
