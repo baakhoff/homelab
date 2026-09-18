@@ -27,13 +27,20 @@ metadata:
 spec:
   secretName: lab-wildcard-tls
   issuerRef:
-    # STAGING until this has issued once. Flip to `letsencrypt` in its own
-    # commit, and expect browser warnings until then - that warning is the
-    # only visible difference, and it is how you know which issuer signed what
-    # you are looking at. See clusterissuer.yaml for why the dry run matters:
-    # the rate limit this protects is shared with the cluster currently
-    # serving the lab.
-    name: letsencrypt-staging
+    # Production, after staging issued this certificate once on 2026-09-18 -
+    # Order valid, no challenge retries, the whole DNS-01 path proven against a
+    # CA with loose rate limits before spending one of the five weekly
+    # duplicates that this cluster shares with node01.
+    #
+    # Changing issuerRef is enough to re-issue: cert-manager notices the
+    # certificate no longer matches its spec and requests a new one. The
+    # staging certificate is replaced in place, so the only visible change is
+    # the browser warning disappearing.
+    #
+    # `letsencrypt-staging` stays defined in clusters/lab/cert-manager/ - it
+    # costs nothing idle and it is what you point a new Certificate at while
+    # proving anything else here.
+    name: letsencrypt
     kind: ClusterIssuer
   dnsNames:
     - lab.baakhoff.com
