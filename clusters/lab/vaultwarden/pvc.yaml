@@ -1,0 +1,35 @@
+# The whole vault lives here: the SQLite database, attachments, sends, the icon
+# cache, and the RSA keypair Vaultwarden generates on first boot.
+#
+# 5Gi MEANS SOMETHING HERE, which it did not on node01. There the class was
+# local-path, which hands out a directory on the node's root filesystem and
+# enforces no quota at all - the number was documentation and the real limit
+# was however much of node01's disk was free. This is an RBD image with an ext4
+# filesystem made to fit, so it will refuse writes at 5Gi. Thin-provisioned, so
+# the pool is charged for what is written rather than for the size; and
+# allowVolumeExpansion is on in the storage class, so growing it later is an
+# edit to this file rather than a migration.
+#
+# Replicated three ways by Ceph, which is the difference that matters for this
+# particular volume: on node01 the vault existed on exactly one disk in one
+# laptop.
+#
+# BACKED UP - and unlike node01, deliberately rather than by default. There the
+# volume landed under /var/lib/rancher/k3s/storage, which the file walk included
+# by default and the exclude list did not mention. Here it is named explicitly
+# in BACKUP_TARGETS in clusters/lab/backup/cronjob-backup.yaml, and the
+# RoleBinding in this namespace is what lets the driver reach it. Three things
+# have to line up instead of one; the compensation is that a volume cannot end
+# up backed up by accident, or stop being backed up by accident either.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vaultwarden-data
+  namespace: vaultwarden
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 5Gi
