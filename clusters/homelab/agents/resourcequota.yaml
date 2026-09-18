@@ -5,8 +5,13 @@ metadata:
   namespace: agents
 spec:
   hard:
-    # Sized for node01 while the platform is proven there: one or two pods
-    # beside the Incus workbench. Raise it when the three-node cluster exists.
+    # Sized for node01: one or two pods beside the Incus workbench.
+    #
+    # This is no longer the number to raise. The instruction that used to sit
+    # here - raise it once the three-node cluster exists - has been carried out
+    # in clusters/lab/agents/resourcequota.yaml, which is where agent pods grow
+    # from now on. This copy stays sized for the machine it is on, and that
+    # machine is being retired.
     #
     # A quota on a resource also forces every container in the namespace to
     # DECLARE that resource - a project file without requests and limits is

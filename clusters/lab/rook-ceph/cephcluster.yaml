@@ -92,9 +92,21 @@ spec:
 
   dashboard:
     enabled: true
-    # No TLS, and no ingress. The dashboard is reachable only by
-    # `kubectl port-forward` until this cluster has ingress and certificates
-    # of its own, so the traffic never leaves the API server's tunnel.
+    # No TLS on the dashboard itself, and still no Ingress.
+    #
+    # The condition this used to wait on has arrived: ingress-nginx and the lab
+    # wildcard certificate both exist now. So `kubectl port-forward` is a
+    # CHOICE from here rather than the only thing available, and it stays the
+    # access path deliberately. The moment this has a name it is reachable from
+    # the whole tailnet, and what stands in front of it is one generated
+    # password. Port-forwarding keeps the traffic inside the API server's
+    # tunnel and the audience down to whoever holds a kubeconfig.
+    #
+    # Giving it an Ingress is now a decision about exposure, not a missing
+    # piece of plumbing. `ssl: false` is what would make that straightforward
+    # if it is ever taken: the dashboard speaks plain HTTP inside the pod
+    # network and ingress-nginx terminates TLS at the edge, rather than two
+    # certificates in series.
     ssl: false
 
   # Crash reports and daily log rotation inside the Ceph daemons. Both cost
