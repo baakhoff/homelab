@@ -1,0 +1,75 @@
+# This file is deliberately a SEPARATE COMMIT from the cert-manager HelmRelease
+# beside it, and has to stay that way on a rebuild.
+#
+# ClusterIssuer is a kind that does not exist until cert-manager has installed
+# its CRDs. kustomize-controller server-side dry-runs the whole set before
+# applying any of it, so shipping both at once fails the dry-run on this
+# object and aborts the apply for everything in that stage - including the
+# HelmRelease that would have created the CRD. No HelmRelease, no CRD, no
+# successful dry-run, and the retry loop cannot break the cycle because
+# retrying is not what is missing. That is what happened on 2026-09-18.
+#
+# Convergence absorbs ordering problems about values. It cannot absorb one
+# about the existence of a type. Same shape as the rule already established
+# here for SOPS: enabling decryption and using it are two commits.
+#
+# ---
+#
+# Two issuers, where node01 has one.
+#
+# node01 was built with nothing to collide with. This cluster is being built
+# alongside a live one that already holds a certificate for the same names, and
+# Let's Encrypt limits DUPLICATE certificates - an identical set of DNS names -
+# to five per week. Two clusters each holding one wildcard is well inside that.
+# Two clusters plus a handful of false starts while the DNS-01 plumbing is
+# being proven is not, and the certificate that would fail to renew first
+# belongs to the cluster currently serving the lab.
+#
+# So the order is: issue against staging until a certificate actually appears,
+# then flip the Certificate's issuerRef to production in its own commit.
+# Staging has far looser limits and signs from an untrusted root, which is the
+# right trade for a dry run - the browser warning IS the signal that you are
+# still on staging, and it disappears exactly when the real thing works.
+#
+# The two issuers must not share `privateKeySecretRef`. That secret holds the
+# ACME ACCOUNT key, not the certificate key, and staging and production are
+# separate ACME servers with separate account registries; pointing both at one
+# secret makes whichever registers second fail to find its own account.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: a@baakhoff.com
+    privateKeySecretRef:
+      name: letsencrypt-account-key
+    solvers:
+      # DNS-01, not HTTP-01. HTTP-01 requires Let's Encrypt to open a
+      # connection TO this cluster, and nothing here is port-forwarded or
+      # publicly routable. DNS-01 inverts that: cert-manager proves control by
+      # writing a TXT record through Cloudflare's API, so the lab stays
+      # unreachable from the internet and still gets publicly trusted certs.
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: a@baakhoff.com
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
