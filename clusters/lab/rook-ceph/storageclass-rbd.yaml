@@ -2,10 +2,23 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: ceph-block
-  # Deliberately NOT annotated as the default StorageClass yet. k3s's
-  # local-path keeps that role until this cluster has reported HEALTH_OK for
-  # a while; flipping the default in the same change that first creates OSDs
-  # would mean every new PVC lands on storage nobody has watched yet.
+  annotations:
+    # The gate this replaces was "wait for HEALTH_OK for a while". That gate
+    # can never be met here: the cluster carries two cephx key-type warnings
+    # deliberately and permanently, because the CSI keys had to be rotated
+    # back to the older `aes` type for this stack's librados to use them at
+    # all. A warning that is never going away is not a health signal, so the
+    # gate became a test instead - a PVC provisioned from this class, mapped,
+    # written to and read back from a pod. That passed before this annotation
+    # went on.
+    #
+    # local-path stays installed and stays correct for scratch, but it is the
+    # wrong default on three nodes: it writes into a directory on whichever
+    # node the pod first landed on, and from then on the data pins the pod to
+    # that node. Its own default annotation has to be cleared by hand, because
+    # k3s ships it as a server addon rather than as something this repo owns -
+    # and two defaults is not a tie-break worth depending on.
+    storageclass.kubernetes.io/is-default-class: "true"
 provisioner: rook-ceph.rbd.csi.ceph.com
 parameters:
   clusterID: rook-ceph
