@@ -338,8 +338,8 @@ Two things go with it that are not DNS, and neither is urgent. Remote
 **Wake-on-LAN** stops working — magic packets are broadcasts and the Pi is the
 only always-on Linux host on the wired segment that can send them; the nodes'
 power buttons still work. And the **jump host** into LAN-only devices goes with
-it: the switch's web UI and the nodes' management engines stay reachable from
-the LAN itself, just not from the tailnet, until the subnet route is back.
+it: the switch's web UI and the nodes stay reachable from the LAN itself, just
+not from the tailnet, until the subnet route is back.
 
 ---
 

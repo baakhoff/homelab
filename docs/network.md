@@ -6,11 +6,12 @@ everything here describes what exists.
 ## Shape
 
 A TP-Link Deco mesh does routing, DHCP and NAT for the house. One of its LAN
-ports feeds an eight-port managed switch, and everything in the lab hangs off
-that switch. The workstation and phones stay on Wi-Fi.
+ports feeds an eight-port managed switch, and the lab hangs off that switch —
+every machine except `node01`, a laptop with no ethernet port. The workstation
+and phones stay on Wi-Fi as well.
 
 ```
-internet ── Deco mesh ──┬── Wi-Fi ── workstation, phones
+internet ── Deco mesh ──┬── Wi-Fi ── workstation, phones, node01
                         │
                         └── TL-SG108E ──┬── node02
                                         ├── node03
@@ -18,9 +19,9 @@ internet ── Deco mesh ──┬── Wi-Fi ── workstation, phones
                                         └── exitnode (Pi)
 ```
 
-Node-to-node traffic never leaves the switch, which is what matters for etcd
-and, later, Ceph. Anything reaching the internet or the workstation crosses the
-mesh.
+Traffic between the wired machines never leaves the switch: one gigabit hop,
+no radio and no router in the path. Anything reaching the internet, the
+workstation or `node01` crosses the mesh.
 
 ## Addressing
 
@@ -53,7 +54,7 @@ resulting outage arrives weeks later with nothing to connect it to.
 | `node02` | `192.168.68.102` | reservation |
 | `node03` | `192.168.68.103` | reservation |
 | `node04` | `192.168.68.104` | reservation |
-| `node01` (laptop) | DHCP | Wi-Fi, no reservation — it retires when the cluster takes over |
+| `node01` (laptop) | DHCP | Wi-Fi, no reservation — it has no ethernet port |
 
 ### Reservations and Ubuntu
 
@@ -71,11 +72,13 @@ the request identify itself the way the router's UI implies. See
 
 TL-SG108E, hardware V6, eight ports, gigabit, web-managed.
 
-Firmware was upgraded before anything was configured — the factory build
-predated a security fix to the Easy Smart management protocol, and doing it
-first meant a settings reset during the upgrade would have cost nothing.
-**Upgrade through the web UI only.** The Easy Smart Configuration Utility is
-the documented way people brick these.
+Firmware was upgraded before anything was configured — from the factory
+`1.0.0 Build 20211209 Rel.52369` to `1.0.0 Build 20230218 Rel.50633`. The
+factory build predated a security fix to the Easy Smart management protocol,
+and going first meant a settings reset during the upgrade would have cost
+nothing; in the event the settings survived it. **Upgrade through the web UI
+only.** The Easy Smart Configuration Utility is the documented way people
+brick these.
 
 | Port | Device |
 |---|---|
@@ -86,8 +89,8 @@ the documented way people brick these.
 | 5 | `exitnode` |
 | 6–8 | free |
 
-VLANs, QoS, IGMP snooping and loop prevention are at defaults. Flat network
-first.
+VLANs, QoS, IGMP snooping and loop prevention are at defaults. The network is
+flat.
 
 Because its address is static, the switch does not appear in the router's
 client list — nothing ever asks the router for anything on its behalf. This
@@ -107,7 +110,9 @@ Two features that earn their keep:
 Nothing is forwarded from the internet. Remote access is Tailscale, and the Pi
 is the door: it advertises `192.168.68.0/22` as a subnet router, so every
 tailnet device reaches every LAN address — the switch's web UI, the Deco's, the
-nodes' management engines.
+nodes themselves. The nodes' management engines share those same addresses, but
+AMT is unprovisioned and answers nothing; see the
+[bring-up runbook](runbooks/node-bring-up.md).
 
 Devices on the LAN need no configuration for this. Tailscale translates
 subnet-routed traffic to the subnet router's own address by default, so a
@@ -121,10 +126,10 @@ machine that already sits on the LAN, which would route local traffic the long
 way round.
 
 The security posture this implies is deliberate. The switch's UI is HTTP with
-no TLS and a single shared password; a management engine is a whole computer
-below the operating system. Both are acceptable on an authenticated, encrypted
-tailnet and unacceptable exposed to the internet. The devices are not hardened
-— access to them is.
+no TLS and a single shared password; a management engine, once provisioned, is
+a whole computer below the operating system. Both are acceptable on an
+authenticated, encrypted tailnet and unacceptable exposed to the internet. The
+devices are not hardened — access to them is.
 
 ## Names instead of addresses
 

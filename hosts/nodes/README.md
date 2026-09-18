@@ -25,8 +25,6 @@ From a checkout of this directory on the node:
 sudo install -m 0644 99-disable-network-config.cfg /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
 sudo install -m 0600 99-lab.yaml /etc/netplan/99-lab.yaml
 sudo netplan generate
-sudo install -m 0644 00-hardening.conf /etc/ssh/sshd_config.d/00-hardening.conf
-sudo sshd -t && sudo systemctl reload ssh
 sudo reboot
 ```
 
@@ -35,9 +33,15 @@ current session still works. Reboot rather than `netplan apply`: applying tears
 down the interface the SSH session is riding on, and a reboot proves the
 configuration persists at the same time.
 
-Push an SSH key with `ssh-copy-id` and confirm key login works **before**
-installing `00-hardening.conf`. Closing password authentication on a machine
-you cannot yet reach by key means fetching a keyboard.
+Then push an SSH key with `ssh-copy-id` and confirm key login works **before**
+installing `00-hardening.conf` — which is why it is a second step rather than
+another line above. Closing password authentication on a machine you cannot yet
+reach by key means fetching a keyboard.
+
+```
+sudo install -m 0644 00-hardening.conf /etc/ssh/sshd_config.d/00-hardening.conf
+sudo sshd -t && sudo systemctl reload ssh
+```
 
 ## Not files
 

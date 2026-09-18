@@ -39,14 +39,13 @@ changes; the version number is the excuse to keep the earlier ones.
   subnet router, so LAN-only things are reachable from anywhere on the tailnet
   ([how](docs/runbooks/pi-exitnode.md)). Also the lab's jump host and the sender
   for Wake-on-LAN, being the only always-on Linux box on the wired segment.
-- **node02, node03, node04** — nothing yet. Networked, hardened and burnt in,
-  waiting to become a three-node k3s cluster with embedded etcd
+- **node02, node03, node04** — nothing yet. Networked, hardened and burnt in
   ([how they got here](docs/runbooks/node-bring-up.md)).
 - **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
 
-Everything except the workstation is wired to one managed switch; addressing,
-the port map and how it is all reached from outside are in
-[the network](docs/network.md).
+Every lab machine except `node01`, a laptop with no ethernet port, is wired to
+one managed switch; addressing, the port map and how it is all reached from
+outside are in [the network](docs/network.md).
 
 ## Repo layout
 

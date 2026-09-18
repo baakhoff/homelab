@@ -68,9 +68,10 @@ sudo ip route add default via 192.168.68.1
 ```
 
 Taken from the static block below the DHCP pool, so a throwaway cannot collide
-with a real lease. Nothing here survives a reboot — `ip` changes the running
-kernel, not the declared configuration — which is exactly what a scaffold
-should do.
+with a real lease — and a different address on each machine, because all three
+are powered up at the same time. Nothing here survives a reboot — `ip` changes
+the running kernel, not the declared configuration — which is exactly what a
+scaffold should do.
 
 On a machine with two NICs, bring both up and look: the cabled one shows `UP`,
 the empty one `NO-CARRIER`. That also identifies which name belongs to which
@@ -116,8 +117,8 @@ Done in that order the machine's first persistent address is its final one.
 Done the other way it takes a pool address first and needs a second reboot,
 because a reservation only takes effect when the client next asks.
 
-This matters beyond tidiness: k3s writes the node's address into etcd's member
-list and into the certificates it generates, and Ceph later writes monitor
+This matters beyond tidiness: k3s writes a node's address into etcd's member
+list and into the certificates it generates, and clustered storage pins
 addresses of its own. Every address a machine holds before that is scaffolding,
 and scaffolding that accidentally becomes permanent is how infrastructure
 acquires facts nobody chose.
@@ -128,7 +129,12 @@ acquires facts nobody chose.
 ssh-copy-id <user>@<node>
 ```
 
-Then the same drop-in the Pi uses, from [`hosts/nodes/`](../../hosts/nodes/):
+Then prove the key before closing anything: a fresh `ssh <user>@<node>` that
+asks for no password. Closing password authentication on a machine you cannot
+yet reach by key means fetching a keyboard and a monitor.
+
+Only then the same drop-in the Pi uses, from
+[`hosts/nodes/`](../../hosts/nodes/):
 
 ```
 sudo install -m 0644 00-hardening.conf /etc/ssh/sshd_config.d/00-hardening.conf
@@ -140,15 +146,14 @@ each keyword and the `Include` line sits at the top of `sshd_config`, so a file
 named `hardening.conf` would lose to the image's `50-cloud-init.conf`, which
 turns password authentication back on.
 
-`sshd -t` before the reload, always. Test in this order — key login first, then
-the refusal:
+`sshd -t` before the reload, always — and leave the session you reloaded from
+open until the refusal has been confirmed from a second one:
 
 ```
 ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password <user>@<node>
 ```
 
-Expected: `Permission denied (publickey)`. Never run the second test before the
-first has passed.
+Expected: `Permission denied (publickey)`.
 
 ## 3. Swap off
 
@@ -204,12 +209,12 @@ in 512 KB units.
 **`Power On Hours` is the field people misread.** Two years of continuous
 power-on sounds alarming and means almost nothing for flash: NAND wears when
 cells are erased and rewritten, not when they are powered. These drives read
-17,000–19,000 hours with wear at 0–4%.
+between 9,700 and 18,900 hours, with wear at 0–4%.
 
 The QLC drive in one machine showed four times the wear of the TLC drives for
 half the power-on time, which is QLC paying for density with endurance. Fine
-for an operating system, and a concrete reason the Ceph OSD drives are
-specified as TLC with DRAM.
+for an operating system, and a concrete reason to read a drive's endurance
+figures rather than its price whenever it will take sustained writes.
 
 ### CPU and cooling
 
@@ -269,7 +274,7 @@ actually needed. See [`hosts/exitnode/`](../../hosts/exitnode/).
 - `ssh <user>@node0X hostname` answers on the reserved address, by key.
 - Forced password authentication is refused.
 - `swapon --show` prints nothing, after a reboot.
-- `ip -br a` shows the interface UP with the reserved address and exactly one
-  default route.
+- `ip -br a` shows the interface UP with the reserved address, and `ip route`
+  exactly one default route.
 - The switch's port page shows the expected ports at 1000M.
 - SMART shows zero media errors and zero critical warnings.
