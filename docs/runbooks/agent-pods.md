@@ -138,8 +138,10 @@ stays.
 - No cluster access, no LAN, no tailnet from inside, by policy.
 - Deleting a project's manifest prunes its volume: the checkout, the login and
   any uncommitted work go with it. Commit or push first.
-- Nothing backs the volumes up, on either cluster. On node01 they are excluded
-  from the nightly restic run, see `hosts/node01/backup/restic-excludes.txt`;
-  on the lab cluster no backup exists yet. Everything on them is a clone, a
-  login, or a cache — replication is not a backup, and three copies of a
-  deleted volume is still no copies.
+- Nothing backs the volumes up, on either cluster — and on both it is now a
+  choice rather than an absence. On node01 they are excluded from the nightly
+  restic run, see `hosts/node01/backup/restic-excludes.txt`; on the lab cluster
+  a backup exists and agent volumes are simply not among its targets, see
+  [`clusters/lab/backup/`](../../clusters/lab/backup/README.md). Everything on
+  them is a clone, a login, or a cache — replication is not a backup, and three
+  copies of a deleted volume is still no copies.
