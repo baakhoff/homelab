@@ -1,0 +1,58 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: rook-ceph
+      version: "v1.20.7"
+      sourceRef:
+        kind: HelmRepository
+        name: rook-release
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # The chart named `rook-ceph` is the OPERATOR only: a controller plus the
+    # Ceph CRDs. It creates no storage on its own and touches no disk. The
+    # cluster itself arrives as a CephCluster custom resource in a later
+    # change, written out rather than templated from a second chart, so that
+    # every field it sets is visible in this repo.
+    #
+    # Deliberately not upgraded past the newest stable release: v1.21.0-beta.0
+    # was published two days before this landed. A storage layer is the last
+    # place to run a pre-release.
+
+    # Both CSI drivers stay on. RBD provides ReadWriteOnce block volumes -
+    # the default for anything with a database. CephFS provides
+    # ReadWriteMany, which is the capability local-path cannot offer at any
+    # price, and the reason this cluster gets shared storage at all.
+    csi:
+      enableRbdDriver: true
+      enableCephfsDriver: true
+
+      # k3s keeps its kubelet state at the standard path, so the chart's
+      # default is already right. Stated explicitly because this is the line
+      # that breaks Rook on distributions that relocate it - RKE2, k0s, and
+      # anything running kubelet from a snap - and a silent wrong value here
+      # surfaces much later as volumes that mount nowhere.
+      kubeletDirPath: /var/lib/kubelet
+
+      # No ServiceMonitor. This cluster has no Prometheus operator yet, so the
+      # monitoring.coreos.com CRDs do not exist, and a manifest referring to a
+      # missing CRD fails the whole reconcile rather than just itself. Flip
+      # both of these on in the same change that installs the monitoring
+      # stack, not before.
+      serviceMonitor:
+        enabled: false
+
+    monitoring:
+      enabled: false
