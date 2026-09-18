@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: agents
+  namespace: agents
+spec:
+  hard:
+    # Raised from node01's numbers, which is what that copy's comment said to
+    # do once the three-node cluster existed.
+    #
+    # The arithmetic is deliberately six times the per-pod shape in
+    # homelab.yaml - 250m and 512Mi requested, 3Gi limit - so six projects can
+    # run at once and the quota is what stops a seventh, rather than a node
+    # quietly filling up.
+    #
+    # limits.memory exceeds what the nodes can actually back: 18Gi across three
+    # machines that also carry etcd, the Ceph OSDs and the mons. That
+    # overcommit is safe HERE and would not be anywhere else in this cluster,
+    # because agent pods are the only workload at negative priority - under
+    # memory pressure the kubelet evicts them first, and preemptionPolicy:
+    # Never means they never push anything else off a node to get scheduled in
+    # the first place. The quota bounds the blast radius; the priority decides
+    # who pays when the bound is optimistic.
+    #
+    # A quota on a resource also forces every container in the namespace to
+    # DECLARE that resource - a project file without requests and limits is
+    # rejected at admission rather than scheduled unbounded. limits.cpu is
+    # deliberately absent so containers need no CPU limit: throttling an
+    # agent's build causes more mystery latency than it prevents.
+    requests.cpu: "3"
+    requests.memory: 3Gi
+    limits.memory: 18Gi
+    pods: "6"

@@ -50,8 +50,11 @@ Incus containers — all of it on this.
   for Wake-on-LAN, being the only always-on Linux box on the wired segment.
 - **node02, node03, node04** — k3s with embedded etcd, all three as servers, and a
   second Flux reconciling `clusters/lab/`. Rook-Ceph runs an OSD on each of them
-  and serves replicated block storage as the cluster's default StorageClass
-  ([how they got here](docs/runbooks/node-bring-up.md)).
+  and serves replicated block storage as the cluster's default StorageClass.
+  cert-manager and ingress-nginx, and the agent pods: Claude Code Remote
+  Control servers, one per project, on volumes that follow the pod between
+  nodes ([how](docs/runbooks/agent-pods.md), [how the nodes got
+  here](docs/runbooks/node-bring-up.md)).
 - **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
 
 Every lab machine except `node01`, a laptop with no ethernet port, is wired to
