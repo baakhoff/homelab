@@ -1,0 +1,139 @@
+# Loki in Monolithic mode: one process, local disk, no object storage.
+#
+# The chart offers Monolithic, SimpleScalable and Distributed. The latter two
+# exist for object storage and many nodes; three nodes is still not "many", and
+# splitting reads from writes here would buy a topology diagram and cost RAM
+# that Prometheus has a better use for. "SingleBinary" is the deprecated alias
+# for Monolithic - tutorials still use it.
+#
+# What makes Loki cheap enough to run beside everything else: it indexes only
+# LABELS, and stores the log text compressed and unindexed. That is the whole
+# design. It also tells you how to query it - narrow by labels first, then
+# search within the result. "Find this string across all logs" is the one
+# question Loki is bad at, by construction.
+#
+# COROLLARY, and the way people wreck Loki: every distinct label VALUE creates a
+# separate stream. namespace/pod/container are bounded and fine. Attaching a
+# request id or a user id would create a stream per request and fall over.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: logging
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: loki
+      version: "18.11.7"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana-community
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    deploymentMode: Monolithic
+
+    # Setting deploymentMode is NOT sufficient on its own, which is genuinely
+    # surprising. The chart ships non-zero replicas for the SimpleScalable
+    # targets whatever the mode says, so leaving these alone means asking for
+    # two topologies at once - and a validate.yaml template refuses to render
+    # rather than letting you find out in the cluster. deploymentMode declares
+    # the intent; these three are what actually select the shape.
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+
+    loki:
+      # No tenant header on requests. Multi-tenancy for one person is ceremony.
+      auth_enabled: false
+      commonConfig:
+        # Still 1, and on a three-node cluster that now needs saying: this is
+        # Loki's OWN replication between Loki instances, and there is one
+        # instance. Durability comes from underneath instead - the PVC is an
+        # RBD image replicated across all three nodes by Ceph. Raising this
+        # without also raising singleBinary.replicas makes writes fail, which
+        # is exactly what it did on node01 at the default of 3.
+        replication_factor: 1
+      schemaConfig:
+        configs:
+          - from: "2024-04-01"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: loki_index_
+              period: 24h
+      storage:
+        type: filesystem
+
+      # RETENTION IS THE SETTING THAT MATTERS HERE, and it is off by default.
+      #
+      # The reason it matters has changed shape since node01. There, logs that
+      # grew without limit filled the single ext4 root shared by k3s, the Incus
+      # pool and every PVC, and took the whole machine down with them. Here the
+      # PVC is an RBD image with a hard size, so runaway logs fill Loki's own
+      # filesystem and nothing else - a smaller blast radius, but a WORSE
+      # failure if left alone, because a full Loki silently stops accepting
+      # writes and the logs you wanted are the ones that never arrived.
+      #
+      # 7 days is still plenty for a lab where logs answer "what happened
+      # during that alert an hour ago".
+      limits_config:
+        retention_period: 168h
+      compactor:
+        retention_enabled: true
+        delete_request_store: filesystem
+
+    singleBinary:
+      # Chart default is 0 replicas, i.e. nothing runs. Not a typo on our side.
+      replicas: 1
+      persistence:
+        enabled: true
+        size: 10Gi
+        # Named rather than left blank, the same rule the agent pods' claim
+        # follows: `ceph-block` IS the default on this cluster, so omitting it
+        # would work today and silently produce something different on a
+        # cluster where it is not.
+        #
+        # Worth knowing what the number costs: the pool replicates three ways,
+        # so a 10Gi claim is 30Gi of raw NVMe when full. Thin-provisioned, so
+        # it is charged as it is written, not up front.
+        storageClass: ceph-block
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+
+    # The chart's caches are separate memcached StatefulSets sized for a real
+    # cluster, and they are the single biggest reason people find this chart
+    # unschedulable on small nodes. One person querying their own logs
+    # occasionally does not need a cache tier.
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+
+    # An nginx proxy in front of exactly one Loki pod. Useful when reads and
+    # writes are separate deployments; here it is a hop and a pod for nothing.
+    gateway:
+      enabled: false
+
+    # Continuously writes and reads back synthetic log lines to prove the
+    # pipeline works. A reasonable idea, but it is a permanently running pod
+    # and a permanently open Telegram alert waiting to happen.
+    lokiCanary:
+      enabled: false
+    test:
+      enabled: false
