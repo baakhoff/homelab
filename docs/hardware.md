@@ -37,7 +37,7 @@ Three identical used units, bought in September 2026.
 | NIC | Intel I219-LM 1 GbE; one unit carries a second RJ-45 on a Flex-port module |
 | Power | 90 W external adapter each; about 7 W idle per HP's figures |
 | Size | 177 × 175 × 34 mm, 1.4 kg; rated for 10–35 °C ambient |
-| State | Ubuntu Server 24.04, wired, keys-only SSH, swap off, upgraded and burnt in. Not yet joined to anything — [bring-up](runbooks/node-bring-up.md) |
+| State | Ubuntu Server 24.04, wired, keys-only SSH, swap off, upgraded and burnt in — [bring-up](runbooks/node-bring-up.md). In service as a three-node k3s cluster: all three are servers with embedded etcd, Flux reconciles `clusters/lab/`, and Rook-Ceph runs an OSD on each from a logical volume carved out of the unallocated space on its system disk |
 
 Measured during bring-in, worth keeping as a baseline:
 
