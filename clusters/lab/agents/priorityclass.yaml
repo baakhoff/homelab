@@ -1,0 +1,15 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: agents
+# Below the default of 0 that every other workload here runs at. Under memory
+# pressure the kubelet evicts pods that exceed their requests in priority
+# order, lowest first - so an agent mid-build is what dies, never Vaultwarden
+# or Flux. The scheduler also places lower-priority pods after higher ones
+# when both are pending.
+value: -100
+globalDefault: false
+# An agent pod must never bump another pod off a node to make room for
+# itself. With this the scheduler waits for room instead.
+preemptionPolicy: Never
+description: "Claude Code agent pods: first to be evicted, never preempting."
