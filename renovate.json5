@@ -3,10 +3,12 @@
 // reconciles main into the cluster within a minute or two, so a Renovate PR is
 // a production change wearing the clothes of a version bump.
 //
-// Everything here is pinned - cert-manager, ingress-nginx, kube-prometheus-stack
-// and podinfo all carry exact versions. Pinning without a bump mechanism is not
-// stability, it is just rot on a delay, and the usual answer (Dependabot) cannot
-// read a Flux HelmRelease at all. Renovate can.
+// Everything here is pinned: every Helm chart on both clusters and every plain
+// image tag carries an exact version. Deliberately not enumerated - the list
+// this sentence used to carry named four things and was wrong within a month,
+// which is its own small lesson about comments that count. Pinning without a
+// bump mechanism is not stability, it is just rot on a delay, and the usual
+// answer (Dependabot) cannot read a Flux HelmRelease at all. Renovate can.
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["config:recommended"],
@@ -35,7 +37,7 @@
   // ------------------------------------------------------------------
 
   // The flux manager matches ONLY gotk-components.yaml by default, so without
-  // this it would find none of the three HelmReleases. Patterns are merged
+  // this it would find none of the HelmReleases in this repo. Patterns are merged
   // with the defaults rather than replacing them.
   //
   // Resolving a chart also needs the HelmRelease and its HelmRepository to both
