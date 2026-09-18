@@ -20,8 +20,9 @@ changes; the version number is the excuse to keep the earlier ones.
 | Device | Specs | Status |
 |---|---|---|
 | Laptop `node01` | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | in service: k3s + Flux, Incus workbench |
-| Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router |
-| 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | Ubuntu Server installed, not yet in service |
+| Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router, wired |
+| 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | wired, hardened, burnt in — [bring-up](docs/runbooks/node-bring-up.md); not yet joined to a cluster |
+| Switch | TP-Link TL-SG108E, 8 × 1 GbE, web-managed — [details](docs/hardware.md) | in service: the wired backbone — [the network](docs/network.md) |
 | Rack | 10″ 3D-printed — [KWS Rack V2](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) | printing |
 
 ## Where things run
@@ -36,8 +37,15 @@ changes; the version number is the excuse to keep the earlier ones.
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
   and for the tailnet (through Tailscale's DNS override); Tailscale exit node and
   subnet router, so LAN-only things are reachable from anywhere on the tailnet
-  ([how](docs/runbooks/pi-exitnode.md)).
+  ([how](docs/runbooks/pi-exitnode.md)). Also the lab's jump host and the sender
+  for Wake-on-LAN, being the only always-on Linux box on the wired segment.
+- **node02, node03, node04** — nothing yet. Networked, hardened and burnt in
+  ([how they got here](docs/runbooks/node-bring-up.md)).
 - **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
+
+Every lab machine except `node01`, a laptop with no ethernet port, is wired to
+one managed switch; addressing, the port map and how it is all reached from
+outside are in [the network](docs/network.md).
 
 ## Repo layout
 
@@ -45,13 +53,15 @@ changes; the version number is the excuse to keep the earlier ones.
 clusters/homelab/   # Flux-reconciled Kubernetes manifests, one directory per component
 hosts/              # host-level config installed by hand, outside GitOps
   node01/backup/    #   restic units, script, excludes, bucket lifecycle policy
-  exitnode/         #   the Pi: sshd hardening, forwarding sysctl, cloud-init guard
+  exitnode/         #   the Pi: sshd hardening, forwarding sysctl, cloud-init guard, wake-nodes
+  nodes/            #   node02-04, configured identically: netplan, cloud-init guard, sshd
 images/
   claude-agent/     # container image for the Claude Code agent pods, built by GitHub Actions
 docs/
   hardware.md       # hardware inventory and specs
+  network.md        # addressing, the switch, how the lab is reached from outside
   decisions/        # architecture decision records (ADRs)
-  runbooks/         # rebuilding things: disaster recovery, the Pi
+  runbooks/         # rebuilding things: disaster recovery, the Pi, the cluster nodes
 ```
 
 ## Principles

@@ -334,6 +334,13 @@ otherwise fine — every device, at once.
 4. Point the router's DNS field back at the Pi **last**, after the rebuilt Pi
    has answered queries for a while from where it lives.
 
+Two things go with it that are not DNS, and neither is urgent. Remote
+**Wake-on-LAN** stops working — magic packets are broadcasts and the Pi is the
+only always-on Linux host on the wired segment that can send them; the nodes'
+power buttons still work. And the **jump host** into LAN-only devices goes with
+it: the switch's web UI and the nodes stay reachable from the LAN itself, just
+not from the tailnet, until the subnet route is back.
+
 ---
 
 ## What this does not cover

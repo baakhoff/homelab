@@ -1,0 +1,23 @@
+# /etc/netplan/99-lab.yaml — mode 0600
+#
+# Sorts after cloud-init's 50- file, so these values win. Generated in place
+# with `netplan set --origin-hint 99-lab`; kept here so a rebuilt node can be
+# configured from git.
+#
+# eno1 is the onboard NIC on all three. node02 also carries an Intel I225-LM in
+# Flex Port 1 (enp1s0), currently uncabled and deliberately unconfigured — two
+# cabled ports means two leases and two default routes on one machine.
+network:
+  version: 2
+  ethernets:
+    eno1:
+      dhcp4: true
+      # systemd-networkd otherwise sends a client identifier derived from
+      # /etc/machine-id, and a DHCP server matching on client-ID then ignores
+      # the MAC reservation entirely. Silent failure: the node just comes up on
+      # a pool address.
+      dhcp-identifier: mac
+      # Boot does not block on systemd-networkd-wait-online when the cable is
+      # out. Without this a headless box waits for a network that is not
+      # coming.
+      optional: true
