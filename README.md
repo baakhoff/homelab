@@ -15,13 +15,22 @@ Three mini PCs, the switch, the mesh unit and the Pi, stacked on the floor and c
 together. The 10″ rack is still printing. This photo gets replaced as the build
 changes; the version number is the excuse to keep the earlier ones.
 
+## The lab, v0.1
+
+![An MSI laptop, lid closed and covered in stickers, standing on its edge in a wire mesh letter rack on a desk, power cable plugged in](docs/images/node01-v0.1.jpg)
+
+Where it started, and where most of it still runs: one laptop stood on edge in a letter
+rack so it works with the lid shut, on Wi-Fi, with nothing else on the LAN. k3s, Flux,
+cert-manager and ingress-nginx, Prometheus and Loki, Vaultwarden, the agent pods and two
+Incus containers — all of it on this.
+
 ## Hardware
 
 | Device | Specs | Status |
 |---|---|---|
 | Laptop `node01` | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | in service: k3s + Flux, Incus workbench |
 | Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router, wired |
-| 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | wired, hardened, burnt in — [bring-up](docs/runbooks/node-bring-up.md); not yet joined to a cluster |
+| 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | in service: a three-node k3s cluster with replicated Ceph storage — [bring-up](docs/runbooks/node-bring-up.md) |
 | Switch | TP-Link TL-SG108E, 8 × 1 GbE, web-managed — [details](docs/hardware.md) | in service: the wired backbone — [the network](docs/network.md) |
 | Rack | 10″ 3D-printed — [KWS Rack V2](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) | printing |
 
@@ -39,7 +48,9 @@ changes; the version number is the excuse to keep the earlier ones.
   subnet router, so LAN-only things are reachable from anywhere on the tailnet
   ([how](docs/runbooks/pi-exitnode.md)). Also the lab's jump host and the sender
   for Wake-on-LAN, being the only always-on Linux box on the wired segment.
-- **node02, node03, node04** — nothing yet. Networked, hardened and burnt in
+- **node02, node03, node04** — k3s with embedded etcd, all three as servers, and a
+  second Flux reconciling `clusters/lab/`. Rook-Ceph runs an OSD on each of them
+  and serves replicated block storage as the cluster's default StorageClass
   ([how they got here](docs/runbooks/node-bring-up.md)).
 - **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
 
@@ -50,7 +61,9 @@ outside are in [the network](docs/network.md).
 ## Repo layout
 
 ```
-clusters/homelab/   # Flux-reconciled Kubernetes manifests, one directory per component
+clusters/           # Flux-reconciled Kubernetes manifests, one directory per component
+  homelab/          #   node01's cluster
+  lab/              #   the node02-04 cluster
 hosts/              # host-level config installed by hand, outside GitOps
   node01/backup/    #   restic units, script, excludes, bucket lifecycle policy
   exitnode/         #   the Pi: sshd hardening, forwarding sysctl, cloud-init guard, wake-nodes
