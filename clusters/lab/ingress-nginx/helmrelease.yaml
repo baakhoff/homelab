@@ -1,0 +1,97 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ingress-nginx
+  namespace: ingress-nginx
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: ingress-nginx
+      version: "4.15.1"
+      sourceRef:
+        kind: HelmRepository
+        name: ingress-nginx
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    controller:
+      # Two replicas on a three-node cluster, hard-spread one per node.
+      #
+      # node01 took the chart default of one because it had one node. Keeping
+      # that default here would cancel the reason this cluster has three: a
+      # single controller dies with whichever node it landed on, and every
+      # hostname in the lab goes with it.
+      #
+      # Two rather than three is the deliberate part. Three would put a
+      # controller on every node, so a request arriving anywhere is served
+      # locally with no second hop - but with a hard spread there is then
+      # nowhere for an evicted replica to go, and a node reboot leaves a pod
+      # Pending until that node comes back. Two on three leaves a spare node,
+      # so losing one is not just survived but repaired: the replica
+      # reschedules onto the free node and the cluster is back to full width
+      # without anyone doing anything. The cost is one intra-cluster hop on a
+      # 1 GbE LAN, which is not a cost.
+      replicaCount: 2
+
+      # Without this the scheduler is free to put both replicas on one node,
+      # which buys nothing and is not visibly wrong until that node reboots.
+      # DoNotSchedule makes the constraint real rather than advisory -
+      # ScheduleAnyway would let it stack them under pressure, which is exactly
+      # the moment the spread mattered.
+      #
+      # The selector is written out literally instead of using the chart's
+      # template helpers. The helpers only work here if the chart pipes this
+      # value through `tpl`, and a selector that silently renders to the wrong
+      # labels does not error - it matches nothing, the constraint applies to
+      # an empty set, and the pods stack anyway. These three labels are what
+      # the chart puts on controller pods when the release is named
+      # `ingress-nginx`, which Flux guarantees because it names the release
+      # after this HelmRelease.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+              app.kubernetes.io/instance: ingress-nginx
+              app.kubernetes.io/component: controller
+
+      # Spreading protects against a node failing. This protects against you:
+      # `kubectl drain` for a k3s upgrade will evict every pod it is allowed
+      # to, and with no budget declared it is allowed to take both replicas at
+      # once. minAvailable: 1 makes the second eviction block until the first
+      # replica is running again elsewhere.
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+
+      # k3s ServiceLB (klipper) satisfies this without a cloud provider. On a
+      # single-node cluster it bound 80/443 on node01; here it runs on all
+      # three servers, so the Service comes up with three external IPs and any
+      # node's address answers. Which of them DNS points at is a separate
+      # decision, made in Cloudflare rather than here.
+      service:
+        type: LoadBalancer
+
+      ingressClassResource:
+        default: true
+
+      extraArgs:
+        # Serve the lab wildcard for any host without its own certificate, so an
+        # Ingress in any namespace gets valid TLS without referencing a Secret it
+        # cannot reach. Without this the fallback is nginx's self-signed cert.
+        default-ssl-certificate: ingress-nginx/lab-wildcard-tls
+
+      config:
+        # ssl-redirect only fires for Ingresses that declare TLS themselves, and
+        # by design none of them do here. force-ssl-redirect applies regardless,
+        # so plain HTTP still lands on HTTPS.
+        force-ssl-redirect: "true"
