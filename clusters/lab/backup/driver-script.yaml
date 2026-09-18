@@ -82,14 +82,26 @@ data:
         --ignore-not-found --timeout=3m >/dev/null 2>&1 || true
     }
 
+    # Deliberately outlives the Job's own activeDeadlineSeconds by two
+    # minutes, so in a stall the JOB dies first and this loop observes a
+    # clean failure instead of timing out on its own and leaving a live
+    # pod behind for cleanup to race with.
     wait_for_job() {
       _ns=$1; _name=$2
-      _end=$(( $(date +%s) + JOB_TIMEOUT_SECONDS ))
+      _end=$(( $(date +%s) + JOB_TIMEOUT_SECONDS + 120 ))
       while :; do
         _s=$(kubectl -n "$_ns" get job "$_name" -o jsonpath='{.status.succeeded}' 2>/dev/null || true)
         _f=$(kubectl -n "$_ns" get job "$_name" -o jsonpath='{.status.failed}' 2>/dev/null || true)
         [ "${_s:-0}" -ge 1 ] 2>/dev/null && return 0
+        # .status.failed counts failed PODS, and a pod that never starts is
+        # not a failed pod - it sits in CreateContainerConfigError being
+        # retried indefinitely. The Failed CONDITION is what a deadline
+        # breach sets instead, so both have to be read or a job that cannot
+        # start looks exactly like one still working.
+        _c=$(kubectl -n "$_ns" get job "$_name" \
+               -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)
         [ "${_f:-0}" -ge 1 ] 2>/dev/null && return 1
+        [ "$_c" = "True" ] && return 1
         if [ "$(date +%s)" -ge "$_end" ]; then
           log "TIMEOUT waiting for job $_name after ${JOB_TIMEOUT_SECONDS}s"
           return 1
@@ -112,6 +124,29 @@ data:
         log "ERROR: no PVC $pvc in namespace $ns - check BACKUP_TARGETS"
         return 1
       fi
+
+      # THE CREDENTIALS ARE CHECKED BEFORE ANY SNAPSHOT IS TAKEN, and this
+      # check earns its place by what happens without it.
+      #
+      # Secrets do not cross namespaces, so restic-repo has to be copied into
+      # every namespace named in BACKUP_TARGETS. When it is missing the Job is
+      # still created and its pod sits in CreateContainerConfigError being
+      # retried - which is not a failed pod, so nothing increments
+      # .status.failed and nothing sets a Failed condition either. The run
+      # would wait out the whole timeout achieving nothing, once per target,
+      # and concurrencyPolicy: Forbid would then skip the following night too.
+      #
+      # Two keys rather than mere existence: an empty or half-written Secret
+      # fails in the same way and looks the same in `kubectl get`.
+      for _k in RESTIC_REPOSITORY RESTIC_PASSWORD; do
+        if ! kubectl -n "$ns" get secret "$RESTIC_SECRET" \
+             -o "jsonpath={.data.$_k}" 2>/dev/null | grep -q .; then
+          log "ERROR: secret $RESTIC_SECRET in $ns is missing or has no $_k"
+          log "ERROR: see clusters/lab/backup/README.md - it must exist in EVERY"
+          log "ERROR: namespace named in BACKUP_TARGETS, not only in backup."
+          return 1
+        fi
+      done
 
       # Leftovers from a previous run that did not finish.
       cleanup "$ns" "$name"
@@ -195,6 +230,11 @@ data:
     spec:
       backoffLimit: 1
       ttlSecondsAfterFinished: 3600
+      # Belt to the preflight check's braces. That check catches the cause we
+      # know about; this catches every other way a pod fails to make progress
+      # - unschedulable, an RBD image that will not map, an image pull that
+      # never lands - none of which mark a Job failed on their own.
+      activeDeadlineSeconds: $JOB_TIMEOUT_SECONDS
       template:
         spec:
           restartPolicy: Never
