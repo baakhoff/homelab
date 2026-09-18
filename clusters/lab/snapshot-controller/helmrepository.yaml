@@ -1,0 +1,20 @@
+# Piraeus Datastore's chart, which is an odd-looking source for something this
+# generic and is the right one anyway.
+#
+# The snapshot controller is a SIG Storage component (kubernetes-csi/
+# external-snapshotter) that ships as raw YAML in a git repo and no official
+# chart. Everyone who needs it either vendors those manifests or uses a
+# third-party chart; Piraeus maintains the one that is actually kept current
+# with upstream releases, and it is what the Rook documentation points at.
+#
+# The alternative was committing upstream's manifests into this repo, which
+# means owning the upgrade by hand forever and getting no Renovate coverage -
+# the exact rot-on-a-delay renovate.json5 opens by warning about.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: piraeus
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://piraeus.io/helm-charts/
