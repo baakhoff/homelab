@@ -1,0 +1,19 @@
+# /etc/wake-nodes.conf
+#
+# Local to the machine, never committed — MAC addresses are in this repo's
+# never-publish list, alongside serials, the SSID and public addresses.
+#
+# One host per line:
+#
+#   <name>  <mac>
+#
+# <name> is what you type: `wake-nodes node02`. Colons in the MAC, not dashes;
+# a router's client list usually shows dashes. Read a machine's own MAC with
+# `ip -br link` on it.
+#
+# Blank lines and lines starting with # are ignored, as is anything after the
+# MAC — so a trailing comment on a host line is fine.
+
+node02  00:00:00:00:00:00
+node03  00:00:00:00:00:00
+node04  00:00:00:00:00:00
