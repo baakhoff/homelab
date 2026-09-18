@@ -1,0 +1,326 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "88.6.2"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # ---------------------------------------------------------------------
+    # k3s runs the control plane as ONE process, so these three components
+    # have no separately scrapeable endpoint (controller-manager and
+    # scheduler bind 127.0.0.1 only). Left enabled, they show up forever as
+    # failing targets and fire alerts about a control plane that is fine.
+    # ---------------------------------------------------------------------
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeProxy:
+      enabled: false
+
+    # kubeEtcd is off for a DIFFERENT reason than the three above, and the
+    # difference is the whole point of this cluster.
+    #
+    # node01 had no etcd at all - single-node k3s keeps its state in SQLite.
+    # Here there are three servers with embedded etcd, so there is a real
+    # quorum, and "is etcd healthy" becomes a question worth being able to
+    # answer: it is the thing that decides whether losing a second node is
+    # survivable or fatal.
+    #
+    # It stays off anyway because k3s does not expose those metrics unless it
+    # was started with `--etcd-expose-metrics=true`, which these nodes were
+    # not. Enabling the scrape without the flag produces exactly the permanent
+    # failing target this block exists to avoid. Turning it on is a node-level
+    # change first (the flag, on all three) and a manifest change second.
+    kubeEtcd:
+      enabled: false
+
+    # Disabling the components above removed their ServiceMonitors but NOT
+    # their alert rules, and those rules are written as
+    # `absent(up{job="kube-controller-manager"} == 1)` - i.e. they fire
+    # precisely because nothing is scraping. Left on, the very first thing
+    # Telegram would deliver is four permanent false alarms.
+    defaultRules:
+      rules:
+        kubeControllerManager: false
+        kubeSchedulerAlerting: false
+        kubeProxy: false
+        etcd: false
+
+    prometheus:
+      prometheusSpec:
+        # Stamped onto every metric this Prometheus stores and every alert it
+        # sends. There are two clusters now, both alerting into the same
+        # Telegram chat about namespaces with the same names, and without this
+        # an alert about `agents` is ambiguous at exactly the moment it
+        # matters. It also survives the changeover as the label to group by if
+        # these two ever federate or remote-write anywhere.
+        externalLabels:
+          cluster: lab
+        retention: 15d
+        # Below the PVC size on purpose: Prometheus needs free space to
+        # compact, and hitting a full disk is far worse than losing old data.
+        retentionSize: 8GB
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              # Named rather than left blank - see the agent pods' claim for
+              # the full argument. The practical difference from node01: that
+              # PVC was a directory on the one node, so a node rebuild lost
+              # the metrics history with it. This one is an RBD image
+              # replicated three ways, which means the history now survives
+              # losing the node that was serving it - and metrics history is
+              # only worth keeping if it outlives the incident it describes.
+              storageClassName: ceph-block
+              resources:
+                requests:
+                  storage: 10Gi
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        # By default the operator only discovers monitors carrying this
+        # chart's release label, which silently ignores everything added
+        # later. Watch the whole cluster.
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        probeSelectorNilUsesHelmValues: false
+        scrapeConfigSelectorNilUsesHelmValues: false
+        # The same trap applied to alert RULES, and worth its own line
+        # because the failure is even quieter: a PrometheusRule we write
+        # ourselves is simply never loaded unless it carries the label
+        # release=kube-prometheus-stack. Not rejected, not logged - it just
+        # never appears in Prometheus and never fires, which is
+        # indistinguishable from an alert that has nothing to complain about.
+        ruleSelectorNilUsesHelmValues: false
+
+    alertmanager:
+      alertmanagerSpec:
+        resources:
+          requests:
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        storage:
+          volumeClaimTemplate:
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              storageClassName: ceph-block
+              resources:
+                requests:
+                  storage: 2Gi
+        # Mounted by the operator at
+        # /etc/alertmanager/secrets/alertmanager-telegram/<key>
+        # The config below reads the bot token and chat id from those files
+        # rather than inlining them, which keeps the whole routing tree
+        # readable and diffable in a public repo.
+        #
+        # node01's copy mounts a second secret, alertmanager-heartbeat. This
+        # one deliberately does not - see the Watchdog route below.
+        secrets:
+          - alertmanager-telegram
+
+      config:
+        global:
+          resolve_timeout: 5m
+
+        route:
+          receiver: telegram
+          # One message per (alert, namespace) rather than per namespace:
+          # more messages, but each one is about a single thing.
+          group_by: ["alertname", "namespace"]
+          # Wait 30s before sending a new group, so a burst arrives as one
+          # message; 5m before appending newly-fired alerts to a group.
+          group_wait: 30s
+          group_interval: 5m
+          # A warning that stays firing re-notifies twice a day.
+          repeat_interval: 12h
+          routes:
+            # THE DEAD-MAN'S SWITCH IS NOT WIRED UP ON THIS CLUSTER YET, and
+            # dropping Watchdog on the floor is the deliberate choice rather
+            # than the lazy one.
+            #
+            # Watchdog fires constantly by design, and node01 routes it to an
+            # outside service (healthchecks.io) that alarms when the pings
+            # STOP - the one failure nothing inside a dead cluster can report.
+            # That check's ping URL is a credential naming ONE check.
+            #
+            # Copying that secret here would have both clusters pinging the
+            # same check, and a check that two clusters can keep green is a
+            # check that goes red only when BOTH are down. It would not report
+            # a new failure here; it would silently disarm the alarm currently
+            # protecting node01, which is still the cluster serving the lab.
+            #
+            # So: a second check with its own URL, its own SOPS secret, and
+            # this route pointed at a `heartbeat` receiver - a follow-up, not
+            # a thing to fake now. Until then the gap is known and stated
+            # rather than papered over: if this whole cluster stops, nothing
+            # tells you. Everything it monitors is still second to node01,
+            # and someone is watching it being built.
+            - receiver: "null"
+              matchers:
+                - alertname = "Watchdog"
+            # Ships with the stack purely as the source for the info
+            # inhibit rule below; it is never something to act on.
+            - receiver: "null"
+              matchers:
+                - alertname = "InfoInhibitor"
+            # Same destination, shorter leash: a critical nags hourly
+            # until it is resolved or silenced.
+            - receiver: telegram
+              matchers:
+                - severity = "critical"
+              repeat_interval: 1h
+
+        inhibit_rules:
+          # If a thing is already critical, do not also send the warning
+          # about the same thing in the same namespace.
+          - source_matchers:
+              - severity = "critical"
+            target_matchers:
+              - severity = "warning"
+            equal: ["alertname", "namespace"]
+          - source_matchers:
+              - alertname = "InfoInhibitor"
+            target_matchers:
+              - severity = "info"
+            equal: ["namespace"]
+
+        receivers:
+          # Quoted on purpose: bare null in YAML is the null VALUE, which
+          # makes this receiver nameless and the config invalid.
+          - name: "null"
+
+          - name: telegram
+            telegram_configs:
+              - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot-token
+                chat_id_file: /etc/alertmanager/secrets/alertmanager-telegram/chat-id
+                send_resolved: true
+                parse_mode: HTML
+                # parse_mode HTML is the default and it is a trap: Telegram
+                # rejects the WHOLE message with a 400 if the body contains a
+                # stray < or >, and alert descriptions contain them routinely
+                # ("above 90%", "x > y"). Nothing arrives and the failure is
+                # only visible in Alertmanager's log. So every free-text
+                # annotation below is escaped by hand, & first so the
+                # ampersands introduced by the next two are not re-escaped.
+                # Labels (alertname, severity, namespace) are k8s identifiers
+                # and safe by construction.
+                #
+                # The header gained a [lab] tag that node01's has not. Same
+                # bot, same chat, two clusters that will spend this migration
+                # running the same workloads under the same namespace names -
+                # so the first line has to say which one is talking. It is
+                # hardcoded rather than read from .CommonLabels.cluster
+                # because this config file only ever runs on this cluster, and
+                # a label lookup that silently renders empty would defeat the
+                # entire point.
+                #
+                # Leading wheel is deliberate: this posts into the same chat
+                # as an unrelated bot that already prefixes its own alerts
+                # with a siren, so cluster alerts need to be tellable apart
+                # at a glance without opening the message.
+                message: |-
+                  ☸ <b>[lab]</b> {{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} <b>{{ .Status | toUpper }}</b> · {{ .Alerts | len }} alert(s)
+
+                  {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}<b>{{ $a.Labels.alertname }}</b> [{{ $a.Labels.severity }}]
+                  {{ if $a.Annotations.summary }}{{ $a.Annotations.summary | reReplaceAll "&" "&amp;" | reReplaceAll "<" "&lt;" | reReplaceAll ">" "&gt;" }}
+                  {{ end }}{{ if $a.Annotations.description }}{{ $a.Annotations.description | reReplaceAll "&" "&amp;" | reReplaceAll "<" "&lt;" | reReplaceAll ">" "&gt;" }}
+                  {{ end }}{{ if $a.Labels.namespace }}ns <code>{{ $a.Labels.namespace }}</code>  {{ end }}{{ if $a.Labels.instance }}on <code>{{ $a.Labels.instance }}</code>{{ end }}
+                  {{ if $a.Annotations.runbook_url }}{{ $a.Annotations.runbook_url }}
+                  {{ end }}
+                  {{ end }}{{ end }}
+
+    grafana:
+      # The same credential as node01's Grafana, on purpose: one person, one
+      # password manager entry, and this Grafana is replacing that one rather
+      # than joining it. Rotating it is one file re-encrypted twice.
+      admin:
+        existingSecret: grafana-admin
+        userKey: admin-user
+        passwordKey: admin-password
+      persistence:
+        enabled: true
+        size: 2Gi
+        storageClassName: ceph-block
+      resources:
+        requests:
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+
+      # Loki as a second datasource, defined HERE rather than clicked into the
+      # Grafana UI. A UI-added datasource lives only in Grafana's PVC: it is
+      # invisible in git, survives no reinstall, and is exactly the drift the
+      # dashboards-as-ConfigMaps rule exists to avoid.
+      #
+      # Prometheus stays the default. Metrics are where you start - Loki is
+      # where you go once a metric has told you which pod and which minute to
+      # look at.
+      additionalDataSources:
+        - name: Loki
+          type: loki
+          uid: loki
+          access: proxy
+          url: http://loki.logging.svc.cluster.local:3100
+          jsonData:
+            # Cap what a careless query can drag into the browser. Loki will
+            # happily stream far more than a page can render.
+            maxLines: 1000
+
+      # No tls block and no ingressClassName: ingress-nginx is the default
+      # class and serves the lab wildcard as its default certificate.
+      #
+      # THE HOSTNAME IS THE SAME AS NODE01'S, and that is the migration
+      # working as designed rather than a collision. Both clusters hold a
+      # valid certificate for `*.lab.baakhoff.com`; what decides which one you
+      # reach is DNS, and today the wildcard still points at node01. This
+      # Ingress is live and serving the moment an explicit A record for
+      # grafana.lab.baakhoff.com appears pointing here - and the rollback is
+      # deleting that one record. See clusters/lab/ingress-nginx/certificate.yaml.
+      ingress:
+        enabled: true
+        # Discovered by Homepage. href given explicitly because there is no tls
+        # block here, so it would otherwise be inferred as http:// and redirect.
+        #
+        # Homepage itself is still on node01 and does not read this cluster, so
+        # these annotations do nothing yet. They stay because the alternative
+        # is remembering to add them during whichever change moves Homepage,
+        # and a card that appears by itself then is the point of annotations.
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/name: Grafana
+          gethomepage.dev/group: Platform
+          gethomepage.dev/icon: grafana.png
+          gethomepage.dev/description: Metrics, logs and alerting
+          gethomepage.dev/href: https://grafana.lab.baakhoff.com
+          # This Ingress is chart-generated and called
+          # kube-prometheus-stack-grafana, so Homepage's inferred health-check
+          # selector carries the release prefix while the pods themselves carry
+          # the short `app.kubernetes.io/name: grafana`. Without this the card
+          # reads NOT FOUND against a perfectly healthy Grafana.
+          gethomepage.dev/pod-selector: "app.kubernetes.io/name=grafana"
+        hosts:
+          - grafana.lab.baakhoff.com
+      grafana.ini:
+        server:
+          root_url: https://grafana.lab.baakhoff.com

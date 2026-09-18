@@ -1,0 +1,13 @@
+# Logs get their own namespace rather than joining `monitoring`, for the same
+# reason as on node01: per-namespace memory is one of the few numbers that is
+# easy to read off Prometheus, and keeping Loki separate means its cost shows
+# up as its own line on that graph instead of disappearing into Prometheus's.
+#
+# The absolute numbers that argument was made with belonged to a 16 GB laptop
+# running everything. This cluster has three of those and the stack is the
+# first thing on it with an appetite, so the line is worth having from the
+# start rather than after the first time something gets evicted.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logging
