@@ -1,0 +1,26 @@
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: replicapool
+  namespace: rook-ceph
+spec:
+  # Spread replicas across HOSTS, not across OSDs. With one OSD per machine
+  # the two are the same today, but the day a node gets a second disk they
+  # stop being the same - and a pool that failure-domains by OSD would
+  # happily put all three copies of an object on one machine.
+  failureDomain: host
+
+  replicated:
+    # Three copies, one per host. min_size is left at Ceph's default for
+    # size 3, which is 2: writes need two copies to be acknowledged.
+    #
+    # That pairing is what makes a node failure a non-event - two copies
+    # survive, which still meets min_size, so the cluster keeps reading AND
+    # writing. Lowering min_size to 1 would let writes land in exactly one
+    # place, turning a second failure during recovery from a delay into
+    # permanent data loss.
+    size: 3
+    # Refuses to create the pool at a size Ceph considers unsafe. Belt and
+    # braces against a future edit that drops this to 2 without thinking
+    # about what it means.
+    requireSafeReplicaSize: true
