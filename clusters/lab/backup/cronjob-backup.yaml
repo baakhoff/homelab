@@ -64,10 +64,13 @@ spec:
                 # than capability), and the agents volume is left out because
                 # nothing on it is an original - a clone, a login and caches.
                 #
-                # That leaves Grafana and Alertmanager, which is barely
-                # anything, and that is the honest state of this cluster: the
-                # first volume here worth protecting arrives with Vaultwarden.
-                # The system exists now so that it is proven before then.
+                # That left Grafana and Alertmanager, which is barely
+                # anything. Vaultwarden is the one this was actually built for
+                # and it goes FIRST in the list deliberately: the driver works
+                # through targets in order, so the volume whose loss is
+                # unrecoverable is backed up before the two that are merely
+                # convenient - which is what you want from a run that fails
+                # halfway.
                 #
                 # BOTH NAMES SHOULD BE CONFIRMED against `kubectl -n monitoring
                 # get pvc` on first run. Grafana's is predictable; the
@@ -77,6 +80,7 @@ spec:
                 # cannot find rather than skipping it.
                 - name: BACKUP_TARGETS
                   value: >-
+                    vaultwarden/vaultwarden-data
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                 - name: SNAPSHOT_CLASS

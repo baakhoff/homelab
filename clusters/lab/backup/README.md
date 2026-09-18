@@ -56,8 +56,14 @@ own namespace. Only the orchestration is central.
 
 ## What is backed up
 
-`monitoring/kube-prometheus-stack-grafana` and the Alertmanager claim. That is
-all, and the exclusions are node01's own arguments from
+`vaultwarden/vaultwarden-data` first, then
+`monitoring/kube-prometheus-stack-grafana` and the Alertmanager claim.
+
+Vaultwarden is the reason this exists and is listed first on purpose: the
+driver works through targets in order, so the one volume whose loss is
+unrecoverable is written before the two that are merely convenient.
+
+The exclusions are node01's own arguments from
 [`restic-excludes.txt`](../../../hosts/node01/backup/restic-excludes.txt)
 applied to this cluster:
 
@@ -67,10 +73,11 @@ applied to this cluster:
 | Loki | same argument at 7d, and its logs only start when Alloy was deployed |
 | `agents/*` | a git clone, a login and caches. Nothing on it is an original |
 
-**The first volume here genuinely worth protecting arrives with Vaultwarden.**
-This exists now so that it is proven before then, not because Grafana's
-dashboards are precious. Adding a volume is one entry in `BACKUP_TARGETS`, a
-`RoleBinding` in its namespace, and a copy of the Secret below.
+Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its
+namespace, and a copy of the Secret below. Three things have to line up rather
+than one, which is more work than node01's default-include file walk and buys
+something back: a volume cannot end up backed up by accident, and cannot
+quietly stop being backed up either.
 
 ## Install
 
@@ -110,10 +117,11 @@ kubectl create secret generic restic-repo \
 sops --encrypt --in-place clusters/lab/backup/restic-repo.sops.yaml
 ```
 
-Repeat with `--namespace monitoring` into
-`clusters/lab/backup/restic-repo-monitoring.sops.yaml`. The two files are the
-same secret differing only in `metadata.namespace`, which is the same pattern
-the cert-manager Cloudflare token already follows across the two clusters.
+Repeat for every namespace holding a backed-up volume — currently `monitoring`
+and `vaultwarden` — into `restic-repo-monitoring.sops.yaml` and
+`restic-repo-vaultwarden.sops.yaml`. The files are the same secret differing
+only in `metadata.namespace`, which is the same pattern the cert-manager
+Cloudflare token already follows across the two clusters.
 
 The driver checks for this Secret — and for two of its keys — in every target's
 namespace before it takes a single snapshot, and fails that target in seconds
