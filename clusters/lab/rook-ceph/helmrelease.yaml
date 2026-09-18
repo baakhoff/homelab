@@ -48,10 +48,17 @@ spec:
     # The drivers now come from helmrelease-csi-drivers.yaml, where
     # kubeletDirPath lives too.
     csi:
-      # No ServiceMonitor. This cluster has no Prometheus operator yet, so the
-      # monitoring.coreos.com CRDs do not exist, and a manifest referring to a
-      # missing CRD fails the whole reconcile rather than just itself. Flip
-      # this on in the same change that installs the monitoring stack, not
-      # before.
+      # No ServiceMonitor. The Prometheus operator arrives with
+      # clusters/lab/monitoring/ in this same change, which makes the old
+      # instruction here - "flip this on in the same change that installs the
+      # monitoring stack" - the wrong advice rather than pending advice.
+      #
+      # Committing the chart is not the same as the CRDs existing. Both
+      # HelmReleases reconcile together and nothing sequences them, so flipping
+      # this now means Rook's release may render a ServiceMonitor before
+      # anything has installed that kind. It goes in the follow-up, once
+      # kube-prometheus-stack is actually running - alongside cert-manager's
+      # and the snapshot controller's, which are held back for the same
+      # reason.
       serviceMonitor:
         enabled: false
