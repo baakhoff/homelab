@@ -1,0 +1,9 @@
+# Its own namespace rather than kube-system, following the rest of this
+# cluster. kube-system on k3s already holds things this repo does not own -
+# the bundled local-path provisioner, CoreDNS, the metrics server - and
+# putting a component we DO own in there makes "is this ours?" a question
+# rather than a glance.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: snapshot-controller
