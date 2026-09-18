@@ -14,6 +14,53 @@ spec:
     image: quay.io/ceph/ceph:v20.2.4-20260818
     allowUnsupported: false
 
+  security:
+    cephx:
+      csi:
+        # The CSI keys are rotated DOWN to the older cipher. That is not an
+        # oversight, and it took a failed volume to establish.
+        #
+        # Ceph v20.2.4 fixed CVE-2025-30156 by introducing a new cephx key
+        # type, aes256k. Rook autodetects it, so this cluster was born with
+        # every key - daemon and CSI alike - already on the new cipher. Good,
+        # except that nothing on the client side here can speak it yet:
+        #
+        #   - the IN-KERNEL rbd and cephfs clients gained aes256k in Linux
+        #     7.0; these nodes run 6.8
+        #   - ceph-csi's own bundled librados gained it in v3.17.1; the image
+        #     this Rook release ships is older
+        #
+        # The second one is why the failure appears at PROVISIONING rather
+        # than only at mount. Every PVC against ceph-block failed with
+        # `rpc error: code = Internal desc = failed to get connection:
+        # connecting failed: rados: ret=-22, Invalid argument` - the
+        # provisioner's userspace librados rejecting its own key.
+        #
+        # keyType alone cannot fix it: with keyRotationPolicy left at its
+        # default of Disabled, keyType only binds the NEXT rotation and never
+        # re-types an existing key. Both settings plus a generation bump are
+        # required. Generation 1 was created with the cluster.
+        keyRotationPolicy: KeyGeneration
+        keyGeneration: 2
+        keyType: aes
+        #
+        # This works only because the monitors still ACCEPT aes keys - which
+        # is what AUTH_INSECURE_KEYS_ALLOWED and AUTH_INSECURE_KEYS_CREATABLE
+        # have been reporting since day one. Those two warnings are monitor
+        # policy, not key state, and they are now load-bearing rather than
+        # noise: restricting security.cephx.allowedCiphers to aes256k would
+        # lock the CSI clients out of their own cluster.
+        #
+        # TRIGGER TO REVERSE THIS: nodes on Linux 7.0+ AND a ceph-csi image at
+        # v3.17.1 or newer. Then rotate CSI back to aes256k (a further
+        # generation bump), confirm with `ceph auth dump-keys` that no key
+        # anywhere is still aes, and only then restrict allowedCiphers - which
+        # is what finally clears both warnings.
+        #
+        # The daemon keys are deliberately left alone. They are already
+        # aes256k, they are userspace-only and unaffected by the kernel, and
+        # rotating them would restart every mon, mgr and OSD for no gain.
+
   # Ceph's own state: the monitor database, keyrings, and per-daemon
   # directories. Not object data - that lives on the OSD devices below.
   #
