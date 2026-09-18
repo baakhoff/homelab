@@ -1,0 +1,119 @@
+# Weekly retention pass and integrity check, kept separate from the nightly
+# backup for the same reasons as on node01: prune is the expensive operation
+# and the only thing here that DELETES, so it does not compete with the backup
+# every night, and a failure in it never marks the backup itself as failed.
+#
+# Runs in the `backup` namespace and mounts no volumes at all - it operates on
+# the repository, not on anything in the cluster.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: prune
+  namespace: backup
+spec:
+  # Sunday, two hours after the nightly backup would have finished.
+  schedule: "0 4 * * 0"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+          containers:
+            - name: restic
+              image: restic/restic:0.19.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+
+                  hc() {
+                    [ -n "${HC_PRUNE_URL:-}" ] || return 0
+                    wget -q -T 10 -O /dev/null "${HC_PRUNE_URL}${1:-}" 2>/dev/null || true
+                  }
+                  rc=0
+                  trap 'hc "/$rc"' EXIT
+
+                  echo "==> applying retention policy"
+                  # GROUPED BY host AND paths - the DEFAULT - which is the
+                  # opposite of what hosts/node01/backup/restic-prune.sh does,
+                  # and the difference is not an oversight.
+                  #
+                  # node01 writes ONE snapshot per night covering every path it
+                  # protects, so grouping by paths would strand each night in
+                  # its own group whenever a backup path was added, and every
+                  # stranded group keeps its snapshot forever. `--group-by
+                  # host` was the fix there.
+                  #
+                  # Here there is one snapshot per VOLUME per night, each with
+                  # a distinct path, all written as host `lab`. Grouping by
+                  # host alone would put every volume in one group and apply
+                  # `--keep-daily 7` across all of them together - seven
+                  # snapshots total, which with two volumes is three and a half
+                  # days of history rather than seven days of each. Grouping by
+                  # path is what makes the policy mean per-volume.
+                  #
+                  # The consequence to know about: a volume dropped from
+                  # BACKUP_TARGETS keeps its last snapshots forever, because
+                  # they stay the newest in a group nothing adds to. That is
+                  # usually what you want from a volume you stopped backing up,
+                  # but it is a thing that grows and nothing will remind you.
+                  #
+                  # --keep-tag keep is the escape hatch for a snapshot taken
+                  # by hand before something risky, exactly as on node01.
+                  restic forget \
+                    --group-by host,paths \
+                    --keep-daily 7 \
+                    --keep-weekly 4 \
+                    --keep-monthly 6 \
+                    --keep-tag keep \
+                    --prune || rc=$?
+
+                  if [ "$rc" -ne 0 ]; then
+                    echo "==> restic forget FAILED with exit $rc"
+                    exit "$rc"
+                  fi
+
+                  echo "==> verifying repository integrity"
+                  # Structural check plus a real re-read of 5% of the pack
+                  # data, which is the only thing that catches silent
+                  # corruption at the provider: a repository can list and index
+                  # perfectly while a pack file has rotted underneath it. 5% a
+                  # week is full coverage in about five months.
+                  restic check --read-data-subset=5% || rc=$?
+
+                  if [ "$rc" -ne 0 ]; then
+                    echo "==> restic check FAILED with exit $rc"
+                    exit "$rc"
+                  fi
+
+                  echo "==> done"
+                  restic stats --mode raw-data || true
+              envFrom:
+                - secretRef:
+                    name: restic-repo
+              env:
+                - name: HOME
+                  value: /tmp
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  # prune repacks pack files in memory. The default policy
+                  # streams rather than loading the repository, but a tight
+                  # limit here is how a weekly job turns into a weekly OOM.
+                  memory: 1Gi
+          volumes:
+            - name: tmp
+              emptyDir: {}

@@ -1,0 +1,10 @@
+# The driver lives here. The restic Jobs it spawns do NOT - they run in the
+# namespace of the volume they are backing up, because a VolumeSnapshot must
+# share a namespace with its source PVC, a PVC cloned from a snapshot must
+# share a namespace with that snapshot, and a pod can only mount a PVC in its
+# own namespace. The chain pins the whole thing to wherever the data already
+# is; only the orchestration is central.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backup

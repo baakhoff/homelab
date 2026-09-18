@@ -121,5 +121,23 @@
       depNameTemplate: "@anthropic-ai/claude-code",
       datasourceTemplate: "npm",
     },
+    {
+      // Neither manager above can see an image reference that is not an
+      // `image:` field, and clusters/lab/backup/ has one: the driver passes
+      // the restic image to the Jobs it creates, so it travels as an env var.
+      // Left alone it would sit there rotting - the exact failure this file
+      // opens by warning about, in the one place where a stale version is a
+      // backup risk rather than a missing feature.
+      //
+      // Scoped to that directory rather than left loose over every manifest,
+      // so a `# renovate:` comment written somewhere else for a human reader
+      // cannot silently start opening PRs.
+      customType: "regex",
+      description: "Container images passed as env vars rather than image: fields",
+      managerFilePatterns: ["/^clusters/lab/backup/.+\\.ya?ml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+- name: \\S+\\s+value: \\S+:(?<currentValue>\\S+)",
+      ],
+    },
   ],
 }
