@@ -115,6 +115,14 @@ Repeat with `--namespace monitoring` into
 same secret differing only in `metadata.namespace`, which is the same pattern
 the cert-manager Cloudflare token already follows across the two clusters.
 
+The driver checks for this Secret — and for two of its keys — in every target's
+namespace before it takes a single snapshot, and fails that target in seconds
+with a message naming the namespace. Without that check a missing Secret is
+close to invisible: the Job is created, its pod sits in
+`CreateContainerConfigError` being retried, and a pod that never starts is not
+a *failed* pod, so nothing marks the Job failed and the run simply waits out
+its timeout.
+
 Delete the plaintext env file afterwards. The pre-commit hook asserts every
 staged `*.sops.yaml` is actually encrypted, but only if
 `git config core.hooksPath .githooks` has been run in your clone.
