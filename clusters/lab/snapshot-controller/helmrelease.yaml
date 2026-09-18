@@ -52,19 +52,34 @@ spec:
     remediation:
       retries: 3
   values:
-    # The CRDs come from the chart, which is what makes this ONE commit rather
-    # than the two that cert-manager needed.
+    # The CRDs come from the chart, and NOTHING that needs them may be in the
+    # same release. That sentence is the whole content of this block and it was
+    # learned the hard way on 2026-09-18.
     #
-    # The rule from clusters/lab/cert-manager/clusterissuer.yaml still holds -
-    # kustomize-controller dry-runs every object in the git tree before
-    # applying any of it, so a CR whose kind does not exist yet aborts the
-    # whole stage. What sidesteps it here is that the VolumeSnapshotClass below
-    # is not in the git tree as an object: it is a VALUE, rendered by
-    # helm-controller inside the same release that installs the CRDs, and Helm
-    # orders CustomResourceDefinition ahead of kinds it does not recognise.
+    # This file used to define the ceph-block VolumeSnapshotClass below, on the
+    # reasoning that the rule from 5978838 - kustomize-controller dry-runs every
+    # object in the git tree before applying any of it - did not apply, because a
+    # chart value is not an object in the tree. That reasoning was wrong, and the
+    # comment it replaced confidently predicted the opposite of what happened:
     #
-    # If that ordering ever races, the symptom is a failed first install that
-    # succeeds on retry, which is what the remediation block above is for.
+    #     Helm install failed ... no matches for kind "VolumeSnapshotClass"
+    #     in version "snapshot.storage.k8s.io/v1" - ensure CRDs are installed first
+    #
+    # Helm resolves a REST mapping for EVERY object in a release before applying
+    # ANY of it, and this chart ships its CRDs as ordinary templates rather than
+    # in the special crds/ directory - which is the one place Helm installs ahead
+    # of everything else. So the render failed client-side, nothing was applied,
+    # the CRDs never landed, and each retry failed identically. Three remediation
+    # retries against a deadlock rather than a race.
+    #
+    # The rule is about the EXISTENCE OF A TYPE, not about where the object
+    # lives. kustomize-controller dry-runs the tree; helm-controller dry-runs the
+    # release; both refuse a kind the API server has never heard of. Same
+    # constraint, two layers.
+    #
+    # So the VolumeSnapshotClass is a separate file in a separate commit, exactly
+    # as clusters/lab/cert-manager/clusterissuer.yaml is - and like that one, it
+    # HAS TO STAY that way on a rebuild from a bare bootstrap.
     installCRDs: true
 
     controller:
@@ -94,40 +109,3 @@ spec:
       # convert - and enabling it would mean a TLS certificate and a failure
       # mode that blocks snapshot writes when it is unhealthy.
       enabled: false
-
-    # ---------------------------------------------------------------------
-    # The class that makes snapshots of `ceph-block` volumes possible.
-    #
-    # Defined here as a chart VALUE rather than as its own manifest file
-    # deliberately - see installCRDs above. It is the same object either way;
-    # the difference is who applies it and in what order.
-    #
-    # The parameters mirror clusters/lab/rook-ceph/storageclass-rbd.yaml,
-    # because a snapshot is taken by the same driver against the same pool.
-    # The secret is the PROVISIONER one, not the node one: snapshotting
-    # happens entirely in the Ceph cluster, with nothing mapped on a node.
-    # ---------------------------------------------------------------------
-    volumeSnapshotClasses:
-      - name: ceph-block
-        annotations:
-          # Default for the same reason ceph-block is the default
-          # StorageClass: anything that asks for a snapshot without naming a
-          # class should get the one backed by the storage everything is
-          # actually on. Named explicitly by our own manifests regardless -
-          # a manifest in git should not depend on a cluster-wide setting it
-          # never mentions.
-          snapshot.storage.kubernetes.io/is-default-class: "true"
-        driver: rook-ceph.rbd.csi.ceph.com
-        # Delete, matching the StorageClass's reclaimPolicy. A snapshot here
-        # is a step in a backup that finishes minutes later, not the backup
-        # itself - it is meant to be thrown away, and a Retain policy would
-        # silently accumulate RBD snapshots that keep their parent images'
-        # deleted extents alive and fill the pool.
-        #
-        # This is the line to think hardest about before reusing this class
-        # for anything a human takes by hand before something risky.
-        deletionPolicy: Delete
-        parameters:
-          clusterID: rook-ceph
-          csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
-          csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph
