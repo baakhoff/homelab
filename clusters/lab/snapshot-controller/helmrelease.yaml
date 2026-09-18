@@ -1,0 +1,133 @@
+# The CSI snapshot controller, and with it the ability to take a
+# point-in-time copy of an RBD volume.
+#
+# WHY THIS EXISTS AT ALL: backups. hosts/node01/backup/restic-backup.sh opens
+# by admitting its own weakest property - it walks a LIVE filesystem, so a
+# database is copied over several minutes and what lands in the repository is
+# crash-consistent rather than atomic. That header also names the fix: "a
+# copy-on-write storage pool ... so you snapshot, back up the frozen snapshot
+# and delete it", followed by "This pool is `dir`" - correct but too expensive
+# to take nightly, since every snapshot there is a full 58G copy.
+#
+# Ceph RBD snapshots ARE copy-on-write. They are instant and charge only for
+# what changes afterwards. So the limitation node01 documented and accepted is
+# one this cluster can simply not have, and this chart is the missing piece
+# between "the storage can do it" and "Kubernetes can ask it to".
+#
+# k3s does not ship any of this. The VolumeSnapshot CRDs and the controller
+# that acts on them are a separate SIG Storage component in every distribution
+# - Rook assumes you have installed it and says so. Ceph-CSI's own snapshotter
+# sidecar is already running as part of the Rook CSI driver; it is the
+# cluster-wide half that was missing, which is why `kubectl get
+# volumesnapshotclass` returned "the server doesn't have a resource type" and
+# not an empty list.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: snapshot-controller
+  namespace: snapshot-controller
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: snapshot-controller
+      # 5.2.0 rather than 5.3.0, which is the current release and was cut
+      # TODAY. renovate.json5 holds every other chart here behind
+      # `minimumReleaseAge: 3 days` because charts get yanked and re-cut, and
+      # adopting one the hour it lands is the thing that policy exists to
+      # prevent - it would be strange to bypass it by hand on the way in.
+      # Both versions carry the same appVersion, v8.6.0, so the wait costs
+      # nothing but the chart packaging. Renovate will offer 5.3.0 once it has
+      # aged.
+      version: "5.2.0"
+      sourceRef:
+        kind: HelmRepository
+        name: piraeus
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # The CRDs come from the chart, which is what makes this ONE commit rather
+    # than the two that cert-manager needed.
+    #
+    # The rule from clusters/lab/cert-manager/clusterissuer.yaml still holds -
+    # kustomize-controller dry-runs every object in the git tree before
+    # applying any of it, so a CR whose kind does not exist yet aborts the
+    # whole stage. What sidesteps it here is that the VolumeSnapshotClass below
+    # is not in the git tree as an object: it is a VALUE, rendered by
+    # helm-controller inside the same release that installs the CRDs, and Helm
+    # orders CustomResourceDefinition ahead of kinds it does not recognise.
+    #
+    # If that ordering ever races, the symptom is a failed first install that
+    # succeeds on retry, which is what the remediation block above is for.
+    installCRDs: true
+
+    controller:
+      # One replica with leader election left on, which reads like a
+      # contradiction and is not: the lease is what stops a rolling update
+      # from briefly running two controllers against the same snapshots.
+      replicaCount: 1
+
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+
+      serviceMonitor:
+        # Off for now, for the same reason as Rook's CSI ServiceMonitor and
+        # cert-manager's: monitoring.coreos.com CRDs do not exist on this
+        # cluster until kube-prometheus-stack has installed them. Flip all
+        # three together, after that chart is actually running.
+        create: false
+
+    webhook:
+      # The conversion webhook only matters for clusters still holding
+      # VolumeGroupSnapshot objects in the older v1beta1/v1beta2 APIs. This
+      # cluster has never had a snapshot of any kind, so there is nothing to
+      # convert - and enabling it would mean a TLS certificate and a failure
+      # mode that blocks snapshot writes when it is unhealthy.
+      enabled: false
+
+    # ---------------------------------------------------------------------
+    # The class that makes snapshots of `ceph-block` volumes possible.
+    #
+    # Defined here as a chart VALUE rather than as its own manifest file
+    # deliberately - see installCRDs above. It is the same object either way;
+    # the difference is who applies it and in what order.
+    #
+    # The parameters mirror clusters/lab/rook-ceph/storageclass-rbd.yaml,
+    # because a snapshot is taken by the same driver against the same pool.
+    # The secret is the PROVISIONER one, not the node one: snapshotting
+    # happens entirely in the Ceph cluster, with nothing mapped on a node.
+    # ---------------------------------------------------------------------
+    volumeSnapshotClasses:
+      - name: ceph-block
+        annotations:
+          # Default for the same reason ceph-block is the default
+          # StorageClass: anything that asks for a snapshot without naming a
+          # class should get the one backed by the storage everything is
+          # actually on. Named explicitly by our own manifests regardless -
+          # a manifest in git should not depend on a cluster-wide setting it
+          # never mentions.
+          snapshot.storage.kubernetes.io/is-default-class: "true"
+        driver: rook-ceph.rbd.csi.ceph.com
+        # Delete, matching the StorageClass's reclaimPolicy. A snapshot here
+        # is a step in a backup that finishes minutes later, not the backup
+        # itself - it is meant to be thrown away, and a Retain policy would
+        # silently accumulate RBD snapshots that keep their parent images'
+        # deleted extents alive and fill the pool.
+        #
+        # This is the line to think hardest about before reusing this class
+        # for anything a human takes by hand before something risky.
+        deletionPolicy: Delete
+        parameters:
+          clusterID: rook-ceph
+          csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph
