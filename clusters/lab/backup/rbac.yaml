@@ -58,3 +58,21 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: backup-driver
+---
+# The volume this whole backup was built ahead of. Until now the driver
+# protected Grafana and Alertmanager, which are convenient to have and
+# reconstructible without them; this is the first claim on the cluster whose
+# loss is not recoverable from git, a registry or an upstream.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-driver
+  namespace: vaultwarden
+subjects:
+  - kind: ServiceAccount
+    name: backup-driver
+    namespace: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-driver
