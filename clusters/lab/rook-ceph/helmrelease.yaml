@@ -31,28 +31,27 @@ spec:
     # was published two days before this landed. A storage layer is the last
     # place to run a pre-release.
 
-    # Both CSI drivers stay on. RBD provides ReadWriteOnce block volumes -
-    # the default for anything with a database. CephFS provides
-    # ReadWriteMany, which is the capability local-path cannot offer at any
-    # price, and the reason this cluster gets shared storage at all.
+    # WHAT IS NOT SET HERE, AND WHY
+    #
+    # `csi.enableRbdDriver`, `csi.enableCephfsDriver` and `csi.kubeletDirPath`
+    # were set in the first version of this file. They are not values of the
+    # v1.20 chart - up to v1.19 they built the CSI provisioner Deployment and
+    # node-plugin DaemonSet, and v1.20 moved that job to the separate
+    # ceph-csi-operator. Helm accepts unknown values silently, so they
+    # installed cleanly and did nothing, and the cluster came up healthy with
+    # no CSI driver at all.
+    #
+    # The lesson is worth more than the fix: verify that something READ a
+    # value, not that you set it. `kubectl get csidriver` returning nothing is
+    # what found this; no amount of re-reading the values file would have.
+    #
+    # The drivers now come from helmrelease-csi-drivers.yaml, where
+    # kubeletDirPath lives too.
     csi:
-      enableRbdDriver: true
-      enableCephfsDriver: true
-
-      # k3s keeps its kubelet state at the standard path, so the chart's
-      # default is already right. Stated explicitly because this is the line
-      # that breaks Rook on distributions that relocate it - RKE2, k0s, and
-      # anything running kubelet from a snap - and a silent wrong value here
-      # surfaces much later as volumes that mount nowhere.
-      kubeletDirPath: /var/lib/kubelet
-
       # No ServiceMonitor. This cluster has no Prometheus operator yet, so the
       # monitoring.coreos.com CRDs do not exist, and a manifest referring to a
       # missing CRD fails the whole reconcile rather than just itself. Flip
-      # both of these on in the same change that installs the monitoring
-      # stack, not before.
+      # this on in the same change that installs the monitoring stack, not
+      # before.
       serviceMonitor:
         enabled: false
-
-    monitoring:
-      enabled: false
