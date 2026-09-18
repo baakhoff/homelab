@@ -1,0 +1,52 @@
+# The class that makes snapshots of `ceph-block` volumes possible, and the
+# reason this is a file rather than a value in the HelmRelease beside it.
+#
+# It WAS a chart value. That release then failed on 2026-09-18 and could not
+# recover:
+#
+#     Helm install failed ... no matches for kind "VolumeSnapshotClass"
+#     in version "snapshot.storage.k8s.io/v1" - ensure CRDs are installed first
+#
+# Helm resolves a REST mapping for every object in a release before applying any
+# of it, and that chart ships its CRDs as ordinary templates rather than in the
+# crds/ directory Helm installs ahead of everything else. So the render failed
+# client-side, nothing was applied - including the CRDs - and every retry failed
+# the same way. See helmrelease.yaml for the full account.
+#
+# THIS FILE MUST STAY A SEPARATE COMMIT FROM THAT ONE, on a rebuild from a bare
+# bootstrap as much as today. It is the same rule and the same shape as
+# clusters/lab/cert-manager/clusterissuer.yaml, which carries the same warning
+# for the same reason: kustomize-controller dry-runs every object in the git
+# tree before applying any of it, so this object landing in the same stage as
+# the chart that defines its kind aborts them both.
+#
+# ---
+#
+# The parameters mirror clusters/lab/rook-ceph/storageclass-rbd.yaml, because a
+# snapshot is taken by the same driver against the same pool. The secret is the
+# PROVISIONER one rather than the node one: snapshotting happens entirely inside
+# the Ceph cluster, with nothing mapped on a node.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: ceph-block
+  annotations:
+    # Default for the same reason ceph-block is the default StorageClass:
+    # anything asking for a snapshot without naming a class should get the one
+    # backed by the storage everything is actually on. Named explicitly by our
+    # own manifests regardless - a manifest in git should not depend on a
+    # cluster-wide setting it never mentions.
+    snapshot.storage.kubernetes.io/is-default-class: "true"
+driver: rook-ceph.rbd.csi.ceph.com
+# Delete, matching the StorageClass's reclaimPolicy. A snapshot here is a step
+# in a backup that finishes minutes later, not the backup itself - it is meant
+# to be thrown away, and Retain would silently accumulate RBD snapshots that
+# keep their parent images' deleted extents alive and fill the pool.
+#
+# This is the line to think hardest about before reusing this class for a
+# snapshot taken by hand before something risky.
+deletionPolicy: Delete
+parameters:
+  clusterID: rook-ceph
+  csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph
