@@ -1,6 +1,6 @@
 # 0003 — epicurus runs as a compose stack in Incus, not as Kubernetes workloads
 
-- Status: accepted
+- Status: superseded by 0007
 - Date: 2026-09-03
 
 ## Context
