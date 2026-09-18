@@ -227,8 +227,11 @@ Each flag has a reason:
   that does not depend on the sshd config from section 3.
 - `--advertise-exit-node` — offer full-tunnel through home.
 - `--advertise-routes=192.168.68.0/22` — offer the LAN. This is the out-of-band
-  path: the router's UI, the switch, and the mini PCs' AMT are LAN-only, and
-  through this route they are reachable from any tailnet device.
+  path: the router's UI and the switch are LAN-only, and through this route they
+  are reachable from any tailnet device. The mini PCs' management engines hold
+  the same addresses as the machines themselves but answer nothing — AMT is
+  enabled in firmware and unconfigured
+  ([bring-up](node-bring-up.md)).
 - `--accept-dns=false` — the Pi must never take its own DNS from the tailnet.
   The tailnet's DNS *is* this Pi; a loop here would take the Pi's own
   resolution down with it.
