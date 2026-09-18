@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+#
+# wake-nodes — send Wake-on-LAN magic packets to the lab's machines.
+#
+# A magic packet is a link-local broadcast, and broadcasts do not route, so
+# this has to run on a host sharing a segment with its targets. Here that is
+# the Pi: wired to the switch, always on, and on the tailnet — which makes
+# waking the cluster from a phone one ssh away:
+#
+#   ssh <user>@exitnode.laperm-map.ts.net wake-nodes
+#
+# MAC addresses are not in this repository, which is public. They live in the
+# config file on the machine — see wake-nodes.conf.example.
+
+set -euo pipefail
+
+CONFIG=${WAKE_NODES_CONFIG:-/etc/wake-nodes.conf}
+BROADCAST=${WAKE_NODES_BROADCAST:-}
+
+usage() {
+	cat <<'EOF'
+Usage: wake-nodes [name ...]
+
+With no arguments, wakes every host in the config file. With names, wakes only
+those. Names are the first column of the config.
+
+Environment:
+  WAKE_NODES_CONFIG     config path (default /etc/wake-nodes.conf)
+  WAKE_NODES_BROADCAST  address to broadcast to. Unset uses wakeonlan's own
+                        default, 255.255.255.255. Set it to the LAN's directed
+                        broadcast if that is dropped — on a /22 starting at
+                        192.168.68.0 that is 192.168.71.255, NOT .68.255.
+EOF
+}
+
+case ${1:-} in
+-h | --help)
+	usage
+	exit 0
+	;;
+esac
+
+[ -r "$CONFIG" ] || {
+	echo "wake-nodes: cannot read $CONFIG" >&2
+	exit 1
+}
+
+# Config into two parallel arrays. Blank lines and # comments are skipped, and
+# anything after the MAC is ignored so a trailing comment on a host line works.
+names=()
+macs=()
+while read -r name mac _rest; do
+	case $name in '' | '#'*) continue ;; esac
+	if [[ ! $mac =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; then
+		echo "wake-nodes: $CONFIG: '$name' has a malformed MAC: ${mac:-<missing>}" >&2
+		exit 1
+	fi
+	names+=("$name")
+	macs+=("$mac")
+done <"$CONFIG"
+
+[ ${#names[@]} -gt 0 ] || {
+	echo "wake-nodes: $CONFIG lists no hosts" >&2
+	exit 1
+}
+
+# Which hosts this run wakes: everything, or just the ones named.
+#
+# An unknown name is fatal, and fatal *before* a single packet goes out. Waking
+# is unacknowledged — nothing downstream can report that a name was ignored — so
+# a typo that silently woke two boxes out of three would surface as one dark
+# machine and no explanation. Refusing the whole run is the honest failure.
+#
+# Matching ignores case, following the convention hostnames already use.
+targets=()
+if [ $# -eq 0 ]; then
+	for i in "${!names[@]}"; do targets+=("$i"); done
+else
+	for arg in "$@"; do
+		match=
+		for i in "${!names[@]}"; do
+			if [ "${arg,,}" = "${names[$i],,}" ]; then
+				targets+=("$i")
+				match=yes
+				break
+			fi
+		done
+		[ -n "$match" ] || {
+			echo "wake-nodes: no host named '$arg' in $CONFIG" >&2
+			echo "wake-nodes: known hosts: ${names[*]}" >&2
+			exit 1
+		}
+	done
+fi
+
+send=()
+echo "waking ${#targets[@]} host(s) via ${BROADCAST:-255.255.255.255}:"
+for i in "${targets[@]}"; do
+	printf '  %-10s %s\n' "${names[$i]}" "${macs[$i]}"
+	send+=("${macs[$i]}")
+done
+
+[ ${#send[@]} -gt 0 ] || exit 0
+
+# Checked here rather than at the top so --help, a bad config and an unknown
+# host name all still behave on a machine that has no wakeonlan installed.
+command -v wakeonlan >/dev/null || {
+	echo "wake-nodes: wakeonlan is not installed (apt install wakeonlan)" >&2
+	exit 1
+}
+
+if [ -n "$BROADCAST" ]; then
+	wakeonlan -i "$BROADCAST" "${send[@]}" >/dev/null
+else
+	wakeonlan "${send[@]}" >/dev/null
+fi
+
+# Nothing here confirms a machine actually woke. A magic packet is fire and
+# forget: it is consumed by the network card, not by anything that can answer.
+# Confirm with `ping`, or by watching the switch's port page — a port moving
+# from 10/100M to 1000M is the OS bringing the interface up.
