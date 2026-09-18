@@ -6,3 +6,16 @@ metadata:
 spec:
   interval: 1h
   url: https://charts.rook.io/release
+---
+# The CSI drivers come from the ceph-csi-operator project rather than from
+# Rook. Rook's operator chart pulls that project's OPERATOR as a subchart
+# (`csi.installCsiOperator`, default true) but not its DRIVERS chart, so the
+# second half has to be installed explicitly. See helmrelease-csi-drivers.yaml.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: ceph-csi
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://ceph.github.io/ceph-csi-operator
