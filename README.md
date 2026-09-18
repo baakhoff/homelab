@@ -74,7 +74,8 @@ docs/
   network.md        # addressing, the switch, how the lab is reached from outside
   history.md        # what the lab looked like before it looked like this
   decisions/        # architecture decision records (ADRs)
-  runbooks/         # rebuilding things: disaster recovery, the Pi, the cluster nodes
+  runbooks/         # rebuilding things, and moving them: disaster recovery, the
+                    #   Pi, the cluster nodes, the Vaultwarden cutover
 ```
 
 ## Principles
