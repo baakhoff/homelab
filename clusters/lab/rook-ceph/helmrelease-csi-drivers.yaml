@@ -1,0 +1,93 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ceph-csi-drivers
+  namespace: rook-ceph
+spec:
+  interval: 1h
+  # The Ceph CRDs and the csi operator both arrive with the rook-ceph chart.
+  # This chart creates custom resources that operator watches for, so it has
+  # to land after it.
+  dependsOn:
+    - name: rook-ceph
+      namespace: rook-ceph
+  chart:
+    spec:
+      chart: ceph-csi-drivers
+      # Matched to the ceph-csi-operator subchart version that Rook v1.20
+      # pins in its own Chart.yaml. The two halves of one project should not
+      # drift apart.
+      version: "1.0.4"
+      sourceRef:
+        kind: HelmRepository
+        name: ceph-csi
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # WHY THIS EXISTS AT ALL
+    #
+    # Up to Rook v1.19 the operator chart built the CSI provisioner Deployment
+    # and the node-plugin DaemonSet itself. v1.20 handed that to the separate
+    # ceph-csi-operator - and ships only the operator, not the drivers. The
+    # visible result is a cluster that looks entirely healthy while every PVC
+    # sits Pending on "waiting for a volume to be created ... by the external
+    # provisioner", because no provisioner was ever deployed and
+    # `kubectl get csidriver` returns nothing.
+    #
+    # Rook does the connection half: it creates the CephConnection and the
+    # ClientProfile, mints the four CSI cephx keys and their Kubernetes
+    # secrets. What it no longer creates is the Driver custom resources, and
+    # the ServiceAccounts and RBAC the driver pods run as. This chart is that
+    # missing half.
+
+    # Rook already owns both of these for this cluster - `cephconnection/rook-ceph`
+    # and `clientprofile/rook-ceph`. The chart would otherwise render a second
+    # pair from its defaults and the two owners would fight. Empty lists, not
+    # omitted keys: a list value is replaced wholesale by Helm, whereas
+    # omitting it would leave the chart's default single blank-named entry in
+    # place.
+    cephConnections: []
+    clientProfiles: []
+
+    operatorConfig:
+      create: true
+      name: ceph-csi-operator-config
+      namespace: rook-ceph
+      driverSpecDefaults:
+        nodePlugin:
+          # k3s keeps kubelet state at the standard path. Stated because this
+          # is what breaks CSI on distributions that relocate it, and the
+          # failure appears at volume-mount time on a node rather than here.
+          kubeletDirPath: /var/lib/kubelet
+
+    drivers:
+      rbd:
+        # MUST match the provisioner in storageclass-rbd.yaml. Rook prefixes
+        # driver names with its operator namespace, so the name is
+        # `rook-ceph.rbd.csi.ceph.com`, not the chart's default of
+        # `rbd.csi.ceph.com`. A mismatch here is silent: the driver deploys,
+        # registers under the wrong name, and PVCs keep waiting for a
+        # provisioner that does not exist.
+        name: rook-ceph.rbd.csi.ceph.com
+        enabled: true
+
+      # The chart enables all four drivers by default. Only RBD has anything
+      # to serve on this cluster today: CephFS needs a CephFilesystem, NFS
+      # needs a CephNFS, and NVMe-oF needs a gateway. Enabling a driver with
+      # no backing storage deploys pods that idle - harmless, but it is three
+      # more things to read past when something breaks.
+      #
+      # CephFS is the one that comes back, in the same change that creates the
+      # filesystem. It is what provides ReadWriteMany.
+      cephfs:
+        enabled: false
+      nfs:
+        enabled: false
+      nvmeof:
+        enabled: false
