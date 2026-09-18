@@ -1,0 +1,117 @@
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    # A full version-and-build tag, which is what Rook recommends for anything
+    # holding data: `v20.2.4` alone can be rebuilt and repushed, so the same
+    # tag would not always mean the same image. The build date pins it.
+    #
+    # Tentacle v20.2.0 is explicitly NOT safe - a data corruption issue, fixed
+    # in v20.2.1. Never pin below that on this release line.
+    image: quay.io/ceph/ceph:v20.2.4-20260818
+    allowUnsupported: false
+
+  # Ceph's own state: the monitor database, keyrings, and per-daemon
+  # directories. Not object data - that lives on the OSD devices below.
+  #
+  # This sits on the root logical volume. Monitor stores are normally a few
+  # hundred megabytes, but they grow while a cluster is degraded because the
+  # monitors keep history until everything is healthy again. Root is 100 GB
+  # with an operating system on it, so there is plenty of slack; worth
+  # remembering as the one Ceph path that is NOT on a size-capped volume of
+  # its own.
+  dataDirHostPath: /var/lib/rook
+
+  mon:
+    count: 3
+    # One monitor per host. Three monitors on three hosts means the monitor
+    # quorum matches the node count: lose one and the remaining two still
+    # form a majority. Allowing several on one node would let a single
+    # machine's failure take the quorum with it, which is the failure this
+    # whole layout exists to survive.
+    allowMultiplePerNode: false
+
+  mgr:
+    # Two managers: one active, one on standby. Only one serves at a time, so
+    # a third buys nothing on a three-node cluster.
+    count: 2
+    allowMultiplePerNode: false
+    modules:
+      - name: rook
+        enabled: true
+
+  dashboard:
+    enabled: true
+    # No TLS, and no ingress. The dashboard is reachable only by
+    # `kubectl port-forward` until this cluster has ingress and certificates
+    # of its own, so the traffic never leaves the API server's tunnel.
+    ssl: false
+
+  # Crash reports and daily log rotation inside the Ceph daemons. Both cost
+  # very little and are the difference between diagnosing an OSD that died
+  # last night and guessing about it.
+  crashCollector:
+    disable: false
+  logCollector:
+    enabled: true
+    periodicity: daily
+    maxLogSize: 500M
+
+  storage:
+    # Every device is named explicitly. `useAllDevices: true` is how people
+    # accidentally hand Ceph a disk that had something on it - and while Rook
+    # refuses devices carrying a filesystem, that check is the last line of
+    # defence rather than the plan.
+    useAllNodes: false
+    useAllDevices: false
+    nodes:
+      - name: node02
+        devices:
+          - name: /dev/ubuntu-vg/cephosd
+      - name: node03
+        devices:
+          - name: /dev/ubuntu-vg/cephosd
+      - name: node04
+        devices:
+          - name: /dev/ubuntu-vg/cephosd
+
+  resources:
+    # OSDs are the memory-hungry daemon; Ceph sizes its internal cache
+    # (osd_memory_target) from the limit Rook passes it, so setting a limit
+    # here is how the cache gets bounded rather than a blunt cap.
+    osd:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        memory: 4Gi
+    mon:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    mgr:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+
+  # Monitors and OSDs are infrastructure: if the node is under memory
+  # pressure, evicting them to make room for a workload trades a slow
+  # application for an unavailable filesystem.
+  priorityClassNames:
+    mon: system-node-critical
+    osd: system-node-critical
+    mgr: system-cluster-critical
+
+  # Rook maintains PodDisruptionBudgets so a drain cannot take out more OSDs
+  # than the pool can tolerate. On three nodes with three replicas that means
+  # draining one node at a time, which is exactly the constraint you want
+  # enforced by the cluster rather than remembered by a person.
+  disruptionManagement:
+    managePodBudgets: true
