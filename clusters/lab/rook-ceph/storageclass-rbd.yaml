@@ -1,0 +1,38 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ceph-block
+  # Deliberately NOT annotated as the default StorageClass yet. k3s's
+  # local-path keeps that role until this cluster has reported HEALTH_OK for
+  # a while; flipping the default in the same change that first creates OSDs
+  # would mean every new PVC lands on storage nobody has watched yet.
+provisioner: rook-ceph.rbd.csi.ceph.com
+parameters:
+  clusterID: rook-ceph
+  pool: replicapool
+
+  # Format 2 is the only RBD image format Ceph still supports; `layering` is
+  # the feature set the CSI driver and the kernel client agree on. Enabling
+  # more features here produces images the node's kernel may refuse to map,
+  # and the error arrives at mount time on one node rather than at creation.
+  imageFormat: "2"
+  imageFeatures: layering
+
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+  csi.storage.k8s.io/fstype: ext4
+
+# Volumes can be grown in place by editing the PVC. They cannot be shrunk -
+# no filesystem Kubernetes supports can do that safely - so small and
+# extended later is the right default for every claim.
+allowVolumeExpansion: true
+
+# Deleting the PVC deletes the RBD image and the data in it. That is the
+# correct behaviour for a cluster whose durable state is backed up
+# separately, and the reason backups are a different concern from replication:
+# three copies of a deleted volume is still no copies.
+reclaimPolicy: Delete
