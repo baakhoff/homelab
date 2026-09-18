@@ -7,6 +7,14 @@ tooling (Claude Code instances) off my main workstation.
 The build is documented here as it happens: what exists, how it was set up, and which
 decisions were made and why.
 
+## The lab, v1.0
+
+![Three HP Elite Mini 600 G9 stacked in a corner, an eight-port switch and a mesh Wi-Fi unit on top of them, a Raspberry Pi 3B+ on the floor alongside](docs/images/rack-v1.0.jpg)
+
+Three mini PCs, the switch, the mesh unit and the Pi, stacked on the floor and cabled
+together. The 10″ rack is still printing. This photo gets replaced as the build
+changes; the version number is the excuse to keep the earlier ones.
+
 ## Hardware
 
 | Device | Specs | Status |
