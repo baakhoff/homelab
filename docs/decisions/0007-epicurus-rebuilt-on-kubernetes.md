@@ -16,13 +16,25 @@ routes by Docker labels, with every HTTP service declaring its routing as contai
 labels. k3s runs containerd and has no equivalent of either. 0003 was right that porting
 would not be a configuration exercise: it would have broken two product features.
 
-Those two dependencies are being removed **upstream**, and that is the fact this record
-turns on. epicurus is not a third-party project here — the images are
-`ghcr.io/baakhoff/epicurus-*` and the deployment being tracked is the maintainer's own
-`testing` branch. The Docker coupling was self-imposed, so it can be lifted at the source
-instead of worked around in the lab. Module lifecycle stops going through the Docker API;
-the gateway stops reading container labels. Once both land, a Kubernetes deployment is
-not a fork of anyone's deployment story — it is the normal one.
+**Both dependencies are already gone upstream, and epicurus already ships a Helm chart.**
+That is the fact this record turns on, and it dates 0003 rather than merely arguing with
+it. epicurus is not a third-party project here — the images are
+`ghcr.io/baakhoff/epicurus-*` and the deployment tracked is the maintainer's own — so the
+Docker coupling was self-imposed and was lifted at the source rather than worked around
+in the lab.
+
+What exists upstream now: a chart under `infra/k8s/epicurus` with templates for the core
+app, web, modules, Postgres, NATS, Qdrant, OpenBao (with bootstrap and unseal), MinIO,
+Ollama and SearXNG, plus ingress, NetworkPolicy, PodMonitor and Secret — gated in CI by a
+smoke run on kind. `core.containerRuntime.kind: kubernetes` replaces the Docker API path:
+confirmed module removal scales the module Deployment to zero through a **namespaced**
+Role, so the core can never reach another namespace and can create or delete nothing.
+There is no Docker socket anywhere in it. Routing is one Ingress to `web`, with modules
+and the core deliberately unexposed.
+
+So a Kubernetes deployment here is not a fork of anyone's deployment story. It is the
+normal one, and 0003's own revisit trigger — "epicurus grows a first-class Helm chart" —
+has already fired.
 
 **The third was memory.** node01 has 16 GB of soldered LPDDR4 with no upgrade path,
 a measured minimum of 4.29 GB available across a working day, and the stack costs roughly
@@ -82,10 +94,15 @@ What this buys, most of it by closing costs 0003 accepted at the time:
 
 What it costs, accepted knowingly:
 
-- **The work is upstream, and until it lands the lab has no epicurus.** This record
-  depends on two changes in another repository. If they stall, the fallback is not "run it
-  in Incus on node01" — that machine is going — but "run it in Incus on a lab node", which
-  would be a new decision and a worse one.
+- **The chart is young and its release train is not.** Only a `0.0.0-testing` build has
+  been published to `oci://ghcr.io/baakhoff/charts/epicurus`, because the chart-release
+  workflow is manual dispatch — so the lab tracks the chart path in the repository at a
+  branch rather than a published version. That is the same dogfooding trade 0003 made and
+  for the same reason; it is not the reproducible-release story a stable deployment would
+  want.
+- **The chart carries no upgrade proof.** Fresh installs are gated by CI; upgrades over
+  existing PVCs are not. The operational consequence is a rule rather than a risk: back up
+  before every chart upgrade, which is now something this cluster can actually do.
 - **The data has to be moved, and it is the hardest part of this.** It currently sits as
   Docker named volumes inside an Incus container — two layers below anything that has ever
   backed it up. Vaultwarden's move is one SQLite file stopped and copied; this is four
