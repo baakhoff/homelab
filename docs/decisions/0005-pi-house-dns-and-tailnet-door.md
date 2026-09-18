@@ -69,12 +69,13 @@ reach storage runs here — no k3s, no Ceph, nothing in any data path.
 - **Order of operations is a rule now.** The router's DNS field changes last,
   after the resolver has proven it stays up where it lives. The build broke
   this rule once and took the house's DNS down for a few minutes.
-- **Wi-Fi is the weak link.** The Pi reaches the LAN over 2.4 GHz Wi-Fi. The
-  3B+ radio mishandles the mesh's 5 GHz band steering, and keeps a dead
-  association after the router applies a settings change. Power saving is off
-  and the band is pinned to 2.4 GHz; after any router settings save the Pi is
-  checked and reconnected if needed. Exit-node throughput is a few Mbit/s,
-  which DNS and a management console never notice.
+- **~~Wi-Fi is the weak link.~~** *Resolved 2026-09-18 — see the addendum.* The
+  Pi reached the LAN over 2.4 GHz Wi-Fi. The 3B+ radio mishandles the mesh's
+  5 GHz band steering, and keeps a dead association after the router applies a
+  settings change. Power saving is off and the band is pinned to 2.4 GHz; after
+  any router settings save the Pi is checked and reconnected if needed.
+  Exit-node throughput is a few Mbit/s, which DNS and a management console
+  never notice.
 - **The subnet route exposes the whole LAN to the tailnet.** Every tailnet
   device reaches every LAN address. On a single-user tailnet that is the
   intended effect; Tailscale ACLs are the tool for narrowing it.
@@ -82,3 +83,34 @@ reach storage runs here — no k3s, no Ceph, nothing in any data path.
   sits behind NAT with nothing forwarded. Port 53 must never be exposed.
 - **DNS-level ad blocking has known gaps** — first-party ad paths and cosmetic
   elements are not DNS-blockable. A browser extension covers those per device.
+
+## Addendum, 2026-09-18 — the Pi is wired
+
+The decision stands unchanged; one of its consequences does not.
+
+A managed switch went in and the Pi moved from 2.4 GHz Wi-Fi to ethernet,
+keeping `192.168.68.65` by moving the DHCP reservation to the wired interface.
+Wi-Fi remains configured but does not connect automatically, as the fallback
+path if the cable or the switch fails.
+
+What that changes:
+
+- The weak-link consequence above is retired. No band steering, no dead
+  associations, and the operating rule of checking the Pi after every router
+  settings save no longer applies — a wired client is not kicked when the mesh
+  saves settings.
+- Exit-node throughput improves, bounded now by the 3B+'s USB-attached
+  network interface and by userspace WireGuard on four A53 cores rather than by
+  a shared 2.4 GHz link.
+- The Pi gains a role it did not have: it is the only always-on Linux host on
+  the wired segment, which makes it the sender for Wake-on-LAN magic packets —
+  broadcasts, which do not route — and the jump host for anything reachable
+  only from inside the LAN.
+
+What it does not change: everything in the Decision section, the single-resolver
+risk, the rollback in the disaster-recovery runbook, or the Pi's disposability.
+
+The Wi-Fi chapter is kept in the [runbook](../runbooks/pi-exitnode.md) as
+history rather than deleted. It remains an accurate record of what a 3B+ does
+on a mesh, and a rebuild that happens before the cable is plugged in still
+needs it.

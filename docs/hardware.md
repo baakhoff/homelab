@@ -20,7 +20,7 @@ identifiers.
 |---|---|
 | CPU | Broadcom BCM2837B0, 4× Cortex-A53 @ 1.4 GHz, 64-bit |
 | RAM | 1 GB LPDDR2 |
-| NIC | Gigabit PHY over USB 2.0 — ~300 Mbit/s practical ceiling; 2.4 / 5 GHz Wi-Fi. On 2.4 GHz Wi-Fi |
+| NIC | Gigabit PHY over USB 2.0 — ~300 Mbit/s practical ceiling; 2.4 / 5 GHz Wi-Fi. **Wired**, with the Wi-Fi profile kept as a fallback that does not connect automatically |
 | Storage | SanDisk Extreme 32 GB microSDHC (A1 / V30); log2ram keeps logs off the card |
 | OS | Raspberry Pi OS Lite 64-bit (Debian 13) |
 | Role | Pi-hole DNS for the house and the tailnet; Tailscale exit node and subnet router. Build: [runbook](runbooks/pi-exitnode.md); why: [ADR 0005](decisions/0005-pi-house-dns-and-tailnet-door.md) |
@@ -37,7 +37,26 @@ Three identical used units, bought in September 2026.
 | NIC | Intel I219-LM 1 GbE; one unit carries a second RJ-45 on a Flex-port module |
 | Power | 90 W external adapter each; about 7 W idle per HP's figures |
 | Size | 177 × 175 × 34 mm, 1.4 kg; rated for 10–35 °C ambient |
-| State | Ubuntu Server 24.04 installed on each; not yet networked or joined to anything |
+| State | Ubuntu Server 24.04, wired, keys-only SSH, swap off, upgraded and burnt in. Not yet joined to anything — [bring-up](runbooks/node-bring-up.md) |
+
+Measured during bring-in, worth keeping as a baseline:
+
+| | Result |
+|---|---|
+| Drive health | zero media errors and zero critical warnings on all three; 0–4% wear after 17,000–19,000 power-on hours |
+| Sustained all-core load | 69–76 °C package, against a high threshold of 80 °C — stacked with no airflow, which is the worst case they will see |
+| Idle | 34–39 °C |
+| Throughput spread | within 3% of each other under `stress-ng` |
+
+## Switch
+
+| Field | Value |
+|---|---|
+| Model | TP-Link TL-SG108E, hardware V6 |
+| Ports | 8 × 1 GbE |
+| Management | web UI over HTTP, no TLS; VLANs, QoS and port mirroring available and unused |
+| Power | 5 V wall-plug adapter, no separate brick |
+| Role | the lab's wired backbone — all four lab machines and the uplink to the mesh. Port map and addressing: [the network](network.md) |
 
 ## Rack
 
