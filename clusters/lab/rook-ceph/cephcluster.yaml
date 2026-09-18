@@ -14,6 +14,47 @@ spec:
     image: quay.io/ceph/ceph:v20.2.4-20260818
     allowUnsupported: false
 
+  security:
+    cephx:
+      # CVE-2025-30156: CephX's AES-128-CBC service tickets are unauthenticated
+      # - no HMAC, and a hard-coded IV - so a ticket's permissions can be
+      # altered without detection and without decrypting it. Ceph v20.2.4 and
+      # v19.2.6 shipped the fix as a NEW key type, aes256k (AES256-CTS-HMAC-
+      # SHA384-192, RFC 8009).
+      #
+      # Running the patched build is not the fix. Every key this cluster
+      # created on day one is still the old type, which is why a brand-new
+      # cluster reports AUTH_INSECURE_KEYS_ALLOWED and
+      # AUTH_INSECURE_KEYS_CREATABLE rather than only upgraded ones. The keys
+      # have to be rotated.
+      daemon:
+        # Rotation is opt-in. Setting keyGeneration above the value in
+        # .status.cephx triggers one; the daemons restart as their keys are
+        # replaced. Generation 1 was created with the cluster, so this asks
+        # for generation 2 on aes256k, which is auto-detected as available.
+        keyRotationPolicy: KeyGeneration
+        keyGeneration: 2
+
+      csi:
+        # CSI keys deliberately STAY on the old cipher, and this is a pin
+        # rather than an oversight.
+        #
+        # CSI maps RBD volumes through the IN-KERNEL ceph client, so the
+        # kernel has to speak the cipher. aes256k needs Linux 7.0 or newer on
+        # every node; these run 6.8. Letting Rook auto-detect here would hand
+        # CSI a key type the kernel cannot use, and the failure would appear
+        # at volume-mount time on a node rather than at creation.
+        #
+        # Consequence, stated plainly: the monitors must keep ACCEPTING aes
+        # keys for CSI's sake, so AUTH_INSECURE_KEYS_ALLOWED stays regardless
+        # of this change. What this change buys is the mon/mgr/osd trust path
+        # no longer depending on the broken cipher.
+        #
+        # TRIGGER TO REVISIT: nodes on kernel 7.0+ AND ceph-csi v3.17.1+. Then
+        # rotate the CSI keys and restrict security.cephx.allowedCiphers to
+        # aes256k alone, which is what finally clears the warning.
+        keyType: aes
+
   # Ceph's own state: the monitor database, keyrings, and per-daemon
   # directories. Not object data - that lives on the OSD devices below.
   #
