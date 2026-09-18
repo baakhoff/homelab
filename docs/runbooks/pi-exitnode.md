@@ -22,9 +22,13 @@ rebuilds it in about an hour.
 
 | What | Value |
 |---|---|
-| LAN | `192.168.68.0/22`, router `192.168.68.1`, DHCP from the router |
-| The Pi | `192.168.68.65`, a DHCP reservation on its Wi-Fi interface |
+| LAN | `192.168.68.0/22`, router `192.168.68.1`, DHCP from the router — [the network](../network.md) |
+| The Pi | `192.168.68.65`, a DHCP reservation on its **wired** interface |
 | Upstream DNS | Quad9 filtered with DNSSEC — `9.9.9.9`, `149.112.112.112` |
+
+The Pi was built on Wi-Fi and moved to ethernet once the switch went in.
+Sections 1–7 are unchanged by that; section 8 is the Wi-Fi chapter, kept as
+history, and section 9 is the move.
 
 ---
 
@@ -40,7 +44,7 @@ cloud-init**, not written into the image. Two consequences that bit:
   stage final`. That is cloud-init finishing, not a hang.
 - After an unclean power-off, cloud-init re-ran on the next boot and **dropped
   the Wi-Fi profile it had created**: `nmcli connection show` listed only the
-  wired profile and `wlan0` sat disconnected. Section 7 disables cloud-init's
+  wired profile and `wlan0` sat disconnected. Section 8 disables cloud-init's
   networking for good. Until then, and as a habit after: `sudo poweroff`
   before pulling the plug.
 
@@ -130,9 +134,9 @@ Expected: `active`, and `/var/log` on a 128 MB tmpfs.
 curl -sSL https://install.pi-hole.net -o pihole-install.sh && sudo bash pihole-install.sh
 ```
 
-Choices made in the installer: interface `wlan0`; upstream Quad9 (filtered,
-DNSSEC); the default blocklist; web interface and query logging on. Then set
-the admin password:
+Choices made in the installer: interface `wlan0` — `eth0` on a rebuild, and see
+section 9; upstream Quad9 (filtered, DNSSEC); the default blocklist; web
+interface and query logging on. Then set the admin password:
 
 ```
 pihole setpassword
@@ -223,8 +227,11 @@ Each flag has a reason:
   that does not depend on the sshd config from section 3.
 - `--advertise-exit-node` — offer full-tunnel through home.
 - `--advertise-routes=192.168.68.0/22` — offer the LAN. This is the out-of-band
-  path: the router's UI, the switch, and the mini PCs' AMT are LAN-only, and
-  through this route they are reachable from any tailnet device.
+  path: the router's UI and the switch are LAN-only, and through this route they
+  are reachable from any tailnet device. The mini PCs' management engines hold
+  the same addresses as the machines themselves but answer nothing — AMT is
+  enabled in firmware and unconfigured
+  ([bring-up](node-bring-up.md)).
 - `--accept-dns=false` — the Pi must never take its own DNS from the tailnet.
   The tailnet's DNS *is* this Pi; a loop here would take the Pi's own
   resolution down with it.
@@ -264,6 +271,12 @@ what-is-my-IP site shows the home connection.
 
 ## 8. Wi-Fi on a mesh: what had to change
 
+**History.** The Pi ran on Wi-Fi from its build until the switch went in, and
+now runs on ethernet — section 9. This section is kept rather than deleted: it
+is an accurate record of what a 3B+ does on a mesh, the profile it describes
+still exists as the fallback path, and a rebuild that happens before the cable
+is plugged in needs it.
+
 The Pi joins a TP-Link Deco mesh over Wi-Fi. Three behaviours of the 3B+ radio
 on that mesh cost most of the build evening, and three settings fixed them.
 Each is a `nmcli` property on the connection profile, applied once and
@@ -285,8 +298,9 @@ sudo nmcli device reconnect wlan0
 - **Retry forever** (`0`). The default gives up after a few attempts, which on
   a headless box means a reboot.
 
-And the cloud-init guard, so the profile survives every boot
-(`hosts/exitnode/99-disable-network-config.cfg`):
+And the cloud-init guard, so the connection profiles survive every boot
+(`hosts/exitnode/99-disable-network-config.cfg`). This one is not Wi-Fi-specific
+— it belongs on a wired rebuild too:
 
 ```
 sudo install -m 0644 99-disable-network-config.cfg /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
@@ -317,11 +331,81 @@ ping -c 3 192.168.68.1
 `get_throttled` returning `0x0` rules out the power supply, which is the
 first suspect for any Pi that misbehaves.
 
+## 9. The move to ethernet
+
+Done when the switch went in. The whole job is keeping one address while
+changing which interface holds it, on a machine that is the only DNS server in
+the house.
+
+**The address has to stay `192.168.68.65`.** The router hands it out as the
+only resolver, and it is written into this page, ADR 0005 and the
+disaster-recovery runbook. Ethernet and Wi-Fi have different hardware
+addresses, and a router will not reserve one address for two of them — so the
+Wi-Fi reservation is deleted first, then the same address reserved against the
+wired interface.
+
+Do the work over the **tailnet** address, not over `192.168.68.65`. Taking Wi-Fi
+down kills a session riding on it; `tailscale0` survives both interfaces moving.
+
+Order that worked:
+
+1. Clear the router's DNS field back to automatic. The house resolves through
+   the router meanwhile — no blocking, but working — and that removes all time
+   pressure from the rest.
+2. Plug in, and confirm what the Pi thinks: `ip -br a`, `nmcli device status`,
+   `ip route`.
+3. Stop Wi-Fi coming back on its own, but keep the profile:
+
+   ```
+   sudo nmcli connection modify "<SSID>" connection.autoconnect no
+   sudo nmcli device disconnect wlan0
+   ```
+
+4. Reserve `192.168.68.65` against the wired interface on the router.
+5. `sudo reboot` — not `nmcli device reconnect`. The point of this step is that
+   the configuration is persistent, and the only way to know is to test it.
+6. Point Pi-hole at the right interface:
+
+   ```
+   sudo pihole-FTL --config dns.interface eth0
+   ```
+
+7. Set the router's DNS field back to `192.168.68.65` — **last**, after
+   verification, per section 6.
+
+Why single-homed rather than ethernet-preferred: the Pi advertises the LAN to
+the tailnet as a subnet router. With two interfaces on one subnet, replies can
+leave by a different interface than the request arrived on, and neighbours end
+up disagreeing about which hardware address owns the IP. One path, one address.
+
+The Wi-Fi profile is kept, with its three tuned settings intact, as the escape
+hatch: `sudo nmcli connection up "<SSID>"` at the console brings the Pi back if
+the cable or the switch dies.
+
+**Nothing in Tailscale changes.** Routes and exit-node status are properties of
+the machine, not of the interface it uses, and the tailnet address is
+unaffected. Nothing needs re-approving in the console.
+
+**What Pi-hole did not notice**: `dns.listeningMode ALL` from section 5 means
+FTL answers on every interface regardless of `dns.interface`, so DNS never
+stopped during the swap. Correcting `dns.interface` afterwards is honesty
+rather than repair — a configuration that describes hardware the machine no
+longer uses is a trap for whoever reads it next.
+
+**The operating rule from section 8 retires.** A wired client is not kicked
+when the mesh applies a settings change, so the zombie-association check after
+every router save no longer applies to this machine.
+
 ---
 
 ## Verification checklist
 
+- On the Pi: `ip -br a` shows `eth0` holding `192.168.68.65`, `wlan0` with no
+  address, and `ip route` exactly one default route.
 - On the Pi: `dig @127.0.0.1 doubleclick.net +short` → `0.0.0.0`.
+- From the workstation: `dig @192.168.68.65 doubleclick.net +short` → `0.0.0.0`.
+  Querying from another machine is the test that matters; `@127.0.0.1` on the Pi
+  only proves FTL is running, not that it is reachable.
 - On the workstation: `resolvectl status` shows `192.168.68.65`.
 - On a phone over mobile data with Tailscale on: `http://pi.hole/admin` loads.
 - `sudo tailscale status` on the Pi lists the exit node and subnet route as
@@ -331,7 +415,10 @@ first suspect for any Pi that misbehaves.
 
 ## Rebuild
 
-Blank card → sections 1 to 8, in that order, with section 6 genuinely last.
+Blank card → sections 1 to 7 with the cable already in, skipping the Wi-Fi
+parts of section 1 and choosing `eth0` in section 5; then the cloud-init guard
+from section 8, which a wired rebuild needs just as much. The rest of section 8
+only if the rebuild has to happen on Wi-Fi. Section 6 genuinely last.
 Nothing is restored. The router's DHCP reservation keeps the address, so no
 client notices. In the Tailscale console, delete the old `exitnode` machine
 **before** running `tailscale up`, otherwise the new one registers as
@@ -343,11 +430,13 @@ recreated from the query log as things break.
 
 - **Single resolver.** A dead Pi is a house without names until the router's
   DNS field is reverted — see the disaster-recovery runbook, Scenario F.
-- **Exit-node throughput.** Measured at roughly 5 Mbit/s from a phone: a
-  2.4 GHz Wi-Fi link shared with the rest of the house, a mesh behind a second
-  NAT (so Tailscale likely relays), and a 3B+ CPU that tops out in the tens of
-  Mbit/s for WireGuard in userspace. Adequate for DNS, SSH and a management
-  console; not a VPN for video.
+- **Exit-node throughput.** Measured at roughly 5 Mbit/s from a phone while the
+  Pi was on 2.4 GHz Wi-Fi. On ethernet that link stops being the limit, and two
+  others take over: the 3B+'s gigabit PHY hangs off a single USB 2.0 bus shared
+  with the USB ports, so it tops out near 300 Mbit/s, and WireGuard in userspace
+  on four A53 cores manages tens of Mbit/s. Expect a large improvement, not a
+  gigabit. Adequate for DNS, SSH and a management console; still not a VPN for
+  video.
 - **DNS-level blocking has gaps.** First-party ad paths (an ad served from the
   publisher's own domain) and cosmetic elements are invisible to DNS. A
   browser extension handles those per device.

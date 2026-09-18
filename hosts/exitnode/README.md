@@ -53,6 +53,10 @@ check is how a headless box ends up needing a keyboard again.
 
 ## Not files: the Wi-Fi settings
 
+**The Pi is on ethernet now** — these settings apply to the Wi-Fi profile that
+is kept as the fallback path, with `connection.autoconnect no` so it does not
+come up on its own. Runbook section 9 covers the move.
+
 Three settings live in NetworkManager's connection profile rather than in a
 file worth tracking. Applied once, persistent across reboots:
 
