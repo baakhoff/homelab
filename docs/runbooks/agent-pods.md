@@ -16,11 +16,28 @@ count (0 = parked), and the scheduler places it on whichever node has room. So
 the projects together are bounded by the cluster, not by one node, and a node
 reboot takes down a share of them rather than all.
 
-Manifests: `clusters/homelab/agents/`. Image: `images/claude-agent/`.
+Manifests: `clusters/homelab/agents/` and `clusters/lab/agents/`. Image:
+`images/claude-agent/`.
+
+**The two clusters differ in one line: the storage class.** node01's pods take
+`local-path`, a directory on the node, so a pod can only run where its home
+already is and a node rebuild takes the login, the checkout and every worktree
+with it. The lab cluster's take `ceph-block`, an RBD image replicated across
+all three nodes and mapped by whichever one runs the pod — so the home
+directory follows the pod, and losing a node costs a restart rather than a
+rebuild.
+
+That also changes what a *hard* node failure looks like. A ReadWriteOnce image
+is mapped by one node at a time, and Kubernetes will not map it elsewhere while
+it believes the old node might still be writing. On a clean drain the handover
+is immediate; on a node that simply vanishes, the pod stays `Terminating` for
+roughly six minutes while the node is marked unreachable and the volume is
+force-detached. Waiting is the correct behaviour — the alternative is two
+writers on one filesystem.
 
 ## Add a project
 
-1. Copy `clusters/homelab/agents/homelab.yaml` to `<project>.yaml` and change
+1. Copy the cluster's own `agents/homelab.yaml` to `<project>.yaml` and change
    the names, `REPO_URL`, and the resources. A private repo needs a `GH_TOKEN`
    env from a SOPS-encrypted Secret: a fine-grained token scoped to that repo.
 2. Open a PR, merge. Flux creates the volume and the pod. The pod clones the
@@ -121,6 +138,8 @@ stays.
 - No cluster access, no LAN, no tailnet from inside, by policy.
 - Deleting a project's manifest prunes its volume: the checkout, the login and
   any uncommitted work go with it. Commit or push first.
-- The volumes are excluded from the nightly restic backup, see
-  `hosts/node01/backup/restic-excludes.txt`: everything on them is a clone, a
-  login, or a cache.
+- Nothing backs the volumes up, on either cluster. On node01 they are excluded
+  from the nightly restic run, see `hosts/node01/backup/restic-excludes.txt`;
+  on the lab cluster no backup exists yet. Everything on them is a clone, a
+  login, or a cache — replication is not a backup, and three copies of a
+  deleted volume is still no copies.

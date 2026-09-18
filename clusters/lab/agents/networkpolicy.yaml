@@ -1,0 +1,56 @@
+# Two policies. Together: nothing in the cluster can reach an agent pod, and an
+# agent pod can reach cluster DNS and the internet - not the Kubernetes API,
+# not another namespace, not the house LAN, not the tailnet. An agent runs
+# arbitrary commands on behalf of a model; this boundary is what makes that
+# acceptable next to a password vault and the Flux decryption key.
+#
+# k3s enforces NetworkPolicy with its embedded controller (kube-router's netpol
+# library) unless started with --disable-network-policy, which this cluster
+# was not. Verify rather than trust: the runbook has a two-command smoke test,
+# and a policy that is silently not enforced looks exactly like one that is.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: agents
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-dns-and-internet
+  namespace: agents
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    # Cluster DNS. Policies are evaluated after the Service DNAT, so the
+    # destination seen here is the CoreDNS pod itself, matched by its labels.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Everything else: the internet only. The exceptions are every private
+    # range - pods and Services (10.42.0.0/16 and 10.43.0.0/16 in k3s), the
+    # house LAN, the tailnet's CGNAT range, link-local - so the Kubernetes API
+    # at 10.43.0.1, the node itself, the router, the Pi and every tailnet
+    # machine are all unreachable from inside.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
