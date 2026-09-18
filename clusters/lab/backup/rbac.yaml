@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-driver
+  namespace: backup
+---
+# A ClusterRole used as a DEFINITION, not as a cluster-wide grant. Nothing
+# binds it with a ClusterRoleBinding; each target namespace gets its own
+# RoleBinding below, and the driver has these rights there and nowhere else.
+#
+# That distinction is the whole security argument here. `create` cannot be
+# restricted by resourceNames - Kubernetes has no way to say "may create Jobs
+# called bk-*" - so the only available scope is the namespace. And the right
+# to create a Job in a namespace IS the right to read every Secret in it: a
+# Job is a pod spec, and a pod spec can mount anything. A single
+# ClusterRoleBinding would therefore hand this ServiceAccount every secret on
+# the cluster in exchange for backing up two volumes.
+#
+# Same reasoning as the trimmed rules in clusters/lab/logging/alloy.yaml. A
+# backup driver has no business in namespaces that hold nothing it backs up.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-driver
+rules:
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  # The clone, created from the snapshot and thrown away afterwards. `get` on
+  # the source PVC comes from the same rule - the driver reads its size and
+  # storage class to build the clone.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  # Reading the restic Job's output back into the driver's own log, so one
+  # `kubectl logs` on the CronJob shows what restic actually did rather than
+  # only whether it exited zero.
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+# One of these per namespace holding a backed-up volume. Adding a namespace to
+# the backup is this object, a copy of the restic-repo Secret, and one entry in
+# BACKUP_TARGETS - nothing else.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-driver
+  namespace: monitoring
+subjects:
+  - kind: ServiceAccount
+    name: backup-driver
+    namespace: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-driver
