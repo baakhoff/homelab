@@ -43,7 +43,7 @@ Measured during bring-in, worth keeping as a baseline:
 
 | | Result |
 |---|---|
-| Drive health | zero media errors and zero critical warnings on all three; 0–4% wear after 17,000–19,000 power-on hours |
+| Drive health | zero media errors and zero critical warnings on all three; 0–4% wear after 9,700–18,900 power-on hours |
 | Sustained all-core load | 69–76 °C package, against a high threshold of 80 °C — stacked with no airflow, which is the worst case they will see |
 | Idle | 34–39 °C |
 | Throughput spread | within 3% of each other under `stress-ng` |
@@ -56,7 +56,7 @@ Measured during bring-in, worth keeping as a baseline:
 | Ports | 8 × 1 GbE |
 | Management | web UI over HTTP, no TLS; VLANs, QoS and port mirroring available and unused |
 | Power | 5 V wall-plug adapter, no separate brick |
-| Role | the lab's wired backbone — all four lab machines and the uplink to the mesh. Port map and addressing: [the network](network.md) |
+| Role | the lab's wired backbone — the three mini PCs, the Pi, and the uplink to the mesh. Port map and addressing: [the network](network.md) |
 
 ## Rack
 

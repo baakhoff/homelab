@@ -44,7 +44,7 @@ cloud-init**, not written into the image. Two consequences that bit:
   stage final`. That is cloud-init finishing, not a hang.
 - After an unclean power-off, cloud-init re-ran on the next boot and **dropped
   the Wi-Fi profile it had created**: `nmcli connection show` listed only the
-  wired profile and `wlan0` sat disconnected. Section 7 disables cloud-init's
+  wired profile and `wlan0` sat disconnected. Section 8 disables cloud-init's
   networking for good. Until then, and as a habit after: `sudo poweroff`
   before pulling the plug.
 
@@ -295,8 +295,9 @@ sudo nmcli device reconnect wlan0
 - **Retry forever** (`0`). The default gives up after a few attempts, which on
   a headless box means a reboot.
 
-And the cloud-init guard, so the profile survives every boot
-(`hosts/exitnode/99-disable-network-config.cfg`):
+And the cloud-init guard, so the connection profiles survive every boot
+(`hosts/exitnode/99-disable-network-config.cfg`). This one is not Wi-Fi-specific
+— it belongs on a wired rebuild too:
 
 ```
 sudo install -m 0644 99-disable-network-config.cfg /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
@@ -412,8 +413,9 @@ every router save no longer applies to this machine.
 ## Rebuild
 
 Blank card → sections 1 to 7 with the cable already in, skipping the Wi-Fi
-parts of section 1 and choosing `eth0` in section 5; section 8 only if the
-rebuild has to happen on Wi-Fi. Section 6 genuinely last.
+parts of section 1 and choosing `eth0` in section 5; then the cloud-init guard
+from section 8, which a wired rebuild needs just as much. The rest of section 8
+only if the rebuild has to happen on Wi-Fi. Section 6 genuinely last.
 Nothing is restored. The router's DHCP reservation keeps the address, so no
 client notices. In the Tailscale console, delete the old `exitnode` machine
 **before** running `tailscale up`, otherwise the new one registers as
