@@ -52,9 +52,10 @@ The selector-less Service and hand-written EndpointSlice that fronted the contai
 with it. So do the Incus ScrapeConfig, its Grafana dashboard, and `epicurus-rules.yaml`,
 all of which watch a container that will not exist.
 
-Rebuilt rather than moved, specifically: the data is recreated from scratch. This is the
-one place where "recreate" is a real cost rather than a simplification, and it is accepted
-knowingly — see below.
+"Rebuilt" applies to the deployment, not to the data. The workloads are recreated from
+manifests; Postgres, the vector store, object storage and the secrets vault are **carried
+across**. That is the one part of this that is a migration rather than a rewrite, and it
+is the part with real failure modes — see below.
 
 ## Consequences
 
@@ -85,10 +86,24 @@ What it costs, accepted knowingly:
   depends on two changes in another repository. If they stall, the fallback is not "run it
   in Incus on node01" — that machine is going — but "run it in Incus on a lab node", which
   would be a new decision and a worse one.
-- **The data does not come across.** Postgres, the vector store, object storage and the
-  vault are recreated empty. For a dogfooding deployment of the maintainer's own
-  unreleased work this is acceptable; for anything holding data that mattered it would not
-  be, and this line is the one to re-read if that ever changes.
+- **The data has to be moved, and it is the hardest part of this.** It currently sits as
+  Docker named volumes inside an Incus container — two layers below anything that has ever
+  backed it up. Vaultwarden's move is one SQLite file stopped and copied; this is four
+  storage engines, each with its own idea of what a consistent copy is, and a file walk
+  over a running Postgres or a live object store produces something that restores
+  *sometimes*. Each engine gets a native dump or a full stop, not a `tar` of a running
+  directory.
+- **The credentials file is part of the payload, and losing it is silent.** 0003 recorded
+  that epicurus's root `.env` holds the Postgres and MinIO passwords their data
+  directories were INITIALISED with — "lose that file and the bytes are unreadable even
+  though you still have them". It is untracked, it lives only on node01, and it is the
+  single item here whose loss cannot be recovered by re-running anything. It moves first,
+  and into a SOPS secret rather than another untracked file.
+- **There is no backup to fall back on during the move.** 0003's own consequence — the
+  state sits below anything the lab backs up — is still true on the day the copy happens,
+  because the thing that fixes it is the destination. Until epicurus's volumes are PVCs
+  in `BACKUP_TARGETS`, node01's disk is the only copy, and the migration is the window
+  where that matters most.
 - **The deployment is no longer upstream's compose file run unmodified.** 0003 valued that
   highly and was right to. What makes it acceptable now is that the Kubernetes manifests
   become upstream's concern too rather than a translation layer maintained here — the same
