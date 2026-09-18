@@ -241,9 +241,10 @@ no airflow — the worst configuration they will ever be in:
 |---|---|---|
 | package temperature | 34–39 °C | **69–76 °C** |
 
-Against a high threshold of 80 °C and critical of 100 °C, flat for the last
-fifteen minutes of the run, so that is a real plateau rather than a curve still
-climbing. Re-measure once they are racked with air between them.
+Against a high threshold of 80 °C and critical of 100 °C. Sampled at six,
+fourteen and twenty-one minutes in; the last two readings differ by at most
+three degrees, so this is a plateau rather than a curve still climbing.
+Re-measure once they are racked with air between them.
 
 `stress-ng`'s bogo-ops figure is meaningless in absolute terms and perfectly
 good for comparing identical machines. These landed within 3% of each other,
