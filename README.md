@@ -51,10 +51,12 @@ Incus containers — all of it on this.
 - **node02, node03, node04** — k3s with embedded etcd, all three as servers, and a
   second Flux reconciling `clusters/lab/`. Rook-Ceph runs an OSD on each of them
   and serves replicated block storage as the cluster's default StorageClass.
-  cert-manager and ingress-nginx, and the agent pods: Claude Code Remote
-  Control servers, one per project, on volumes that follow the pod between
-  nodes ([how](docs/runbooks/agent-pods.md), [how the nodes got
-  here](docs/runbooks/node-bring-up.md)).
+  cert-manager and ingress-nginx, kube-prometheus-stack and Loki, and the
+  agent pods: Claude Code Remote Control servers, one per project, on volumes
+  that follow the pod between nodes ([how](docs/runbooks/agent-pods.md), [how
+  the nodes got here](docs/runbooks/node-bring-up.md)). Its Grafana answers to
+  the same name as node01's and is not reached yet: both clusters hold a
+  certificate for `*.lab.baakhoff.com`, and DNS decides which one you get.
 - **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
 
 Every lab machine except `node01`, a laptop with no ethernet port, is wired to
