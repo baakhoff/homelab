@@ -1,0 +1,40 @@
+# Like the ClusterIssuer beside it, this is a kind cert-manager defines, so it
+# cannot land in the same commit as the chart that installs cert-manager - see
+# clusters/lab/cert-manager/clusterissuer.yaml for what that costs.
+#
+# One wildcard certificate for the whole lab, same shape as node01's.
+#
+# It lives in the ingress-nginx namespace rather than beside a service, because
+# Kubernetes Secrets do not cross namespaces: a Certificate in `demo` is
+# unusable by an Ingress in `monitoring`. Issuing a copy per namespace would
+# work, but each copy counts against Let's Encrypt's duplicate-certificate rate
+# limit and has to be renewed forever. Instead the controller serves this as
+# its default certificate (see helmrelease.yaml), so every Ingress in every
+# namespace gets valid TLS without declaring any.
+#
+# The names are deliberately the SAME as node01's, not a temporary alias. This
+# cluster is replacing that one, and a migration that renames every hostname
+# is two migrations. What separates the clusters during the changeover is DNS,
+# not the certificate: `*.lab` keeps pointing at node01, and a service moves by
+# gaining an explicit A record of its own, which beats the wildcard. Both
+# clusters holding a valid certificate for the same names is what makes that
+# per-service cutover instant and the rollback a single record deletion.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lab-wildcard
+  namespace: ingress-nginx
+spec:
+  secretName: lab-wildcard-tls
+  issuerRef:
+    # STAGING until this has issued once. Flip to `letsencrypt` in its own
+    # commit, and expect browser warnings until then - that warning is the
+    # only visible difference, and it is how you know which issuer signed what
+    # you are looking at. See clusterissuer.yaml for why the dry run matters:
+    # the rate limit this protects is shared with the cluster currently
+    # serving the lab.
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - lab.baakhoff.com
+    - "*.lab.baakhoff.com"
