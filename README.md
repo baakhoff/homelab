@@ -12,17 +12,9 @@ decisions were made and why.
 ![Three HP Elite Mini 600 G9 stacked in a corner, an eight-port switch and a mesh Wi-Fi unit on top of them, a Raspberry Pi 3B+ on the floor alongside](docs/images/rack-v1.0.jpg)
 
 Three mini PCs, the switch, the mesh unit and the Pi, stacked on the floor and cabled
-together. The 10″ rack is still printing. This photo gets replaced as the build
-changes; the version number is the excuse to keep the earlier ones.
-
-## The lab, v0.1
-
-![An MSI laptop, lid closed and covered in stickers, standing on its edge in a wire mesh letter rack on a desk, power cable plugged in](docs/images/node01-v0.1.jpg)
-
-Where it started, and where most of it still runs: one laptop stood on edge in a letter
-rack so it works with the lid shut, on Wi-Fi, with nothing else on the LAN. k3s, Flux,
-cert-manager and ingress-nginx, Prometheus and Loki, Vaultwarden, the agent pods and two
-Incus containers — all of it on this.
+together. The 10″ rack is still printing. This photo gets replaced as the build changes,
+and the one it replaces moves to [the lab over time](docs/history.md) — which is what the
+version number is for.
 
 ## Hardware
 
@@ -80,6 +72,7 @@ images/
 docs/
   hardware.md       # hardware inventory and specs
   network.md        # addressing, the switch, how the lab is reached from outside
+  history.md        # what the lab looked like before it looked like this
   decisions/        # architecture decision records (ADRs)
   runbooks/         # rebuilding things: disaster recovery, the Pi, the cluster nodes
 ```
