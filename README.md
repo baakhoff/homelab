@@ -20,11 +20,12 @@ replaced as the build changes, and the one it replaces moves to
 
 | Device | Specs | Status |
 |---|---|---|
-| Laptop `node01` | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | retired, powered off. What it ran is in [the lab over time](docs/history.md) |
 | Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router, wired |
 | 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | in service: a three-node k3s cluster with replicated Ceph storage — [bring-up](docs/runbooks/node-bring-up.md) |
 | Switch | TP-Link TL-SG108E, 8 × 1 GbE, web-managed — [details](docs/hardware.md) | in service: the wired backbone — [the network](docs/network.md) |
 | Rack | 10″ 3D-printed — [KWS Rack V2](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) | printed, waiting on hardware — not assembled |
+
+Hardware that has left service is in [the lab over time](docs/history.md).
 
 ## Where things run
 
@@ -65,7 +66,7 @@ docs/
   network.md        # addressing, the switch, how the lab is reached from outside
   history.md        # what the lab looked like before it looked like this
   decisions/        # architecture decision records (ADRs)
-  runbooks/         # rebuilding things: disaster recovery, the Pi, the cluster nodes
+  runbooks/         # disaster recovery, the Pi, the cluster nodes, the agent pods
 ```
 
 ## Principles

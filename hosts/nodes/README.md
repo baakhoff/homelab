@@ -56,6 +56,13 @@ runbook.
 the network card keeps power when the machine is off and the Pi can wake these
 with a magic packet. Intel AMT is enabled but deliberately left unprovisioned.
 
+**Tailscale.** All three are tailnet members with Tailscale SSH enabled, which is
+how they are reached by name from the workstation and how step A3 of the
+[disaster-recovery runbook](../../docs/runbooks/disaster-recovery.md) collects a
+kubeconfig. The join was done by hand and the flags used were never written
+down, so this paragraph records that it is true rather than how to reproduce it —
+a gap of the same kind as the caveat below.
+
 ## Same caveat as `hosts/node01` and `hosts/exitnode`
 
 Nothing detects drift between these files and the machines. If something is
