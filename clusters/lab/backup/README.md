@@ -250,10 +250,11 @@ being relied on, not one this rehearsal verified.
   locks a workload before its snapshot, so every restore is the power-cut case.
   Fine for SQLite with WAL recovery, which is what the volumes here hold; not
   something to assume for an engine that does not recover as gracefully.
-- **No dead-man's switch on the cluster itself.** `HC_URL` catches a backup
-  that stops running, but see the Watchdog note in
-  `clusters/lab/monitoring/helmrelease.yaml` for the broader gap while node01
-  still holds the only healthchecks.io check.
+- **`HC_URL` only covers the backup.** It catches a backup that stops running;
+  it says nothing about the cluster. That broader gap is now closed separately —
+  Alertmanager's Watchdog goes to its own healthchecks.io check, see the note in
+  `clusters/lab/monitoring/helmrelease.yaml`. Its own check, not node01's: one
+  check pinged by two clusters goes red only when both are down.
 - **The cluster can delete its own backups.** The credential in the Secret has
   full access to the bucket, so a compromise of the cluster is a compromise of
   the backup — identical to node01's position and for the same reason: a
