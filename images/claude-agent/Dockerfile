@@ -19,11 +19,16 @@ FROM node:22-bookworm-slim
 # CI workflow reads this line to tag the image, so the ARG line must keep this
 # exact shape.
 ARG CLAUDE_CODE_VERSION=2.1.278
+ARG GLAB_VERSION=1.118.0
 
 # The toolchain an agent can use inside its pod. Kept general on purpose: a
 # project that needs more (a database client, another language) gets its own
 # image FROM this one, rather than this list growing for everybody.
 #   git, gh         - clone, commit, PRs (gh needs GH_TOKEN; see entrypoint.sh)
+#   glab            - the same for GitLab. Two slots talk to corporate GitLab
+#                     instances, and both had it installed by hand into
+#                     ~/.local/bin before this - which works and is lost the
+#                     day a volume is rebuilt.
 #   openssh-client  - git over ssh where a project uses a deploy key
 #   netcat-openbsd  - `nc -x` as an ssh ProxyCommand, which is how a remote
 #                     that is only reachable through a local SOCKS proxy gets
@@ -43,6 +48,22 @@ RUN apt-get update \
 # uv: the Python package manager the Python projects use. Copied from its own
 # image so the version is pinned here and Renovate bumps it like any other.
 COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /uvx /usr/local/bin/
+
+# glab is not in Debian and publishes no apt repository, so it comes from the
+# project's own generic package registry. `%2F` in the project path is required
+# - it is the URL-encoded slash in `gitlab-org/cli` - but the dots in the
+# version need no escaping, despite the release API advertising a %2E form.
+#
+# `glab --version` at the end is not decoration: a 404 from the registry would
+# otherwise leave a tar of an HTML error page and fail much later, somewhere
+# that does not mention this line.
+RUN set -eux; \
+    curl -fsSL -o /tmp/glab.tar.gz \
+      "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/${GLAB_VERSION}/glab_${GLAB_VERSION}_linux_amd64.tar.gz"; \
+    tar -xzf /tmp/glab.tar.gz -C /tmp bin/glab; \
+    install -m 0755 /tmp/bin/glab /usr/local/bin/glab; \
+    rm -rf /tmp/glab.tar.gz /tmp/bin; \
+    glab --version
 
 RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force

@@ -133,6 +133,41 @@ Open claude.ai/code or the app: the session is listed under the project name
 with a green dot. For permission prompts on your phone, run `/config` in a
 session and enable "Push when actions required".
 
+## GitLab from a pod
+
+`glab` is in the image alongside `gh`. Authenticating it has two traps, both of
+which present as a credential problem and are not one.
+
+```
+glab auth login --hostname gitlab.example.org --stdin < token-file
+glab config set host gitlab.example.org --global
+glab api user
+```
+
+**`glab auth login` can report success while `glab api` returns 401.** The login
+validates against the hostname you named; `glab api` with no host goes to the
+*default* host, which is `gitlab.com` until you set it. `glab api user` is the
+check that means something — `glab auth status` reports "not authenticated" for
+some configurations that work fine.
+
+**`glab config set` writes repo-local config by default** and fails with "not a
+Git repository" anywhere else. `--global` is required, and not only in `/tmp`: a
+general slot's working directory is the parent of its checkouts, not a repo.
+`--host` sets a per-host value and writes it globally too.
+
+There is no OS keyring in the container, so glab stores the token as plaintext
+in `~/.config/glab-cli/config.yml` and says so. That file is on the volume,
+which nothing backs up — and a token there carries whatever the account can do,
+bypassing any 2FA on it, so scope it to the project and give it an expiry.
+
+For a host reachable only through the proxy below, put the proxy in glab's
+config rather than the environment — agent sessions run through non-interactive
+shells that never read `~/.bashrc`:
+
+```
+glab config set proxy socks5h://127.0.0.1:1080 --host gitlab.example.org
+```
+
 ## A remote that is only reachable through a proxy
 
 Some remotes are not on the public internet — a corporate GitLab behind a VPN,
