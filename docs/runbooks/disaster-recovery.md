@@ -130,6 +130,45 @@ encryption key from `/var/lib/rancher/k3s/server/cred/` — neither of which is 
 the kit. A restore without them produces a cluster whose Secrets cannot be
 decrypted, which looks like a working cluster full of broken workloads.
 
+Every step from here needs a working `kubectl`, which the workstation does not
+have until you give it one:
+
+```
+ssh -t node02.laperm-map.ts.net 'sudo install -m 0600 -o "$USER" -g "$USER" /etc/rancher/k3s/k3s.yaml ~/k3s.yaml'
+scp node02.laperm-map.ts.net:k3s.yaml ~/.kube/lab.yaml
+ssh node02.laperm-map.ts.net 'rm -f ~/k3s.yaml'
+sed -i \
+  -e 's#^    server: https://127.0.0.1:6443$#    server: https://node02.laperm-map.ts.net:6443#' \
+  -e 's/^  name: default$/  name: lab/' \
+  -e 's/^- name: default$/- name: lab/' \
+  -e 's/^    cluster: default$/    cluster: lab/' \
+  -e 's/^    user: default$/    user: lab/' \
+  -e 's/^current-context: default$/current-context: lab/' \
+  ~/.kube/lab.yaml
+KUBECONFIG=~/.kube/lab.yaml kubectl get nodes
+```
+
+Three details, each of which costs a round trip to discover. `sudo` needs a
+terminal, so the copy is staged on the node with `ssh -t` rather than piped back
+through `sudo cat` — a pty would put a carriage return on every line and corrupt
+the base64. The server address must be one of the `--tls-san` names above, or
+the certificate will not validate. And k3s names the cluster, the user and the
+context all `default`, which collides with the next cluster you ever add; the
+`sed` patterns are anchored so they cannot touch the certificate data.
+
+Merge it into an existing `~/.kube/config` only once it answers:
+
+```
+cp ~/.kube/config ~/.kube/config.bak
+KUBECONFIG=~/.kube/config:~/.kube/lab.yaml kubectl config view --flatten > ~/.kube/config.new
+mv ~/.kube/config.new ~/.kube/config
+chmod 600 ~/.kube/config
+kubectl config use-context lab
+```
+
+`--flatten` inlines every credential, which is what makes the merged file stand
+on its own and the step safe to repeat.
+
 ### A4. Apply the `sops-age` secret BY HAND, before Flux exists
 
 ```
@@ -299,7 +338,7 @@ not from the tailnet, until the subnet route is back.
 - **Anything created after the last nightly run.** The window is up to 24
   hours.
 - **The workstation.** Its kubeconfig is regenerated from any server node's
-  `/etc/rancher/k3s/k3s.yaml`, with the address swapped for the node's own; the
+  `/etc/rancher/k3s/k3s.yaml` — the recipe is in A3; the
   age key is in the kit; projects are in git. Nothing else there is backed up by
   this — which includes the local checkouts and working state of every project
   an agent pod holds a copy of.
