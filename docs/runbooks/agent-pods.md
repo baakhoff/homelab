@@ -235,6 +235,43 @@ should stay down, change `replicas` in its file and merge. Suspending the
 Kustomization also works and is worse: it stops applying the whole cluster, and
 it does so silently.
 
+## Restart a pod
+
+The image tag is the Claude Code version and is mutable, so a change to the
+image that is not a CLI release rebuilds the same tag. `imagePullPolicy: Always`
+means a new pod pulls it; the running one has to be replaced for that to happen.
+
+Replace it by deleting the pod, not with `rollout restart`:
+
+```bash
+kubectl -n agents delete pod -l app.kubernetes.io/name=brand
+```
+
+**`kubectl rollout restart` costs two restarts here, not one.** It works by
+stamping `kubectl.kubernetes.io/restartedAt` into the pod template, and the
+template is what Flux owns. The manifest in git carries no such annotation, so
+the next reconcile strips it — a second change to the template, a second
+ReplicaSet, a second full rollout, ten minutes after the first and with no
+obvious cause. It is the same drift as a manual `kubectl scale` above, except
+the correction is not a scale but a restart of everything you restarted.
+Deleting a pod avoids this because the pod is not an object Flux manages: the
+Deployment is untouched, so there is nothing to revert.
+
+Either way the replacement can take a minute to start. The volumes are
+ReadWriteOnce and the strategy is `Recreate`, so the old pod is gone before the
+new one is scheduled, and the scheduler is free to place it on a different node
+— where the attach blocks on `FailedAttachVolume`, *"already exclusively
+attached to one node, waiting on detach"*, until the old node's
+`VolumeAttachment` clears. That is correct behaviour and it resolves itself in
+tens of seconds. Restarting all eight pods at once means eight of those at once,
+and the namespace is briefly unavailable.
+
+What survives a restart is what is on the volume, which is all of `/home/node`:
+the login, `~/.claude`, keys, tool configuration, repositories, uncommitted
+work. What does not survive is anything running at that moment — an in-flight
+session is killed, along with any background process started by hand inside the
+container.
+
 ## Smoke test, once after the first deploy
 
 Verify the network boundary instead of trusting it. From the pod, the internet:
