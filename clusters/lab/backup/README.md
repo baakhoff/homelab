@@ -121,7 +121,7 @@ Repeat for every namespace holding a backed-up volume — currently `monitoring`
 and `vaultwarden` — into `restic-repo-monitoring.sops.yaml` and
 `restic-repo-vaultwarden.sops.yaml`. The files are the same secret differing
 only in `metadata.namespace`, which is the same pattern the cert-manager
-Cloudflare token already follows across the two clusters.
+Cloudflare token follows.
 
 The driver checks for this Secret — and for two of its keys — in every target's
 namespace before it takes a single snapshot, and fails that target in seconds
@@ -180,6 +180,16 @@ kubectl -n backup run restic-check --rm -it --restart=Never \
 
 Expect one snapshot per target per night, all with host `lab`, each with its
 own path under `/data/<namespace>/<pvc>`.
+
+A snapshot of **zero files** is the one failure this listing cannot show you,
+because it looks exactly like every other line in it. The restic Job refuses to
+write one: it asserts the clone holds at least one file before `restic backup`
+runs, and fails the target if it does not. That guard exists because a run on
+2026-09-19 fired before a cutover had copied any data in and produced precisely
+that — `processed 0 files, 0 B`, `==> ok`, `all targets backed up`, and a green
+heartbeat. An empty snapshot is worse than a missing one, because it is the
+newest for its path, so the restore in step 2 below exits zero having written
+nothing.
 
 ## Restoring
 
@@ -253,8 +263,9 @@ being relied on, not one this rehearsal verified.
 - **`HC_URL` only covers the backup.** It catches a backup that stops running;
   it says nothing about the cluster. That broader gap is now closed separately —
   Alertmanager's Watchdog goes to its own healthchecks.io check, see the note in
-  `clusters/lab/monitoring/helmrelease.yaml`. Its own check, not node01's: one
-  check pinged by two clusters goes red only when both are down.
+  `clusters/lab/monitoring/helmrelease.yaml`. Its own check rather than a share
+  of node01's, because a single check pinged by two machines goes red only when
+  both of them stop.
 - **The cluster can delete its own backups.** The credential in the Secret has
   full access to the bucket, so a compromise of the cluster is a compromise of
   the backup — identical to node01's position and for the same reason: a

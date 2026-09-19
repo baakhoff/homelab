@@ -66,7 +66,7 @@ docs/
   network.md        # addressing, the switch, how the lab is reached from outside
   history.md        # what the lab looked like before it looked like this
   decisions/        # architecture decision records (ADRs)
-  runbooks/         # rebuilding things: disaster recovery, the Pi, the cluster nodes
+  runbooks/         # disaster recovery, the Pi, the cluster nodes, the agent pods
 ```
 
 ## Principles

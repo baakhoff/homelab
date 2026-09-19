@@ -11,8 +11,10 @@ metadata:
   name: prune
   namespace: backup
 spec:
-  # Sunday, two hours after the nightly backup would have finished.
+  # Sunday, two hours after the nightly backup would have finished. Same zone as
+  # the backup and for the same reason - see the note in cronjob-backup.yaml.
   schedule: "0 4 * * 0"
+  timeZone: Europe/Copenhagen
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 3
