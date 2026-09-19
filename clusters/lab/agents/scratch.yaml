@@ -56,7 +56,14 @@ spec:
       containers:
         - name: claude
           image: ghcr.io/baakhoff/claude-agent:2.1.278
-          imagePullPolicy: IfNotPresent
+          # Always, not IfNotPresent, because the tag is MUTABLE: it is the
+          # Claude Code version, so any change to the image that is not a CLI
+          # release rebuilds the same tag in place. IfNotPresent keys on the
+          # tag, so a node that already holds it never pulls again - and no
+          # restart fixes that, because a restart does not pull either. The
+          # cost is a registry round-trip per pod start, which for a pod that
+          # starts monthly is nothing.
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

@@ -49,11 +49,19 @@ So that updates flow through Renovate in two ordinary PRs:
 2. Renovate sees the new tag on GHCR and offers it to the Deployments that pin
    the image (kubernetes manager, docker datasource). Merging deploys.
 
-The trade, worth knowing: a Dockerfile change **without** a version bump
-rebuilds the same tag, and a pod that already runs it keeps the old image
-until it is restarted (`imagePullPolicy: IfNotPresent`). When the image must
-change for a reason other than a CLI release, bump the version anyway or
-restart the pods after the build.
+The trade, worth knowing: the tag is **mutable**. A change here without a
+version bump rebuilds the same tag, and there is not always a version to bump
+to — the pinned one may already be the newest release.
+
+`imagePullPolicy: IfNotPresent` is the wrong pull policy for a mutable tag, and
+this is not fixed by restarting the pod. `IfNotPresent` keys on the tag: if the
+node holds *an* image called `claude-agent:2.1.278` it will not pull another,
+whatever it contains and however many times the pod restarts. The only ways out
+are a new tag or deleting the cached image on every node.
+
+So the agent Deployments pin `Always`. It costs a registry round-trip per pod
+start — nothing for a pod that starts monthly — and it makes "merge, then
+restart the pods" actually work.
 
 ## Visibility
 

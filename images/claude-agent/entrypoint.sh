@@ -29,43 +29,53 @@ case "$PROJECT" in
   */* | .*) echo "PROJECT must be a plain name, got '$PROJECT'" >&2; exit 1 ;;
 esac
 
-mkdir -p "$HOME/work" "$CLAUDE_CONFIG_DIR"
+mkdir -p "$CLAUDE_CONFIG_DIR"
 
 if [ -n "${GH_TOKEN:-}" ]; then
   gh auth setup-git
 fi
 
-if [ -n "${REPO_URL:-}" ]; then
-  work="$HOME/work/$PROJECT"
-  if [ ! -d "$work/.git" ]; then
+# Every pod works in ~/work/$PROJECT, repo or not. The name of that directory
+# is what the Remote Control header and the entry in the app are called, so a
+# slot starting one level up in ~/work reported itself as "work" - and five
+# slots doing that are indistinguishable from each other, which defeats naming
+# them at all.
+work="$HOME/work/$PROJECT"
+
+if [ -n "${REPO_URL:-}" ] && [ ! -d "$work/.git" ]; then
+  if [ -d "$work" ] && [ -n "$(ls -A "$work" 2>/dev/null)" ]; then
+    # Refuse rather than clone over it. This is the path a slot takes when it
+    # is PROMOTED to a project by gaining a REPO_URL, and by then the directory
+    # holds whatever was worked on while it was a slot. Cloning is impossible
+    # here anyway (git wants an empty target), but the failed-clone cleanup
+    # below would then delete the lot, so the check has to come first.
+    echo "NOT cloning $REPO_URL:"
+    echo "  $work already exists, is not empty, and holds no git repository."
+    echo "  It is most likely work from when this pod was a general slot."
+    echo "  Move it aside and restart the pod, or clone where you want it."
+  else
     echo "first start: cloning $REPO_URL into $work"
     # A failed clone must not kill the pod. Under `set -e` it would, and the
     # pod would CrashLoopBackOff on the one thing you cannot fix from outside:
     # the bootstrap below is interactive and needs a running container to
     # `kubectl exec` into. A private repo with no GH_TOKEN fails exactly here,
     # and the fix - `gh auth login` inside the pod - is unreachable if the pod
-    # is not up. So warn, fall back, and retry on the next restart.
+    # is not up. So warn and carry on; restarting retries.
     if ! git clone "$REPO_URL" "$work"; then
       echo "clone FAILED: $REPO_URL"
       echo "  the pod stays up so you can fix it. Most likely the repo is"
       echo "  private and this pod has no credentials: exec in, run"
       echo "  'gh auth login', then restart the pod and the clone is retried."
-      # Clear the half-written directory so the retry is not refused with
-      # "already exists and is not an empty directory". Safe because PROJECT is
-      # a validated plain name, so $work is exactly one level under ~/work.
+      # Clear the debris so the retry is not refused with "already exists and
+      # is not an empty directory". Safe only because of the branch above: the
+      # directory was absent or empty a moment ago, so everything in it now was
+      # written by the clone that just failed.
       rm -rf -- "$work"
-      work="$HOME/work"
     fi
   fi
-else
-  # No repo pinned: the slot starts in the parent directory and whatever is
-  # cloned in later lives beside it. Deliberately NOT auto-detecting a single
-  # checkout and adopting it - that would make the server's working directory
-  # depend on what is on the volume, and change silently the day a second repo
-  # is cloned.
-  echo "no REPO_URL: general slot, starting in $HOME/work"
-  work="$HOME/work"
 fi
+
+mkdir -p "$work"
 cd "$work"
 
 # The one-time bootstrap is interactive and this script cannot do it:
