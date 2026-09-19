@@ -52,7 +52,9 @@ writers on one filesystem.
    that env entry. A private repo cloned at startup needs a `GH_TOKEN` env from
    a SOPS-encrypted Secret, a fine-grained token scoped to that repo; a slot
    does not, because `gh auth login` inside the pod covers every repo the
-   account can see.
+   account can see. If that clone fails the pod still comes up and says why in
+   its log — it has to, because the fix is `kubectl exec` into a running
+   container. Authenticate, restart the pod, and the clone is retried.
 2. Check the namespace quota first. `agents/resourcequota.yaml` sets `pods`, and
    a pod over that number is rejected **at admission** — a Deployment that never
    scales up plus a quota event, which reads like a scheduling problem and is
