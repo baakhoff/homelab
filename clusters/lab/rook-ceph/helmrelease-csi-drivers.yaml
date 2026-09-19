@@ -76,6 +76,31 @@ spec:
         # provisioner that does not exist.
         name: rook-ceph.rbd.csi.ceph.com
         enabled: true
+        # WITHOUT THIS THE DRIVER CANNOT SNAPSHOT AT ALL, and nothing says so.
+        # The chart's default is "none", so the Driver CR carried
+        # `snapshotPolicy: none` and the operator built the controller plugin
+        # with csi-rbdplugin, csi-provisioner, csi-resizer, csi-attacher and
+        # log-rotator - and no csi-snapshotter. Every layer reported success:
+        # the snapshot controller accepted the VolumeSnapshot, created and bound
+        # a VolumeSnapshotContent, and then waited at "Waiting for a snapshot to
+        # be created by the CSI driver" indefinitely, because the component that
+        # creates it was never deployed. Found 2026-09-19 by the first real
+        # backup run, on a VolumeSnapshotContent with no readyToUse and no
+        # restoreSize after three minutes.
+        #
+        # SECOND TIME THIS CHART HAS DONE THIS, and helmrelease.yaml beside it
+        # already wrote the lesson: verify that something READ a value, not that
+        # you set it. Last time it was values under the wrong key, silently
+        # ignored, caught by `kubectl get csidriver` returning nothing. This
+        # time a default left alone, caught by listing the plugin's containers
+        # and counting four where five were needed. The HelmRelease reported
+        # Ready on both occasions.
+        #
+        # `volumeSnapshot`, not `volumeGroupSnapshot`: the group-snapshot CRDs
+        # exist (the snapshot-controller chart ships all six) but nothing here
+        # asks for them, and a group snapshot is a different consistency claim
+        # than anything on this cluster makes.
+        snapshotPolicy: volumeSnapshot
 
       # The chart enables all four drivers by default. Only RBD has anything
       # to serve on this cluster today: CephFS needs a CephFilesystem, NFS
