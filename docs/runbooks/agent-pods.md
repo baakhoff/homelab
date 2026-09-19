@@ -25,7 +25,7 @@ of its repo, permanently. An anonymous slot publishes neither. What it costs is
 worktree isolation; [the image README](../../images/claude-agent/README.md) has
 the full trade.
 
-Manifests: `clusters/homelab/agents/` and `clusters/lab/agents/`. Image:
+Manifests: `clusters/lab/agents/`. Image:
 `images/claude-agent/`.
 
 **The two clusters differ in one line: the storage class.** node01's pods take

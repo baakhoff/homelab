@@ -7,11 +7,10 @@ everything here describes what exists.
 
 A TP-Link Deco mesh does routing, DHCP and NAT for the house. One of its LAN
 ports feeds an eight-port managed switch, and the lab hangs off that switch —
-every machine except `node01`, a laptop with no ethernet port. The workstation
-and phones stay on Wi-Fi as well.
+every machine in it. The workstation and phones stay on Wi-Fi.
 
 ```
-internet ── Deco mesh ──┬── Wi-Fi ── workstation, phones, node01
+internet ── Deco mesh ──┬── Wi-Fi ── workstation, phones
                         │
                         └── TL-SG108E ──┬── node02
                                         ├── node03
@@ -20,8 +19,8 @@ internet ── Deco mesh ──┬── Wi-Fi ── workstation, phones, node
 ```
 
 Traffic between the wired machines never leaves the switch: one gigabit hop,
-no radio and no router in the path. Anything reaching the internet, the
-workstation or `node01` crosses the mesh.
+no radio and no router in the path. Anything reaching the internet or the
+workstation crosses the mesh.
 
 ## Addressing
 
@@ -54,7 +53,7 @@ resulting outage arrives weeks later with nothing to connect it to.
 | `node02` | `192.168.68.102` | reservation |
 | `node03` | `192.168.68.103` | reservation |
 | `node04` | `192.168.68.104` | reservation |
-| `node01` (laptop) | DHCP | Wi-Fi, no reservation — it has no ethernet port |
+| `node01` (laptop) | DHCP | retired, powered off. Wi-Fi only, never had a reservation |
 
 ### Reservations and Ubuntu
 

@@ -30,9 +30,9 @@ spec:
           # imagePullPolicy: Always, which in GitOps means the running version
           # is whatever was current when the pod last restarted and is not
           # recorded anywhere. Renovate's kubernetes manager watches plain
-          # image fields under clusters/homelab AND clusters/lab - the pattern
-          # is `^clusters/(homelab|lab)/.+\.ya?ml$` in renovate.json5 - so this
-          # copy gets its own bump PRs rather than inheriting node01's.
+          # image fields under clusters/lab - the pattern is
+          # `^clusters/lab/.+\.ya?ml$` in renovate.json5 - so this gets its own
+          # bump PRs.
           image: ghcr.io/gethomepage/homepage:v2.2.0
           imagePullPolicy: IfNotPresent
           securityContext:

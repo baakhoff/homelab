@@ -39,3 +39,10 @@ than migrated.
 
 The wildcard moved last, deliberately while the laptop was still running, so anything
 forgotten would break loudly with a one-record rollback. Nothing did.
+
+It was powered off on 2026-09-19, with its Flux suspended first so that deleting
+`clusters/homelab/` could not make a future boot prune the cluster it no longer serves.
+The machine still exists, and its Incus containers with it — keeping it intact rather
+than wiping it is what recovered the vector store's memories during the move, and what
+made the three-node cluster's own install flags readable when it turned out nobody had
+written them down.
