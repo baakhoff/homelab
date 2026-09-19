@@ -2,8 +2,8 @@ apiVersion: v1
 data:
     AWS_ACCESS_KEY_ID: ENC[AES256_GCM,data:28+O7KYzgI9zTOP3VNSbA1/JgZCVYhU9Gu8/PA==,iv:ufwH5YlH+dMcXq67EQeTNWeqPa5XJNubnK8+9CNogz4=,tag:C7lub+CzFQvJ8CFPqMWT/g==,type:str]
     AWS_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:r6EpvOOEgo6TFzXfEf9483a1oBdQFYLVHYbzWR7LVpdK9OWl2Q7BOn7egNw9t9cEhwOtq/Gj8RE=,iv:UFQE0kfMbzkIv4qX8sLNP6UOVx91T9nFR5JnO+SwBHc=,tag:vAe0WP7WEYcJJ1cZl+pnxg==,type:str]
-    HC_PRUNE_URL: ENC[AES256_GCM,data:cojlQCPybm57ZMRsOpmnLJGtbZKlxYMeAN9KN9uPMEeV0ro172C+8B151bDToygLpXjYXIlODhGGBR2o+g6rsCxoc67bXKtoHQ9f3Q==,iv:3cdX6sSG3uO+hT4k7nRTA+a7VgJXujCU3r7NV7nEA84=,tag:WwgphPdqMju1p1NveS0NMg==,type:str]
-    HC_URL: ENC[AES256_GCM,data:GHZn8RRHUlKDiRrdUTfMylY0q84qWUbVWtF7yPrsjVVHi8CWIVRxeQKNYKFhlcHVAbv+aFagzbuY8Rwa/q4kgF+7x8YzIN76rpFW0w==,iv:HtaIvHalLRJy3vvo7KkL/L8N/ndBknfSKh+ljP7ooLQ=,tag:MbfrX2sg7LobpnmKU2ErJg==,type:str]
+    HC_PRUNE_URL: ENC[AES256_GCM,data:tsQ3fJmDYaGM+0apxbWbiEiOQaevmG167fQuRk3M/tCH1hGNcwEiw6zcKwqGdD/6lCfT97DZd+TShEcDL0BzlAl87wO+AO6ENFWbcw==,iv:hSdpzGsq0Mi7bjRwsA5U4dPsXn/KdcNq8zxA7hVTUis=,tag:el1L2bsHkPMD9E9ZpPJkAQ==,type:str]
+    HC_URL: ENC[AES256_GCM,data:ThKBeqIEvawmH9Y22xLW0ZEVwT0bRWUvLiXk+TroTsxPSFki3qiq7n4ThZI4+VbB5pWA/UPAchjQtkQS/5jzZuBZWofSInfESYZCrw==,iv:0htDFHhIdr8wZ5ldz8jrOqgD1j8VOBYn6LZb8KmGDB8=,tag:w07nMh4d8TGMVP0xdIIsZw==,type:str]
     RESTIC_PASSWORD: ENC[AES256_GCM,data:OAySREHNGgUidH8yx9cg2Qw6SaFNer/YeEnNQ9XAObe43a7yrJDU80KxjqPRGnnfcbjbGtdnW2Pu4WBf,iv:uNkwP9QaacJ4yzP9eowkDOi33vm1K93lDDXA3MMT1eI=,tag:Tcxm5WNkR8hQQpDhJ/w/Dg==,type:str]
     RESTIC_REPOSITORY: ENC[AES256_GCM,data:gpjOgpb2tmGoXuVlWmLvvFGaDQu/LdN6g4UYQjvlgyffacdUJ1Ao06vYEnroJxqngbKgTSmri4orOVeXy9cEO1RTgz/FywvBLwskUL+891Iqb3C0,iv:uHz9DuXHgHXjGhpUaJHdvCZVFzF0RbUM513SM8FBZvQ=,tag:5qfYJrVO35XrNRA1caO4OA==,type:str]
 kind: Secret
@@ -22,6 +22,6 @@ sops:
             -----END AGE ENCRYPTED FILE-----
           recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-09-18T18:06:15Z"
-    mac: ENC[AES256_GCM,data:CLXi18gEgsrzHS8PY6lZB/QbXUILA4FX8bZIiwBbBHaZ6KUcc7kDvLUUq+ODkiLwlp7o+6tRhoUrZwB1IZ2vPsE16BxTzyMZGV5A7lq4VLr9fpLW7W7zGEEKzrs85MYsco7plkNCIb26+fxOEHaHIh1znY9B6nKIOoFMgHyb7Vk=,iv:oFrTf7XA12VpcKhZRx9NRchvRfyY6bzwKiMRjuQ3U4g=,tag:EB3B5aSxSNRv59TeJFUGKA==,type:str]
+    lastmodified: "2026-09-19T19:58:59Z"
+    mac: ENC[AES256_GCM,data:561y2fyfzasTEn6RqBbo+wfEzx0sU3Jp3LSLEANsJ3dr8d160L5vjBnxgIxTXyFbBU5sk/jzW2rQZD1qS7LQJPx0M5UUZr+qLs4zkdnBnRz+CscmHj6oHO3A9eq8NfaGVsygxa7aM5eKjd8gF4u8UxpZXrO/BjcKzRuXfSTESoU=,iv:LBtWUpHGblO160tOKwDLBKPRYYxl63wc3+NYI7fA1+E=,tag:7bTedtwgNWK/7y9gVJxb2Q==,type:str]
     version: 3.13.3
