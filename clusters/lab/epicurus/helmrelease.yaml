@@ -138,21 +138,48 @@ spec:
       podMonitor:
         enabled: true
 
-    # ── Local model runtime: OFF ─────────────────────────────────────────────
-    # THE ONE DELIBERATE BEHAVIOUR CHANGE FROM NODE01, and it is reversible in
-    # one line.
+    # ── Inference: hosted, not local ─────────────────────────────────────────
+    # THE DELIBERATE BEHAVIOUR CHANGE FROM NODE01, and it is bigger than it
+    # looks, so it is written down rather than left to be inferred.
     #
-    # The runtime is enabled by default and would reserve a 4Gi memory REQUEST -
-    # which the scheduler holds whether or not a model is ever loaded - plus a
-    # 100Gi PVC. Two things say that buys nothing here. ADR 0003 records that
-    # the first-run model pull is disabled and inference goes to a hosted
-    # provider, and the vault on node01 held an `llm/openrouter` entry, which is
-    # what the stack actually calls.
+    # node01 runs inference ENTIRELY LOCALLY - `docker inspect` on its core
+    # reports LLM_DEFAULT_MODEL=llama3.2 and MEMORY_EMBED_MODEL=nomic-embed-text.
+    # That is what the 2.2 GB of models on its Ollama volume is. ADR 0003 says
+    # the runtime "stays running but never loads a model" and that inference
+    # goes to a hosted provider; that describes an intention the running system
+    # does not match. The `llm/openrouter` entry in node01's vault was a stored
+    # credential, not evidence of use.
     #
-    # Worth writing down honestly: node01's container IS running with 2.2 GB of
-    # models on disk, so something pulled them at some point. That contradicts
-    # ADR 0003's description of the current state rather than this decision.
-    # If local inference turns out to be wanted, `enabled: true` brings it back
-    # and the models re-download.
+    # `enabled: false` ALONE DOES NOT WORK. The chart's `epicurus.ollamaUrl`
+    # helper treats "no Ollama at all" as a configuration error rather than a
+    # third valid state, and fails the install with `ollama.external.url is
+    # required when ollama.enabled is false`. Pointing at a hostname that can
+    # never resolve is upstream's own unblock: `.invalid` is reserved by
+    # RFC 2606, so an accidental call fails fast with NXDOMAIN instead of
+    # hanging on a connect timeout. Nothing should reach for it.
     ollama:
       enabled: false
+      external:
+        url: "http://ollama.invalid:11434"
+
+    core:
+      # NOT `nomic-embed-text`, which is the local model and the reason this
+      # line cannot be copied from node01.
+      #
+      # THE CONSEQUENCE, stated because it is invisible otherwise: every vector
+      # in node01's 51 MB Qdrant volume was produced by nomic-embed-text at 768
+      # dimensions, and text-embedding-3-small is 1536. The vectors and the
+      # model that made them are one unit. So `qdrant-data` is NOT migrated -
+      # carrying it while changing the model gives a dimension mismatch at best
+      # and a silently wrong similarity space at worst.
+      #
+      # The source content lives in Postgres and survives. The vectors are
+      # derived data and get rebuilt, which means MEMORY AND KNOWLEDGE SEARCH
+      # ARE EMPTY until a re-index runs. That is a manual step nothing else in
+      # the migration implies.
+      memoryEmbedModel: gpt/text-embedding-3-small
+      llm:
+        defaultModel: openrouter/deepseek/deepseek-v4.1-flash
+        # Blank on purpose. Bootstrap models are pulled into a local runtime,
+        # and there is no longer a local runtime to pull them into.
+        bootstrapModels: ""
