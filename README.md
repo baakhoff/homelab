@@ -12,9 +12,9 @@ decisions were made and why.
 ![Three HP Elite Mini 600 G9 stacked in a corner, an eight-port switch and a mesh Wi-Fi unit on top of them, a Raspberry Pi 3B+ on the floor alongside](docs/images/rack-v1.0.jpg)
 
 Three mini PCs, the switch, the mesh unit and the Pi, stacked on the floor and cabled
-together. The 10″ rack is still printing. This photo gets replaced as the build changes,
-and the one it replaces moves to [the lab over time](docs/history.md) — which is what the
-version number is for.
+together. The 10″ rack is printed and waiting on its nuts and fittings. This photo gets
+replaced as the build changes, and the one it replaces moves to
+[the lab over time](docs/history.md) — which is what the version number is for.
 
 ## Hardware
 
@@ -24,7 +24,7 @@ version number is for.
 | Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router, wired |
 | 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | in service: a three-node k3s cluster with replicated Ceph storage — [bring-up](docs/runbooks/node-bring-up.md) |
 | Switch | TP-Link TL-SG108E, 8 × 1 GbE, web-managed — [details](docs/hardware.md) | in service: the wired backbone — [the network](docs/network.md) |
-| Rack | 10″ 3D-printed — [KWS Rack V2](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) | printing |
+| Rack | 10″ 3D-printed — [KWS Rack V2](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) | printed, waiting on hardware — not assembled |
 
 ## Where things run
 
