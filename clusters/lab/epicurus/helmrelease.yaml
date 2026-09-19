@@ -44,6 +44,100 @@ spec:
     remediation:
       retries: 3
     timeout: 20m
+  # ── Two chart bugs worked around here, both real and both upstream ───────
+  # postRenderers rather than values, because neither knob exists in the chart.
+  # Both should become chart fixes; these go away when they do.
+  postRenderers:
+    - kustomize:
+        patches:
+          # 1. SEARXNG CANNOT START, and every workload here is one name
+          #    collision away from the same fate.
+          #
+          #    Kubernetes injects Docker-link-style variables for every Service
+          #    in the namespace: `<NAME>_PORT=tcp://<clusterIP>:<port>`. The
+          #    Service named `searxng` therefore sets
+          #    SEARXNG_PORT=tcp://10.43.x.x:8080, and SearXNG's entrypoint reads
+          #    SEARXNG_PORT expecting an integer for granian:
+          #
+          #      Error: Invalid value for '--port':
+          #      'tcp://10.43.247.63:8080' is not a valid integer.
+          #
+          #    Nothing injects those under Compose, which is why this has never
+          #    been seen. It breaks any Kubernetes install of this chart.
+          #
+          #    Disabling the links wholesale rather than pinning SEARXNG_PORT:
+          #    the release has a Service named after openbao, minio, nats,
+          #    qdrant, postgres and every module, so the next collision is
+          #    latent rather than hypothetical. Nothing in this stack uses the
+          #    legacy variables - it addresses services by DNS name.
+          - target:
+              kind: Deployment
+            patch: |
+              - op: add
+                path: /spec/template/spec/enableServiceLinks
+                value: false
+          - target:
+              kind: StatefulSet
+            patch: |
+              - op: add
+                path: /spec/template/spec/enableServiceLinks
+                value: false
+
+          # 2. OPENBAO CANNOT WRITE ITS VOLUME.
+          #
+          #      chown: /openbao/data/core: Permission denied
+          #
+          #    The chart starts the container as uid 0 with CHOWN/SETUID/SETGID
+          #    so it can chown a freshly provisioned root-owned volume by name,
+          #    then execs the image entrypoint, which drops to uid 100. The
+          #    chown fails here anyway, and because the command is
+          #    `chown ... && exec ...` the exec never happens and the container
+          #    exits non-zero. Everything downstream then waits forever on
+          #    `http://openbao:8200`, which is what made the bootstrap Job and
+          #    core-app's Init look like the problem.
+          #
+          #    This is the chart's own documented escape hatch, verbatim from
+          #    the template: "Set fsGroup in podSecurityContext and override
+          #    this command if your cluster forbids a root start."
+          #
+          #    fsGroup makes the kubelet chown the volume to gid 100 and set
+          #    setgid, which is the mechanism this cluster already relies on for
+          #    Vaultwarden and the agent pods. With the volume group-writable,
+          #    no chown is needed: the container starts as uid 100 directly, the
+          #    image entrypoint sees a non-root uid and skips its own chown, and
+          #    the three capabilities that only existed to serve that handoff
+          #    are dropped. IPC_LOCK stays - it is what lets the server mlock
+          #    its memory so secrets never reach swap.
+          #
+          #    fsGroupChangePolicy: OnRootMismatch so the recursive chown is
+          #    skipped once the top-level ownership is already right, rather
+          #    than walking the volume on every restart.
+          - target:
+              kind: StatefulSet
+              name: openbao
+            patch: |
+              apiVersion: apps/v1
+              kind: StatefulSet
+              metadata:
+                name: openbao
+              spec:
+                template:
+                  spec:
+                    securityContext:
+                      runAsUser: 100
+                      runAsGroup: 100
+                      fsGroup: 100
+                      fsGroupChangePolicy: OnRootMismatch
+                    containers:
+                      - name: openbao
+                        securityContext:
+                          runAsUser: 100
+                          allowPrivilegeEscalation: false
+                          capabilities:
+                            drop: ["ALL"]
+                            add: ["IPC_LOCK"]
+                        args:
+                          - "exec docker-entrypoint.sh server -config=/openbao/config/config.hcl"
   values:
     # ── Images ───────────────────────────────────────────────────────────────
     image:
