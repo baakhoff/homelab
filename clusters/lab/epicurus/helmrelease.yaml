@@ -194,9 +194,9 @@ spec:
     image:
       # NOT left blank. Blank resolves to `.Chart.AppVersion`, which in the
       # unreleased chart is the literal string `latest` - so the default here
-      # is an unpinned tag wearing the costume of a default. `testing` matches
-      # what node01 runs and what gitrepository.yaml tracks: the images CI
-      # built from the same branch this chart came from.
+      # is an unpinned tag wearing the costume of a default. `testing` is what
+      # gitrepository.yaml tracks: the images CI built from the same branch
+      # this chart came from.
       tag: testing
 
     # ── Storage ──────────────────────────────────────────────────────────────
@@ -304,10 +304,11 @@ spec:
     # Both tags still exist on quay.io as multi-architecture manifest lists,
     # published the same days. Same releases, different registry.
     #
-    # Worth noting why node01 is unaffected and therefore no warning: it pulled
-    # those images while the tags were still on Docker Hub and has held them in
-    # its local store since. A running container is not evidence that its image
-    # can still be fetched.
+    # node01 was unaffected and gave no warning: it had pulled those images
+    # while the tags were still on Docker Hub and held them in its local store
+    # afterwards. A running container is not evidence that its image can still
+    # be fetched - which is the part worth remembering now that the machine
+    # that demonstrated it is gone.
     minio:
       image:
         repository: quay.io/minio/minio
@@ -320,9 +321,9 @@ spec:
     # THE DELIBERATE BEHAVIOUR CHANGE FROM NODE01, and it is bigger than it
     # looks, so it is written down rather than left to be inferred.
     #
-    # node01 runs inference ENTIRELY LOCALLY - `docker inspect` on its core
-    # reports LLM_DEFAULT_MODEL=llama3.2 and MEMORY_EMBED_MODEL=nomic-embed-text.
-    # That is what the 2.2 GB of models on its Ollama volume is. ADR 0003 says
+    # node01 ran inference ENTIRELY LOCALLY - `docker inspect` on its core
+    # reported LLM_DEFAULT_MODEL=llama3.2 and MEMORY_EMBED_MODEL=nomic-embed-text.
+    # That is what the 2.2 GB of models on its Ollama volume was. ADR 0003 says
     # the runtime "stays running but never loads a model" and that inference
     # goes to a hosted provider; that describes an intention the running system
     # does not match. The `llm/openrouter` entry in node01's vault was a stored

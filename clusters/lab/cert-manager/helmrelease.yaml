@@ -53,8 +53,9 @@ spec:
     # So it goes in the follow-up, once kube-prometheus-stack is RUNNING rather
     # than merely committed, together with Rook's CSI ServiceMonitor and the
     # snapshot controller's. Bring `servicemonitor.honorLabels: true` across
-    # with it - see clusters/homelab/cert-manager/helmrelease.yaml for the
-    # label collision that setting exists to fix.
+    # with it: without honorLabels the ServiceMonitor's own job label collides
+    # with the one cert-manager already sets on its metrics, and Prometheus
+    # silently relabels rather than complaining.
     prometheus:
       servicemonitor:
         enabled: false
