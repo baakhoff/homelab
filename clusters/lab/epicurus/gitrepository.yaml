@@ -1,0 +1,31 @@
+# The chart is NOT published anywhere - no Helm repository, no gh-pages branch,
+# no OCI package - so Flux reads it straight out of the application's own source
+# tree. That is the whole reason this file exists instead of a HelmRepository.
+#
+# TRACKING A BRANCH IS THE POINT, not an oversight. ADR 0003 chose the `testing`
+# branch deliberately: this deployment exists to run the maintainer's own
+# unreleased work, not to be stable. What changes with this move is WHO
+# reconciles it. On node01 a systemd timer inside an Incus container pulled the
+# branch and restarted whatever differed, which is why ADR 0003 had to accept
+# that "this repository cannot tell you what is running". Flux does the pulling
+# now, and `flux get sources git epicurus` answers that question.
+#
+# The cost that does NOT go away: `testing` is unprotected and unverified by
+# design, so whatever is pushed to it runs here within the interval below.
+# Flux narrows the window rather than the risk.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: epicurus
+  namespace: flux-system
+spec:
+  interval: 10m
+  url: https://github.com/baakhoff/epicurus
+  ref:
+    branch: testing
+  # Only the chart is needed. Without this Flux keeps a full working copy of an
+  # application repository in the source-controller's storage to render one
+  # subdirectory.
+  ignore: |
+    /*
+    !/infra/k8s/epicurus
