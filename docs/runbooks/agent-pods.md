@@ -1,8 +1,8 @@
 # Agent pods
 
 Claude Code instances run in the cluster as **Remote Control servers**: one
-Deployment per project in the `agents` namespace, each running
-`claude remote-control` in its own checkout on its own volume. The sessions
+Deployment per project — or per general slot — in the `agents` namespace, each
+running `claude remote-control` on its own volume. The sessions
 appear at [claude.ai/code](https://claude.ai/code) and in the Claude app, which
 is where you talk to them. Nothing listens on a port: the server makes outbound
 HTTPS calls to Anthropic and polls for work.
@@ -11,10 +11,19 @@ HTTPS calls to Anthropic and polls for work.
 built for that: it serves sessions to the app and does nothing else. One server
 serves many concurrent sessions, each in its own git worktree of the project.
 
-**Why one pod per project.** Each project gets its own limits, its own replica
+**Why one pod per project.** Each one gets its own limits, its own replica
 count (0 = parked), and the scheduler places it on whichever node has room. So
-the projects together are bounded by the cluster, not by one node, and a node
-reboot takes down a share of them rather than all.
+they are bounded together by the cluster, not by one node, and a node reboot
+takes down a share of them rather than all.
+
+**Named pods and general slots.** A pod with a `REPO_URL` clones that repo on
+first start and serves sessions from it. A pod without one is a **general
+slot**: empty `~/work`, and you clone whatever you want from inside a session.
+Slots exist because `REPO_URL` and `PROJECT` are plain environment variables in
+a public repository — a named pod publishes the project's name and the existence
+of its repo, permanently. An anonymous slot publishes neither. What it costs is
+worktree isolation; [the image README](../../images/claude-agent/README.md) has
+the full trade.
 
 Manifests: `clusters/homelab/agents/` and `clusters/lab/agents/`. Image:
 `images/claude-agent/`.
@@ -35,15 +44,24 @@ roughly six minutes while the node is marked unreachable and the volume is
 force-detached. Waiting is the correct behaviour — the alternative is two
 writers on one filesystem.
 
-## Add a project
+## Add a project or a slot
 
-1. Copy the cluster's own `agents/homelab.yaml` to `<project>.yaml` and change
-   the names, `REPO_URL`, and the resources. A private repo needs a `GH_TOKEN`
-   env from a SOPS-encrypted Secret: a fine-grained token scoped to that repo.
-2. Open a PR, merge. Flux creates the volume and the pod. The pod clones the
-   repo and then waits, and says so in its log, because the rest is interactive.
+1. Copy the cluster's own `agents/homelab.yaml` and change the name — it appears
+   in four places (PVC, Deployment, and two label blocks) plus `PROJECT` — and
+   the resources. For a named project set `REPO_URL`; for a general slot delete
+   that env entry. A private repo cloned at startup needs a `GH_TOKEN` env from
+   a SOPS-encrypted Secret, a fine-grained token scoped to that repo; a slot
+   does not, because `gh auth login` inside the pod covers every repo the
+   account can see.
+2. Check the namespace quota first. `agents/resourcequota.yaml` sets `pods`, and
+   a pod over that number is rejected **at admission** — a Deployment that never
+   scales up plus a quota event, which reads like a scheduling problem and is
+   not one.
+3. Open a PR, merge. Flux creates the volume and the pod. The pod clones the
+   repo if it has one, then waits, and says so in its log, because the rest is
+   interactive.
 
-## Bootstrap, once per project
+## Bootstrap, once per pod
 
 The login, the workspace-trust dialog and Remote Control's own one-time
 confirmation all need a person. All of it lands on the volume, so it survives
@@ -76,6 +94,23 @@ claude remote-control
 
 Answer `y` to "Enable Remote Control?". When it shows a session URL the account
 is eligible and the connection works. Press Ctrl-C.
+
+If this pod will touch GitHub — and a general slot will, that is the point —
+authenticate `gh` in the same sitting:
+
+```
+gh auth login
+```
+
+Choose HTTPS and answer yes to authenticating Git with your GitHub credentials,
+which installs the credential helper. Both land under `~/.config/gh` and
+`~/.gitconfig`, which are on the volume, so this survives restarts and parking
+exactly like the Claude login. One pod, one account — which is how a slot for a
+second GitHub identity stays cleanly separate from the others.
+
+GitLab works the same way over HTTPS with a project or personal access token;
+egress is open to the internet, so `gitlab.com` is reachable. `glab` is not in
+the image.
 
 ```
 touch ~/.claude/.remote-control-enabled && exit
@@ -135,6 +170,10 @@ stays.
 
 - No Docker inside the pod. Projects whose tests need a Docker daemon are not
   served yet.
+- A general slot has no `--spawn worktree`, because there is no repository at
+  its working directory to branch from. Two concurrent sessions in one slot
+  share a directory and can edit the same files. Giving the slot a `REPO_URL`
+  restores the isolation.
 - No cluster access, no LAN, no tailnet from inside, by policy.
 - Deleting a project's manifest prunes its volume: the checkout, the login and
   any uncommitted work go with it. Commit or push first.
