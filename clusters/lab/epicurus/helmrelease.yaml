@@ -24,17 +24,17 @@ spec:
       interval: 10m
   install:
     remediation:
-      # TEMPORARILY 0, and it should go back to 3 once this install succeeds.
+      # Back to 3 now that the release installs cleanly.
       #
-      # Install remediation UNINSTALLS the release before retrying, which
-      # deletes every pod and therefore every log. With retries, a bootstrap Job
-      # that fails four times leaves four pods that no longer exist by the time
-      # you go looking - `pods "openbao-bootstrap-1-4qlq2" not found` is what
-      # that looks like, and it is indistinguishable from never having run.
-      #
-      # At 0, `remediateLastFailure` defaults to false, so a failed install is
-      # left standing and can be read.
-      retries: 0
+      # It was temporarily 0 during the bring-up, and the reason is worth
+      # keeping: install remediation UNINSTALLS the release before retrying,
+      # which deletes every pod and therefore every log. A bootstrap Job that
+      # failed four times left four pod names that no longer existed by the time
+      # anyone asked them why - indistinguishable from a Job that never ran. At
+      # 0, `remediateLastFailure` defaults to false and a failed install is left
+      # standing to be read. Worth doing again the next time something here
+      # fails in a way that needs diagnosing rather than retrying.
+      retries: 3
     # 23 workloads, several of which wait on Postgres, NATS and the OpenBao
     # bootstrap Job before they report ready. The 5m default expires while a
     # healthy stack is still coming up, and a timed-out install rolls back -
