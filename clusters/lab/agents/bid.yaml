@@ -1,17 +1,13 @@
-# MixID.
+# The bid repo, whose deployment this cluster now runs.
 #
 # The annotated template is homelab.yaml in this directory: every field here is
 # explained there and nothing structural varies. What varies per file is the
 # name - PVC, Deployment, two label blocks, PROJECT, claimName - and whether
 # there is a REPO_URL.
-#
-# A general slot: no REPO_URL, so it starts with an empty ~/work and you clone
-# whatever you want from inside a session. It gives up --spawn worktree, which
-# needs a repository to branch from; give the slot a REPO_URL to get it back.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mixid
+  name: bid
   namespace: agents
 spec:
   accessModes:
@@ -24,10 +20,10 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mixid
+  name: bid
   namespace: agents
   labels:
-    app.kubernetes.io/name: mixid
+    app.kubernetes.io/name: bid
     app.kubernetes.io/part-of: agents
 spec:
   replicas: 1
@@ -36,11 +32,11 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/name: mixid
+      app.kubernetes.io/name: bid
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: mixid
+        app.kubernetes.io/name: bid
         app.kubernetes.io/part-of: agents
     spec:
       priorityClassName: agents
@@ -64,8 +60,15 @@ spec:
           tty: true
           stdin: true
           env:
+            # Object names must be lowercase, so they are `bid`. PROJECT is
+            # neither an object name nor a label - it is the checkout
+            # directory and the title the session shows in the app - so it
+            # carries the repo's own casing and ~/work/BiD matches what a
+            # plain `git clone` would have produced.
             - name: PROJECT
-              value: mixid
+              value: BiD
+            - name: REPO_URL
+              value: https://github.com/baakhoff/BiD.git
             - name: PERMISSION_MODE
               value: acceptEdits
             # Commits the agent makes carry the repo's usual identity.
@@ -89,4 +92,4 @@ spec:
       volumes:
         - name: home
           persistentVolumeClaim:
-            claimName: mixid
+            claimName: bid
