@@ -1,7 +1,7 @@
 # claude-agent image
 
 The container image for the agent pods in `clusters/lab/agents/`: Node, the
-Claude Code CLI at a pinned version, git and `gh`, Python with `uv`, and an
+Claude Code CLI at a pinned version, git with `gh` and `glab`, Python with `uv`, and an
 entrypoint that runs `claude remote-control` — in a project it clones, or in an
 empty directory you clone into yourself. What the pods are and how one is
 bootstrapped: [the runbook](../../docs/runbooks/agent-pods.md).
