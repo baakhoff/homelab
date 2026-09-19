@@ -116,6 +116,15 @@
       datasourceTemplate: "npm",
     },
     {
+      customType: "regex",
+      description: "glab CLI version pinned in the agent image",
+      managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],
+      matchStrings: ["ARG GLAB_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "gitlab-org/cli",
+      datasourceTemplate: "gitlab-releases",
+      extractVersionTemplate: "^v(?<version>.*)$",
+    },
+    {
       // Neither manager above can see an image reference that is not an
       // `image:` field, and clusters/lab/backup/ has one: the driver passes
       // the restic image to the Jobs it creates, so it travels as an env var.
