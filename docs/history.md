@@ -27,6 +27,15 @@ exists to answer. With 16 GB of soldered memory and no upgrade path, what could 
 all was a real constraint rather than a budgeting exercise —
 [ADR 0003](decisions/0003-epicurus-compose-in-incus.md) turns on that number.
 
-It is being emptied rather than switched off in one go: the workloads move to the
-three-node cluster one at a time, each cutting over by gaining a DNS record of its own,
-so that a rollback is deleting one record. The machine goes dark at the end of that.
+It was emptied rather than switched off in one go. Each workload moved to the three-node
+cluster on its own, cutting over by gaining a DNS record that beat the wildcard, so a
+rollback was deleting one record. Monitoring and logging went first and gained Ceph
+instead of local-path; Headlamp and Homepage were copied and their URLs rewritten;
+Vaultwarden waited for a restore rehearsal before its SQLite database was carried;
+epicurus was rebuilt as Kubernetes workloads rather than ported
+([ADR 0007](decisions/0007-epicurus-rebuilt-on-kubernetes.md)), and its Postgres, object
+storage, message bus and vector store were moved into it. `podinfo` was deleted rather
+than migrated.
+
+The wildcard moved last, deliberately while the laptop was still running, so anything
+forgotten would break loudly with a one-record rollback. Nothing did.

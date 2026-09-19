@@ -3,9 +3,14 @@
 How to get the lab back from nothing.
 
 This page is deliberately in the public repo rather than in local notes. Its
-entire value is being reachable when the workstation, node01 and everything on
-them are gone — from a phone, in a hotel, on someone else's laptop. It contains
-no secrets, only an order of operations.
+entire value is being reachable when the workstation, the cluster and everything
+on them are gone — from a phone, in a hotel, on someone else's laptop. It
+contains no secrets, only an order of operations.
+
+**Do this from the workstation.** The agent pods run *in* the cluster being
+recovered, including the one that edits this repository, so none of them is
+available when it matters. See
+[agent pods](agent-pods.md#the-pod-that-edits-this-repo-runs-in-this-cluster).
 
 ---
 
@@ -19,7 +24,8 @@ manager.
 | What | Why it is unrecoverable without it |
 |---|---|
 | age private key | Decrypts every `*.sops.yaml` in this repo. Without it Flux comes up healthy and decrypts nothing |
-| restic repository password | The backup is ciphertext. There is no reset |
+| restic password — **lab repository** | The backup is ciphertext. There is no reset |
+| restic password — **node01 archive** | A different repository with a different password. Only needed for anything predating the move off that machine |
 | S3 access key + secret | Needed to reach the bucket at all |
 | Vaultwarden master password | The vault is end-to-end encrypted; the server never had the plaintext |
 
@@ -28,232 +34,199 @@ healthchecks.io. Most are email-recoverable — which only helps if your email i
 reachable without the lab.
 
 The test for anything else you are tempted to store in the vault:
-**if node01 is a brick, can I still get this?**
+**if all three nodes are bricks, can I still get this?**
 
 ---
 
 ## What survives on its own
 
-Everything under `clusters/homelab/` — every manifest, HelmRelease, Ingress,
-RBAC rule, alert rule and dashboard — is in git, on GitHub, and needs no
-backup. Flux reconstructs the whole cluster from it.
+Everything under `clusters/lab/` — every manifest, HelmRelease, Ingress, RBAC
+rule, alert rule and dashboard — is in git, on GitHub, and needs no backup.
+Flux reconstructs the cluster from it.
 
-What is *not* in git, and therefore what the backup exists for:
+What is *not* in git, and therefore what the backup and the kit exist for:
 
-- The two Incus containers, `agents` and `epicurus`
-- Local-path PVC data
-- Host configuration under `/etc`
-- The age key and other secrets (in the kit, not the backup)
+- **Volume contents.** Ceph replicates each block three ways, which survives a
+  node but not a cluster. The nightly restic run is the copy that leaves the
+  building.
+- **The restic credentials Secret.** Deliberately not in git, and not
+  reconstructible — see [`clusters/lab/backup/`](../../clusters/lab/backup/README.md).
+- **The age key**, which is in the kit.
+
+Agent volumes are excluded from backup on purpose: a git clone, a login and
+caches. Nothing on one is an original.
 
 ---
 
-## Scenario A — node01 is gone
+## Scenario A — the whole cluster is gone
 
-Replacement hardware, or the same machine reinstalled.
+### A1. Three base systems
 
-### A1. Base system
+Ubuntu Server 24.04 LTS on each, per
+[node bring-up](node-bring-up.md) — hostnames `node02`/`node03`/`node04`,
+static addressing, swap off, Tailscale joined.
 
-Ubuntu Server 24.04 LTS, hostname `node01`, OpenSSH enabled, your key
-imported. Then the same host preparation as the original build: swap off
-(`swapoff -a` plus the fstab entry), lid switch ignored if it is a laptop,
-Tailscale joined.
+**Create the Ceph OSD volume before Kubernetes exists.** Every OSD in
+[`cephcluster.yaml`](../../clusters/lab/rook-ceph/cephcluster.yaml) names
+`/dev/ubuntu-vg/cephosd` explicitly, and Rook will not invent it: an empty
+logical volume of that name must exist in `ubuntu-vg` on each node. Rook refuses
+a device that carries a filesystem, so it must be raw — and if it is missing
+entirely, the symptom is an OSD that never appears rather than an error naming
+the volume.
 
 ### A2. Prove you can read the backup *before* anything else
 
-```
-sudo apt install restic
-sudo install -d -m 0700 /etc/restic
-sudo install -m 0600 /dev/null /etc/restic/backup.env
-sudo nano /etc/restic/backup.env
-```
-
-Fill it from the kit — see
-[`hosts/node01/backup/README.md`](../../hosts/node01/backup/README.md) for the
-exact variable names. Then:
+restic is a single binary and needs no cluster. From the workstation, with the
+lab repository's credentials from the kit — variable names are in
+[`clusters/lab/backup/`](../../clusters/lab/backup/README.md):
 
 ```
-sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; restic snapshots'
+restic snapshots --host lab
 ```
 
 A snapshot listing means the credentials, the password and the bucket are all
-correct. Find that out now, not after you have spent two hours rebuilding.
+correct. Find that out now, not after two hours of rebuilding.
 
-### A3. Restore to a staging directory
+### A3. Install k3s — node02 first
 
-**Never `restic restore --target /`.** It would drop a stale `/etc` over a
-fresh install — fstab, machine-id, network config and all — and produce a
-machine that boots into somebody else's identity.
-
-```
-sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; restic restore latest --target /restore'
-```
-
-Everything below copies selectively out of `/restore`.
-
-### A4. Incus and the containers
-
-Install Incus from the Zabbly stable repo — the Ubuntu archive version is too
-old for nested Docker here — then initialise it minimally so the daemon
-directories exist:
+Three servers with embedded etcd. `--disable traefik` is **not optional**:
+ingress-nginx comes from Flux and k3s's bundled Traefik would fight it for ports
+80 and 443.
 
 ```
-sudo incus admin init --minimal
+curl -sfL https://get.k3s.io | sh -s - server \
+  --cluster-init \
+  --node-ip 192.168.68.102 \
+  --disable traefik \
+  --secrets-encryption \
+  --tls-san 192.168.68.102 --tls-san 192.168.68.103 --tls-san 192.168.68.104 \
+  --tls-san node02.laperm-map.ts.net \
+  --tls-san node03.laperm-map.ts.net \
+  --tls-san node04.laperm-map.ts.net \
+  --tls-san k8s.lab --tls-san 192.168.68.10
 ```
 
-Stop the daemon, put the backed-up state back, start it again:
+Then node03 and node04, each with its own `--node-ip`, joining the first:
 
 ```
-sudo systemctl stop incus incus.socket
-sudo rsync -aHAX --delete /restore/var/lib/incus/ /var/lib/incus/
-sudo systemctl start incus.socket incus
-incus list
+curl -sfL https://get.k3s.io | K3S_TOKEN=<token from node02> sh -s - server \
+  --server https://192.168.68.102:6443 \
+  --node-ip 192.168.68.103 \
+  --disable traefik \
+  --secrets-encryption \
+  --tls-san 192.168.68.102 --tls-san 192.168.68.103 --tls-san 192.168.68.104 \
+  --tls-san node02.laperm-map.ts.net \
+  --tls-san node03.laperm-map.ts.net \
+  --tls-san node04.laperm-map.ts.net \
+  --tls-san k8s.lab --tls-san 192.168.68.10
 ```
 
-This restores the Incus database and the storage pool together, so the
-instances come back knowing their own limits, devices and profiles.
+The token is at `/var/lib/rancher/k3s/server/token` on node02.
 
-**If the daemon refuses to start**, its database was captured mid-write. Fall
-back to rebuilding the instances from the inventory dumps, which are plain text
-and cannot tear:
+**Do not try to restore an etcd snapshot.** Rebuilding from git is the supported
+path here and the reason the repo exists. An etcd restore additionally needs the
+*original* cluster token and, because of `--secrets-encryption`, the original
+encryption key from `/var/lib/rancher/k3s/server/cred/` — neither of which is in
+the kit. A restore without them produces a cluster whose Secrets cannot be
+decrypted, which looks like a working cluster full of broken workloads.
 
-```
-ls /restore/var/tmp/node01-inventory.*/
-```
-
-Create each instance from `incus-config-<name>.yaml`, stop it, and copy the
-matching `rootfs` directory out of
-`/restore/var/lib/incus/storage-pools/default/containers/<name>/` into the new
-one.
-
-Expect the databases inside those containers — analytix's Postgres, ClickHouse
-and MinIO, epicurus's Postgres — to replay their write-ahead logs on first
-start. That is normal: the backup is crash-consistent by design.
-
-### A5. Host configuration
-
-Copy back selectively. Useful candidates, none of them automatic:
-
-- `/etc/systemd/system/` — the restic units and epicurus's reconcile timer
-- `/etc/restic/`
-- `/etc/incus/`
-- `/etc/rancher/` — k3s config
-
-Leave fstab, machine-id, netplan and cloud-init alone unless the hardware is
-identical.
-
-### A6. Kubernetes — rebuild from git, in this order
-
-The order matters and getting it wrong produces a failure that points nowhere
-near its cause.
-
-**1. Install k3s** with the same flags as the original build:
+### A4. Apply the `sops-age` secret BY HAND, before Flux exists
 
 ```
-curl -sfL https://get.k3s.io | sh -s - server --tls-san node01.laperm-map.ts.net --disable traefik
+kubectl create namespace flux-system
+kubectl create secret generic sops-age -n flux-system \
+  --from-file=age.agekey=<path to the key from the kit>
 ```
 
-`--disable traefik` is not optional: ingress-nginx comes from Flux, and k3s's
-bundled Traefik would fight it for ports 80 and 443.
+The filename must end in `.agekey` — that suffix is what kustomize-controller
+scans for.
 
-**2. Apply the `sops-age` secret BY HAND**, before Flux exists:
+**Skip this and Flux installs cleanly, syncs happily, and fails to decrypt every
+secret in the repo with errors that mention neither age nor this omission.** It
+is the single most confusing failure mode in the whole rebuild.
 
-```
-kubectl create secret generic sops-age -n flux-system --from-file=age.agekey=<path to the key from the kit>
-```
-
-The namespace will not exist yet; create it first. The key filename must end in
-`.agekey` — that suffix is what kustomize-controller scans for.
-
-**Skip this step and Flux installs cleanly, syncs happily, and fails to decrypt
-every secret in the repo with errors that mention neither age nor this
-omission.** It is the single most confusing failure mode in the whole rebuild.
-
-**3. Bootstrap Flux:**
+### A5. Bootstrap Flux
 
 ```
-flux bootstrap github --owner=baakhoff --repository=homelab --branch=main --path=clusters/homelab --personal
+flux bootstrap github --owner=baakhoff --repository=homelab \
+  --branch=main --path=clusters/lab --personal
 ```
 
-Then wait. Flux reinstalls cert-manager, ingress-nginx, the monitoring stack,
-Loki, Headlamp, Homepage, podinfo and epicurus's routing — everything — from
-`main`.
+Then wait. Flux installs Rook-Ceph and its CSI drivers, the snapshot controller,
+cert-manager and ingress-nginx, kube-prometheus-stack and Loki, Headlamp,
+Homepage, Vaultwarden, epicurus and the agent pods.
 
-**4. Re-create the wildcard certificate.** cert-manager will request a fresh
-one via DNS-01 automatically. Let's Encrypt rate-limits duplicate certificates
-to five per week for an identical name set, so if you are rebuilding
-repeatedly, that is the limit you will hit first.
+Ceph first, in practice: nothing with a PVC starts until `ceph-block` exists and
+an OSD is up on each node. `kubectl -n rook-ceph get cephcluster` reaching
+`HEALTH_OK` is the gate everything else waits behind.
 
-### A7. PVC data — the awkward part
+### A6. Re-create the restic Secret
 
-Read this before assuming the restore worked.
+Not in git, and needed in `backup` plus every namespace named in
+`BACKUP_TARGETS`, because Secrets do not cross namespaces. The procedure is in
+[`clusters/lab/backup/`](../../clusters/lab/backup/README.md). Until it exists
+the nightly run fails fast, which is deliberate — a backup that silently does
+nothing is worse than one that complains.
 
-local-path names each volume's directory `pvc-<uuid>_<namespace>_<name>`, and
-the uuid comes from the PVC object. A cluster rebuilt from git creates **new**
-PVCs with **new** uuids, so the restored directories no longer match anything
-and the workloads come up empty.
+### A7. Restore the volumes
 
-For each PVC whose data you actually want back — Grafana's, Alertmanager's,
-and later the vault's:
+The mechanics are in
+[`clusters/lab/backup/`](../../clusters/lab/backup/README.md) and are not
+duplicated here. The shape: restore into a **fresh** PVC, then swap the workload
+onto it — there is no way to restore into a volume a running pod has mounted.
 
-1. Let Flux create the workload and its PVC.
-2. Scale the workload to zero so nothing is writing:
-   `kubectl -n <ns> scale deployment/<name> --replicas=0`
-   (`statefulset/<name>` for Alertmanager and Loki.)
-3. Find the new directory name under `/var/lib/rancher/k3s/storage/`.
-4. Copy the contents of the old directory from `/restore/...` into it,
-   preserving ownership: `sudo rsync -aHAX <old>/ <new>/`
-5. Scale back up.
+**Count what came back before trusting it.** A `--path` that does not match
+restores nothing and exits **zero**, so a silent no-op is indistinguishable from
+success. That check is the whole reason the read path was rehearsed before
+Vaultwarden's data was ever moved.
 
 Prometheus and Loki are not in the backup at all — 15d and 7d retention meant
 they were already deleting themselves. They start empty and refill. That is the
 intended outcome, not a failed restore.
 
----
+### A8. DNS and the certificate
 
-## Scenario B — one Incus container is broken
-
-Reach for `incus snapshot` first. It is on the same disk, so it is useless
-against hardware failure, but for "I broke it an hour ago" it restores in
-seconds instead of pulling gigabytes back over the internet:
-
-```
-incus snapshot list <instance>
-incus snapshot restore <instance> <snapshot>
-```
-
-Only fall through to restic if the snapshot is also gone or too new to help.
-Restore that container's directory out of `/restore` with the daemon stopped,
-as in A4.
+`*.lab.baakhoff.com` resolves to all three nodes as DNS-only A records.
+cert-manager requests a fresh wildcard via DNS-01 automatically. Let's Encrypt
+rate-limits duplicate certificates to five per week for an identical name set,
+so repeated rebuilds hit that before anything else.
 
 ---
 
-## Scenario C — a Kubernetes workload lost its data
+## Scenario B — one node is gone
 
-Cluster is healthy; one PVC is empty or corrupt.
+The cheapest scenario, and the reason the pool replicates three ways: Ceph
+serves from the surviving two while the third is rebuilt, and pods reschedule on
+their own. A ReadWriteOnce image is mapped by one node at a time, so a pod whose
+node **vanished** stays `Terminating` for roughly six minutes while the node is
+marked unreachable and the volume is force-detached. Waiting is correct — the
+alternative is two writers on one filesystem.
 
-1. Scale the workload to zero.
-2. Restore just that path:
+Rebuild the node per A1, **including the empty `cephosd` volume**, then rejoin
+it with the A3 joining-server command and its own `--node-ip`. Rook creates a
+fresh OSD and Ceph backfills onto it. Nothing is restored from restic.
 
-```
-sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; restic restore latest --target /restore --include "/var/lib/rancher/k3s/storage/*_<namespace>_<pvcname>*"'
-```
+---
 
-3. `rsync` the contents into the live directory, then scale back up.
+## Scenario C — a workload lost its data
 
-Since the cluster was never rebuilt, the uuid still matches and A7's dance does
-not apply.
+Cluster is healthy; one volume is empty or corrupt. Scenario A7 without the
+rebuild: restore into a fresh PVC, verify the file count, swap the workload
+over. Only the swap needs downtime.
 
 ---
 
 ## Scenario D — one file
 
 ```
-sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; restic find <filename>'
-sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; restic restore <snapshot-id> --target /restore --include <path>'
+restic snapshots --host lab
+restic find <filename>
 ```
 
 `restic mount /mnt/restic` browses every snapshot as a filesystem, which is
-usually faster than guessing at snapshot ids.
+usually faster than guessing at snapshot ids. Worth running occasionally purely
+as a drill — it costs five minutes and it is the only way to know the read path
+works.
 
 ---
 
@@ -263,56 +236,33 @@ usually faster than guessing at snapshot ids.
 Bitwarden client takes a minute and needs no lab, no cluster and no restic. Use
 this scenario only when the export is stale or missing.
 
-The vault is the one workload with **two copies in every snapshot**, and they
-are not equivalent:
+Then it is an ordinary Scenario C restore, and that is worth noticing: on node01
+this was the most delicate procedure in the document. Its file walk copied
+`db.sqlite3`, `-wal` and `-shm` minutes apart and could catch a set that did not
+belong together, so the backup carried a separate SQLite online-backup dump and
+restoring meant deleting the WAL by hand. A CSI snapshot captures all three at
+one instant — the power-cut case SQLite's WAL recovery is built for — so the
+dump, the WAL surgery and the two-copies table are all gone.
 
-| In the snapshot | Use it? |
-|---|---|
-| `/var/backups/node01-inventory/vaultwarden_vaultwarden-data.sqlite3` | **Yes.** Taken with SQLite's online-backup API and integrity-checked at backup time |
-| `.../pvc-*_vaultwarden_vaultwarden-data/db.sqlite3` + `-wal` + `-shm` | Fallback only. Copied file-by-file from a live database, so the three may not belong together |
+`rsa_key.pem` and the attachments live in the same volume and come back with it.
+**Attachments are not in a Bitwarden export**, so for those the restic copy is
+the only one.
 
-1. Scale it down, so nothing is writing while you work:
+---
 
-```
-kubectl -n vaultwarden scale deployment vaultwarden --replicas=0
-```
+## node01 — the archive
 
-2. Restore the consistent dump:
+node01 ran the lab until its workloads moved to the three-node cluster; what it
+held and how it was emptied is in [the lab over time](../history.md).
 
-```
-sudo bash -c 'set -a; . /etc/restic/backup.env; set +a; restic restore latest --target /restore --include "/var/backups/node01-inventory/vaultwarden_vaultwarden-data.sqlite3"'
-```
+Its restic repository still exists in the bucket as a **frozen archive** with its
+own password. Nothing writes to it. It is the only copy of anything that existed
+only on that machine and was never carried across — so the password outliving
+the laptop is what keeps the archive readable rather than owned-and-unreadable.
 
-3. Find the live directory — the uuid is new if the cluster was rebuilt:
-
-```
-ls -d /var/lib/rancher/k3s/storage/pvc-*_vaultwarden_vaultwarden-data
-```
-
-4. Put the dump in place as `db.sqlite3`, and **delete the old `-wal` and
-   `-shm`**. This step is not optional: the dump is a single complete database
-   with no write-ahead log, and leaving a WAL from a different database behind
-   means SQLite tries to replay frames that do not belong to it.
-
-```
-sudo rm -f <pvcdir>/db.sqlite3-wal <pvcdir>/db.sqlite3-shm
-sudo cp /restore/var/backups/node01-inventory/vaultwarden_vaultwarden-data.sqlite3 <pvcdir>/db.sqlite3
-sudo chown 1000:1000 <pvcdir>/db.sqlite3
-```
-
-The `chown` matters — the pod runs unprivileged as uid 1000, and a
-root-owned database presents as CrashLoopBackOff rather than a permission
-message anywhere obvious.
-
-5. Scale back up and log in:
-
-```
-kubectl -n vaultwarden scale deployment vaultwarden --replicas=1
-```
-
-`rsa_key.pem` and the attachments live beside the database in the same PVC
-directory and come back with a normal Scenario C restore. **Attachments are not
-in a Bitwarden export**, so for those the restic copy is the only one.
+`clusters/homelab/` and [`hosts/node01/`](../../hosts/node01/backup/README.md)
+describe a machine that no longer runs anything; they are kept for the reasoning,
+not as instructions.
 
 ---
 
@@ -347,8 +297,11 @@ not from the tailnet, until the subnet route is back.
 
 - **Anything created after the last nightly run.** The window is up to 24
   hours.
-- **The workstation.** Its kubeconfig is regenerated from node01; the age key
-  is in the kit; projects are in git. Nothing else there is backed up by this.
+- **The workstation.** Its kubeconfig is regenerated from any server node's
+  `/etc/rancher/k3s/k3s.yaml`, with the address swapped for the node's own; the
+  age key is in the kit; projects are in git. Nothing else there is backed up by
+  this — which includes the local checkouts and working state of every project
+  an agent pod holds a copy of.
 - **Tailscale, Cloudflare and healthchecks.io state.** All reconstructed by
   logging in — hence account access being part of the kit.
 - **A restore nobody has practised.** A backup that has never been restored is

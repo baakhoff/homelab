@@ -193,6 +193,13 @@ kubectl -n agents scale deploy/homelab --replicas=0
 and back to `1`, or use the scale control in Headlamp. An idle server costs
 about 300 MB, so parking is for when memory is actually short.
 
+**This parks a pod until Flux next reconciles, not permanently.** The manifest
+says `replicas: 1`, so a manual scale is drift and gets corrected within minutes
+— which is the right behaviour in general and a surprise here. For a pod that
+should stay down, change `replicas` in its file and merge. Suspending the
+Kustomization also works and is worse: it stops applying the whole cluster, and
+it does so silently.
+
 ## Smoke test, once after the first deploy
 
 Verify the network boundary instead of trusting it. From the pod, the internet:
@@ -236,6 +243,29 @@ opens everything you have access to. The pod runs a model's commands, and while
 the NetworkPolicy keeps it off the LAN and the tailnet, anything on the public
 internet is still reachable from inside. A key's blast radius is whatever it
 unlocks.
+
+## The pod that edits this repo runs in this cluster
+
+The `homelab` pod is a Claude Code server working on the repository that defines
+the cluster it runs in. That is circular, and it fails in the one case where it
+would be most useful: if the cluster is down, so is the agent that could help
+reason about why.
+
+[ADR 0006](../decisions/0006-claude-code-remote-control-pods.md) argued for
+moving agents *off* the workstation and did not consider this, so it is recorded
+here rather than there. The mitigation is not a second cluster — it is
+remembering that the agent is a convenience and not a dependency:
+
+- Recovery work is done from the **workstation**, which holds a checkout and can
+  run Claude Code locally. [Disaster recovery](disaster-recovery.md) assumes
+  nothing in the cluster is available.
+- Nothing an agent pod holds is an original. The repo is on GitHub, the age key
+  is in the emergency kit, and the volumes are excluded from backup precisely
+  because everything on them is a clone, a login or a cache.
+
+The failure is mild in practice and worth naming anyway: an agent restarted
+mid-change during its own cluster's image update, which is exactly the shape of
+the problem in miniature.
 
 ## Known limits
 
