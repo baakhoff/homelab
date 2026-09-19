@@ -72,12 +72,15 @@ spec:
           type: RuntimeDefault
       containers:
         - name: vaultwarden
-          # THE SAME VERSION NODE01 IS RUNNING, on purpose. Vaultwarden
+          # THE SAME VERSION NODE01 WAS RUNNING, on purpose. Vaultwarden
           # migrates its database schema forward on startup, so a newer image
           # meeting the copied data would do a migration and a machine move at
           # once - and if the vault then misbehaved there would be two
-          # candidates and no way to separate them. Renovate will offer the
-          # bump; take it after the cutover is done and verified.
+          # candidates and no way to separate them.
+          #
+          # The cutover is done and verified, so that reason has expired: this
+          # is now an ordinary pin and Renovate's bump can be taken like any
+          # other.
           image: vaultwarden/server:1.37.1
           securityContext:
             allowPrivilegeEscalation: false

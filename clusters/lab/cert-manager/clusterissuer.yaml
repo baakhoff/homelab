@@ -15,15 +15,19 @@
 #
 # ---
 #
-# Two issuers, where node01 has one.
+# Two issuers, where node01 had one.
 #
-# node01 was built with nothing to collide with. This cluster is being built
-# alongside a live one that already holds a certificate for the same names, and
-# Let's Encrypt limits DUPLICATE certificates - an identical set of DNS names -
-# to five per week. Two clusters each holding one wildcard is well inside that.
-# Two clusters plus a handful of false starts while the DNS-01 plumbing is
-# being proven is not, and the certificate that would fail to renew first
-# belongs to the cluster currently serving the lab.
+# node01 was built with nothing to collide with. This cluster was built
+# alongside it while it was still live and already holding a certificate for
+# the same names, and Let's Encrypt limits DUPLICATE certificates - an
+# identical set of DNS names - to five per week. Two clusters each holding one
+# wildcard is well inside that; two clusters plus false starts while the DNS-01
+# plumbing was being proven is not, and the certificate that would have failed
+# to renew first belonged to the cluster then serving the lab.
+#
+# node01 is gone and the collision with it cannot recur, but staging stays: the
+# rate limit still applies to this cluster's own rebuilds, and a rebuild is
+# exactly when several attempts happen in a row.
 #
 # So the order is: issue against staging until a certificate actually appears,
 # then flip the Certificate's issuerRef to production in its own commit.

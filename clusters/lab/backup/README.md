@@ -29,12 +29,12 @@ happens here.
 because its file walk copies `db.sqlite3`, `-wal` and `-shm` minutes apart and
 can catch a set that does not belong together. A snapshot captures all three at
 one instant — which is the power-cut case SQLite's WAL recovery is built for.
-When Vaultwarden moves here it needs no special handling.
+Vaultwarden moved here and needed no special handling.
 
 **It is a separate repository.** Same bucket, its own prefix, its own password
-and its own retention. node01's repository becomes a frozen archive the day
-that machine is switched off, rather than something this cluster keeps writing
-into.
+and its own retention. node01's repository is a frozen archive now that the
+machine is off — nothing writes to it, and its password has to outlive the
+laptop for it to stay readable.
 
 ## How it works
 
