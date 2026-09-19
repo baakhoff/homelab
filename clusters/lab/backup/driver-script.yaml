@@ -138,12 +138,31 @@ data:
       #
       # Two keys rather than mere existence: an empty or half-written Secret
       # fails in the same way and looks the same in `kubectl get`.
+      # TWO checks, not one, because the single check that used to be here
+      # conflated two different failures. It read a key with
+      # `2>/dev/null | grep -q .`, so a Forbidden response looked exactly like an
+      # absent Secret and reported the absent one - which is what happened on
+      # 2026-09-19 when the ClusterRole was missing `secrets: get`. It sent the
+      # reader to re-create three Secrets that already existed.
+      #
+      # `-o name` first: it proves access AND existence, and its output carries no
+      # secret data, so the real kubectl error can be logged verbatim.
+      if ! _err=$(kubectl -n "$ns" get secret "$RESTIC_SECRET" -o name 2>&1); then
+        log "ERROR: cannot read secret $RESTIC_SECRET in namespace $ns:"
+        log "ERROR:   $_err"
+        log "ERROR: if that says 'forbidden', the RoleBinding for this namespace is"
+        log "ERROR: missing or the ClusterRole lacks secrets:get - NOT the Secret."
+        log "ERROR: if it says 'not found', see clusters/lab/backup/README.md: the"
+        log "ERROR: Secret must exist in EVERY namespace in BACKUP_TARGETS."
+        return 1
+      fi
+
+      # Only now can an empty key mean what it says. Never logged - the value is
+      # base64 of a credential.
       for _k in RESTIC_REPOSITORY RESTIC_PASSWORD; do
         if ! kubectl -n "$ns" get secret "$RESTIC_SECRET" \
-             -o "jsonpath={.data.$_k}" 2>/dev/null | grep -q .; then
-          log "ERROR: secret $RESTIC_SECRET in $ns is missing or has no $_k"
-          log "ERROR: see clusters/lab/backup/README.md - it must exist in EVERY"
-          log "ERROR: namespace named in BACKUP_TARGETS, not only in backup."
+             -o "jsonpath={.data.$_k}" | grep -q .; then
+          log "ERROR: secret $RESTIC_SECRET in $ns exists but has no $_k"
           return 1
         fi
       done
