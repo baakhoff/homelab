@@ -95,6 +95,18 @@ spec:
         # kubelet chowns the freshly provisioned volume to this group and sets
         # setgid, which is what lets uid 1000 write /home/node.
         fsGroup: 1000
+        # Without this, a private key on the volume stops working after any pod
+        # recreation. fsGroup does not only set group ownership: the kubelet
+        # walks the whole volume and ADDS group read/write, so a key written
+        # 0600 comes back 0660 - and ssh refuses a group-readable private key
+        # outright, silently declining to offer it. The failure reads as
+        # "Permission denied (publickey)" from the remote, which points at the
+        # wrong end entirely.
+        #
+        # OnRootMismatch makes the kubelet check the volume root's ownership
+        # first and skip the recursive walk when it already matches, which it
+        # does after the first mount. Modes then stay as they were written.
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       containers:

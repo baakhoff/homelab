@@ -219,6 +219,24 @@ being enforced.
 with `claude auth login` through `kubectl exec`, as above. The marker file
 stays.
 
+## An ssh key on the volume
+
+A project whose remote is ssh needs a private key, and the natural place is
+`~/.ssh/` on the volume so it survives restarts. Two things about that.
+
+`fsGroup` rewrites its mode. The kubelet does not only set group ownership on a
+volume — it walks it and **adds group read/write** — so a key written `0600`
+comes back `0660`, and ssh refuses a group-readable private key outright rather
+than offering it. The remote then answers `Permission denied (publickey)`, which
+points at the wrong end entirely. `fsGroupChangePolicy: OnRootMismatch` in the
+pod's `securityContext` stops the rewrite; the manifests here set it.
+
+And prefer a **deploy key** scoped to the one project over a personal key that
+opens everything you have access to. The pod runs a model's commands, and while
+the NetworkPolicy keeps it off the LAN and the tailnet, anything on the public
+internet is still reachable from inside. A key's blast radius is whatever it
+unlocks.
+
 ## Known limits
 
 - No Docker inside the pod. Projects whose tests need a Docker daemon are not
