@@ -15,6 +15,9 @@ ever disagree, the README is right and this file needs fixing.
 
 ![An MSI laptop, lid closed and covered in stickers, standing on its edge in a wire mesh letter rack on a desk, power cable plugged in](images/node01-v0.1.jpg)
 
+`node01` was an MSI laptop: i5-1240P, 16 GB RAM, 512 GB NVMe, Wi-Fi only —
+[details](hardware.md).
+
 Where it started: one laptop stood on edge in a wire letter rack so it ran with the lid
 shut, on Wi-Fi, with nothing else on the LAN. k3s, Flux, cert-manager and ingress-nginx,
 Prometheus and Loki, Headlamp, Homepage, Vaultwarden, the agent pods and two Incus
