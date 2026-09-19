@@ -25,12 +25,17 @@ ARG CLAUDE_CODE_VERSION=2.1.278
 # image FROM this one, rather than this list growing for everybody.
 #   git, gh         - clone, commit, PRs (gh needs GH_TOKEN; see entrypoint.sh)
 #   openssh-client  - git over ssh where a project uses a deploy key
+#   netcat-openbsd  - `nc -x` as an ssh ProxyCommand, which is how a remote
+#                     that is only reachable through a local SOCKS proxy gets
+#                     reached from inside a pod. See the runbook; the pods have
+#                     no LAN and no tailnet, so a userspace proxy is the only
+#                     route to something not on the public internet.
 #   python3, venv   - the Python projects; uv below does the real work
 #   build-essential - native extensions in Python and Node dependencies
 #   procps, less, jq, curl, unzip - an agent inspects its own environment
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      ca-certificates curl git gh openssh-client \
+      ca-certificates curl git gh openssh-client netcat-openbsd \
       python3 python3-venv build-essential \
       procps less jq unzip \
  && rm -rf /var/lib/apt/lists/*
