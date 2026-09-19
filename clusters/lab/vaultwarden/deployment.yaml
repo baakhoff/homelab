@@ -6,25 +6,29 @@ metadata:
 spec:
   # 0 = PARKED, and this is the whole reason the cutover is safe.
   #
-  # Same vocabulary as clusters/lab/agents/homelab.yaml, used for a different
-  # purpose. This Deployment lands before its data does. Started empty it would
-  # generate a fresh RSA keypair and an empty database into the volume, and the
-  # migration would then have to overwrite both - which works, but it means the
-  # window between "manifests applied" and "data copied" contains a running,
-  # reachable, EMPTY password vault. Parked, the PVC is created and bound and
-  # nothing is serving.
+  # THE DATA IS IN PLACE, so this is 1. Was 0 while the Deployment existed
+  # ahead of its data: started empty it would have generated a fresh RSA
+  # keypair and an empty database into the volume, and the window between
+  # "manifests applied" and "data copied" would have contained a running,
+  # reachable, EMPTY password vault.
   #
-  # It goes to 1 in a later commit, after the data is in place. A commit rather
-  # than `kubectl scale` because Flux reverts a hand-scaled Deployment within a
-  # minute - which, if it happened mid-copy, would start Vaultwarden on top of
-  # a half-written database. Same class as the two-commit rules already
-  # established here for SOPS and for cert-manager's CRDs: a declarative system
-  # that converges still cannot converge around an ordering constraint.
+  # One replica, and that is not a capacity decision. Vaultwarden keeps
+  # everything in a single SQLite file on the volume below, so two replicas
+  # would be two processes writing one database.
   #
-  # The procedure that flips it lives outside this repo while it is still a
-  # plan rather than a record. The public runbook gets written afterwards, in
-  # past tense, once the vault has actually moved.
-  replicas: 0
+  # Both the park and this unpark are commits rather than `kubectl scale`,
+  # because Flux reverts a hand-scaled Deployment within a minute - which, mid
+  # copy, would have started Vaultwarden on top of a half-written database.
+  # Same class as the two-commit rules already established here for SOPS and
+  # for cert-manager's CRDs: a declarative system that converges still cannot
+  # converge around an ordering constraint.
+  #
+  # What arrived on the volume, verified rather than assumed: every file's
+  # sha256 matched node01's, `db.sqlite3-wal` among them. The WAL had survived
+  # the shutdown instead of being checkpointed away, so it held writes the
+  # database file alone did not - which is why the copy took the whole
+  # directory rather than just db.sqlite3.
+  replicas: 1
   # Recreate, NOT the default RollingUpdate - the most consequential line in
   # this file. RollingUpdate starts the new pod BEFORE terminating the old one,
   # and every image bump would briefly run two Vaultwarden processes against one
