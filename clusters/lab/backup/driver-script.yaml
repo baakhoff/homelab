@@ -262,15 +262,38 @@ data:
           containers:
             - name: restic
               image: $RESTIC_IMAGE
+              command: ["/bin/sh", "-c"]
               args:
-                - backup
-                - --host
-                - $RESTIC_HOST
-                - --tag
-                - nightly
-                - --tag
-                - $ns/$pvc
-                - /data/$ns/$pvc
+                - |
+                  set -eu
+                  # A BACKUP OF NOTHING IS NOT A BACKUP, and restic exits zero
+                  # on an empty directory - so without this the whole chain
+                  # reports success for a volume it did not back up. It happened
+                  # on 2026-09-19: a manual run fired before a cutover had
+                  # copied any data in, the clone came up as a bare filesystem,
+                  # and the log read "processed 0 files, 0 B", "==> ok", "all
+                  # targets backed up", with a green heartbeat behind it.
+                  #
+                  # An empty snapshot is WORSE than a missing one. It is the
+                  # newest for its path, so "restore latest" resolves to it and
+                  # restores nothing, exiting zero - the same silent no-op the
+                  # restore procedure in README.md spends a whole step guarding
+                  # against.
+                  #
+                  # Asserted before restic runs rather than on its summary
+                  # afterwards, so the empty snapshot never enters the
+                  # repository at all. A volume that is legitimately empty fails
+                  # loudly, which is the right trade while no target is expected
+                  # to be one.
+                  if [ -z "\$(find /data/$ns/$pvc -type f | head -n 1)" ]; then
+                    echo "FATAL: /data/$ns/$pvc holds no files - refusing to write an empty snapshot"
+                    exit 1
+                  fi
+                  exec restic backup \\
+                    --host $RESTIC_HOST \\
+                    --tag nightly \\
+                    --tag $ns/$pvc \\
+                    /data/$ns/$pvc
               envFrom:
                 - secretRef:
                     name: $RESTIC_SECRET

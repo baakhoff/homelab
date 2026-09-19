@@ -249,8 +249,8 @@ In the Tailscale admin console:
 4. DNS → **Override DNS servers** on, so every tailnet device uses this
    nameserver instead of whatever network it is sitting on.
 
-Then take the servers out of that dependency. On `node01` and inside the
-workbench container:
+Then take the servers out of that dependency. On `node02`, `node03` and
+`node04`:
 
 ```
 sudo tailscale set --accept-dns=false

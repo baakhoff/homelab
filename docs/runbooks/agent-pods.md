@@ -28,13 +28,12 @@ the full trade.
 Manifests: `clusters/lab/agents/`. Image:
 `images/claude-agent/`.
 
-**The two clusters differ in one line: the storage class.** node01's pods take
-`local-path`, a directory on the node, so a pod can only run where its home
-already is and a node rebuild takes the login, the checkout and every worktree
-with it. The lab cluster's take `ceph-block`, an RBD image replicated across
-all three nodes and mapped by whichever one runs the pod — so the home
-directory follows the pod, and losing a node costs a restart rather than a
-rebuild.
+**A pod's home directory is an RBD image, not a directory on a node.** The
+volumes take `ceph-block`, replicated across all three nodes and mapped by
+whichever one runs the pod, so the home directory follows the pod and losing a
+node costs a restart rather than a rebuild. node01's pods took `local-path` — a
+directory on the machine itself, which pinned a pod to wherever its home already
+was and made a node rebuild cost the login, the checkout and every worktree.
 
 That also changes what a *hard* node failure looks like. A ReadWriteOnce image
 is mapped by one node at a time, and Kubernetes will not map it elsewhere while
@@ -111,8 +110,9 @@ exactly like the Claude login. One pod, one account — which is how a slot for 
 second GitHub identity stays cleanly separate from the others.
 
 GitLab works the same way over HTTPS with a project or personal access token;
-egress is open to the internet, so `gitlab.com` is reachable. `glab` is not in
-the image.
+egress is open to the internet, so `gitlab.com` is reachable. `glab` is in the
+image too, and has two authentication traps of its own — see [GitLab from a
+pod](#gitlab-from-a-pod) below.
 
 ```
 touch ~/.claude/.remote-control-enabled && exit
@@ -350,10 +350,8 @@ the problem in miniature.
 - No cluster access, no LAN, no tailnet from inside, by policy.
 - Deleting a project's manifest prunes its volume: the checkout, the login and
   any uncommitted work go with it. Commit or push first.
-- Nothing backs the volumes up, on either cluster — and on both it is now a
-  choice rather than an absence. On node01 they are excluded from the nightly
-  restic run, see `hosts/node01/backup/restic-excludes.txt`; on the lab cluster
-  a backup exists and agent volumes are simply not among its targets, see
-  [`clusters/lab/backup/`](../../clusters/lab/backup/README.md). Everything on
-  them is a clone, a login, or a cache — replication is not a backup, and three
-  copies of a deleted volume is still no copies.
+- Nothing backs the volumes up, and that is a choice rather than an absence: a
+  nightly backup exists and the agent volumes are simply not among its targets,
+  see [`clusters/lab/backup/`](../../clusters/lab/backup/README.md). Everything
+  on them is a clone, a login, or a cache — replication is not a backup, and
+  three copies of a deleted volume is still no copies.
