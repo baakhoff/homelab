@@ -18,7 +18,7 @@ FROM node:22-bookworm-slim
 # that changes without a commit is exactly what GitOps exists to prevent. The
 # CI workflow reads this line to tag the image, so the ARG line must keep this
 # exact shape.
-ARG CLAUDE_CODE_VERSION=2.1.270
+ARG CLAUDE_CODE_VERSION=2.1.278
 
 # The toolchain an agent can use inside its pod. Kept general on purpose: a
 # project that needs more (a database client, another language) gets its own

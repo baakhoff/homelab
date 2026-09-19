@@ -1,9 +1,34 @@
 # claude-agent image
 
-The container image for the agent pods in `clusters/homelab/agents/`: Node,
-the Claude Code CLI at a pinned version, git and `gh`, Python with `uv`, and an
-entrypoint that clones a project and runs `claude remote-control` in it. What
-the pods are and how one is bootstrapped: [the runbook](../../docs/runbooks/agent-pods.md).
+The container image for the agent pods in `clusters/lab/agents/`: Node, the
+Claude Code CLI at a pinned version, git and `gh`, Python with `uv`, and an
+entrypoint that runs `claude remote-control` — in a project it clones, or in an
+empty directory you clone into yourself. What the pods are and how one is
+bootstrapped: [the runbook](../../docs/runbooks/agent-pods.md).
+
+## Two shapes of pod, one entrypoint
+
+`REPO_URL` is optional. With it, the pod clones that repo on first start and
+serves sessions from it, each in its own git worktree. Without it, the pod is a
+**general slot**: it comes up with an empty `~/work`, and you clone whatever you
+want from inside a session.
+
+The difference costs one feature and buys another.
+
+What a general slot gives up is `--spawn worktree`, which needs a repository at
+the working directory to branch from. Sessions in a slot share one directory, so
+two at once can edit the same files. A slot that settles into one project earns
+it back by gaining a `REPO_URL` — a one-line edit to its Deployment, after which
+the clone is already on the volume.
+
+What it buys is that **nothing about the work is published**. `REPO_URL` and
+`PROJECT` are plain environment variables in a Deployment; this repository is
+public, so a named pod discloses the project's name and the existence of its
+repo, permanently and including in history. Encryption does not help — SOPS
+covers `data`/`stringData` in a Secret, not an env var in a Deployment. An
+anonymous slot plus `gh auth login` *inside* the pod discloses neither, and
+needs no per-repo token: the login lands on the volume at `~/.config/gh`, which
+is the PVC, so it survives restarts exactly like the Claude login does.
 
 ## How it is built
 
