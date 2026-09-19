@@ -3,7 +3,12 @@
 Nightly [restic](https://restic.net/) backup of node01 to Hetzner Object Storage,
 driven by a systemd timer. Weekly retention pass and integrity check alongside it.
 
-## Why this lives outside `clusters/homelab/`
+> **node01 is retired and powered off.** This file is kept as a record: it is
+> where the reasoning behind the lab cluster's own backup came from, and it
+> documents a restic repository that still exists in the bucket as a frozen
+> archive with its own password. Nothing here describes something running.
+
+## Why this lived outside the cluster directory
 
 Flux reconciles Kubernetes objects. A systemd timer on the host is not one, so
 these files are installed by hand.

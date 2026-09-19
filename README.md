@@ -20,7 +20,7 @@ version number is for.
 
 | Device | Specs | Status |
 |---|---|---|
-| Laptop `node01` | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | emptied: runs no workloads. What it used to hold is in [the lab over time](docs/history.md) |
+| Laptop `node01` | i5-1240P · 16 GB RAM · 512 GB NVMe · Wi-Fi only — [details](docs/hardware.md) | retired, powered off. What it ran is in [the lab over time](docs/history.md) |
 | Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router, wired |
 | 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | in service: a three-node k3s cluster with replicated Ceph storage — [bring-up](docs/runbooks/node-bring-up.md) |
 | Switch | TP-Link TL-SG108E, 8 × 1 GbE, web-managed — [details](docs/hardware.md) | in service: the wired backbone — [the network](docs/network.md) |
@@ -39,10 +39,6 @@ version number is for.
   here](docs/runbooks/node-bring-up.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
-- **node01** — a single-node k3s still reconciled by Flux from
-  `clusters/homelab/`, serving nothing. Everything it used to run is on the
-  three-node cluster; its own nightly restic repository is a frozen archive
-  rather than something still being written to.
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
   and for the tailnet (through Tailscale's DNS override); Tailscale exit node and
   subnet router, so LAN-only things are reachable from anywhere on the tailnet
@@ -50,18 +46,16 @@ version number is for.
   for Wake-on-LAN, being the only always-on Linux box on the wired segment.
 - **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
 
-Every lab machine except `node01`, a laptop with no ethernet port, is wired to
-one managed switch; addressing, the port map and how it is all reached from
-outside are in [the network](docs/network.md).
+Every machine is wired to one managed switch; addressing, the port map and how
+it is all reached from outside are in [the network](docs/network.md).
 
 ## Repo layout
 
 ```
 clusters/           # Flux-reconciled Kubernetes manifests, one directory per component
-  homelab/          #   node01's cluster
   lab/              #   the node02-04 cluster
 hosts/              # host-level config installed by hand, outside GitOps
-  node01/backup/    #   restic units, script, excludes, bucket lifecycle policy
+  node01/backup/    #   the retired laptop's restic units, kept as a record
   exitnode/         #   the Pi: sshd hardening, forwarding sysctl, cloud-init guard, wake-nodes
   nodes/            #   node02-04, configured identically: netplan, cloud-init guard, sshd
 images/

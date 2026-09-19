@@ -260,9 +260,10 @@ own password. Nothing writes to it. It is the only copy of anything that existed
 only on that machine and was never carried across — so the password outliving
 the laptop is what keeps the archive readable rather than owned-and-unreadable.
 
-`clusters/homelab/` and [`hosts/node01/`](../../hosts/node01/backup/README.md)
-describe a machine that no longer runs anything; they are kept for the reasoning,
-not as instructions.
+Its manifests were deleted once the machine was off and its Flux suspended, so
+there was nothing live for `prune: true` to tear down.
+[`hosts/node01/`](../../hosts/node01/backup/README.md) is kept — the reasoning in
+it is what the lab's own backup was built from.
 
 ---
 
