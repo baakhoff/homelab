@@ -184,15 +184,16 @@ own path under `/data/<namespace>/<pvc>`.
 ## Restoring
 
 There is no way to restore *into* a volume a running workload has mounted, so
-the shape is always: scale the workload down, restore into a fresh PVC, point
-the workload at it.
+the shape is always: restore into a fresh PVC, then swap the workload onto it.
 
-1. **Scale the workload to zero** so the RBD image is unmapped.
+Only the swap needs downtime. The restore itself runs with everything up, which
+is worth knowing because it moves the slow part outside the outage — the
+rehearsal below was performed with Grafana serving traffic throughout.
 
-2. **Create a PVC** of at least the original size, `storageClassName:
+1. **Create a PVC** of at least the original size, `storageClassName:
    ceph-block`.
 
-3. **Run a Job** mounting that PVC at `/restore`, with `envFrom` the
+2. **Run a Job** mounting that PVC at `/restore`, with `envFrom` the
    `restic-repo` Secret in that namespace, and args:
 
    ```
@@ -204,16 +205,51 @@ the workload at it.
    The files land at `/restore/data/<namespace>/<pvc>/`, mirroring the absolute
    path they were backed up from.
 
-4. **Point the workload at the new claim** and scale it back up.
+3. **Count what came back, before trusting it.** A `--path` that does not match
+   restores nothing and exits zero, so a silent no-op is indistinguishable from
+   success unless something asserts on the result. Mount the same claim in a
+   throwaway Job and compare against the snapshot's own figures from
+   `restic snapshots`:
 
-**This has not been rehearsed yet.** Until it has, this section is a plan
-rather than a procedure, and the difference matters more here than anywhere
-else in the repo.
+   ```sh
+   d=/restore/data/<namespace>/<pvc>
+   [ -d "$d" ] || { echo "FAIL: --path did not match"; exit 1; }
+   find "$d" -type f | wc -l
+   du -sb "$d"
+   ```
+
+4. **Scale the workload to zero** so the RBD image is unmapped.
+
+5. **Point the workload at the new claim** and scale it back up.
+
+**Rehearsed 2026-09-19**, on Grafana's volume rather than on anything that
+matters. Snapshot `ec08e5eb` restored into a fresh `ceph-block` claim in seven
+seconds, and the filesystem afterwards held 1244 files and 528,950,384 bytes
+against the snapshot's own 503.802 MiB — the gap is `du` counting directory
+entries that restic does not, and the two agreeing to that tolerance is the
+result being claimed.
+
+Two things it settled beyond "the bytes come back". `grafana.db` returned owned
+by uid 472 rather than root, so ownership survives the round trip; a restore
+that flattened it would hand you a workload that starts and then cannot read its
+own database, which fails much later and much less obviously. And steps 1–3 ran
+with the workload up, which is what established that the scale-down belongs to
+the swap rather than to the restore.
+
+What it does not settle: whether a restored database is *consistent*. The RBD
+snapshot is taken while the workload writes, so what comes back is the
+power-cut case — SQLite's WAL recovery handles it, and that is the guarantee
+being relied on, not one this rehearsal verified.
 
 ## Known limitations
 
-- **The restore path is untested**, as above. That is the highest-value next
-  piece of work on this, ahead of adding more volumes.
+- **The swap has not been rehearsed, only the restore.** Steps 1–3 above ran on
+  2026-09-19; pointing a live workload at a restored claim and starting it has
+  not been done, so that half of the procedure is still a plan.
+- **A restored database is crash-consistent, not quiesced.** Nothing flushes or
+  locks a workload before its snapshot, so every restore is the power-cut case.
+  Fine for SQLite with WAL recovery, which is what the volumes here hold; not
+  something to assume for an engine that does not recover as gracefully.
 - **No dead-man's switch on the cluster itself.** `HC_URL` catches a backup
   that stops running, but see the Watchdog note in
   `clusters/lab/monitoring/helmrelease.yaml` for the broader gap while node01
