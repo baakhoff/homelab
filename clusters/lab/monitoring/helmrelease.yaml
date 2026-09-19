@@ -134,10 +134,9 @@ spec:
         # rather than inlining them, which keeps the whole routing tree
         # readable and diffable in a public repo.
         #
-        # node01's copy mounts a second secret, alertmanager-heartbeat. This
-        # one deliberately does not - see the Watchdog route below.
         secrets:
           - alertmanager-telegram
+          - alertmanager-heartbeat
 
       config:
         global:
@@ -155,30 +154,33 @@ spec:
           # A warning that stays firing re-notifies twice a day.
           repeat_interval: 12h
           routes:
-            # THE DEAD-MAN'S SWITCH IS NOT WIRED UP ON THIS CLUSTER YET, and
-            # dropping Watchdog on the floor is the deliberate choice rather
-            # than the lazy one.
+            # The dead-man's switch. Watchdog fires constantly by design and
+            # goes to an outside service that alarms when the pings STOP -
+            # the one failure nothing inside a dead cluster can report.
             #
-            # Watchdog fires constantly by design, and node01 routes it to an
-            # outside service (healthchecks.io) that alarms when the pings
-            # STOP - the one failure nothing inside a dead cluster can report.
-            # That check's ping URL is a credential naming ONE check.
+            # This route was deliberately `null` while the cluster was being
+            # built, and the comment it replaces gave two reasons: everything
+            # here was still second to node01, and someone was watching it go
+            # up. Both stopped being true the day this cluster took the vault,
+            # epicurus and the agent pods and node01 stopped serving anything.
             #
-            # Copying that secret here would have both clusters pinging the
-            # same check, and a check that two clusters can keep green is a
-            # check that goes red only when BOTH are down. It would not report
-            # a new failure here; it would silently disarm the alarm currently
-            # protecting node01, which is still the cluster serving the lab.
+            # It is its OWN check, not node01's. Copying that secret would have
+            # had both clusters pinging one check, and a check two clusters can
+            # keep green is a check that goes red only when BOTH are down -
+            # which would have disarmed the alarm protecting node01 rather than
+            # adding one here.
             #
-            # So: a second check with its own URL, its own SOPS secret, and
-            # this route pointed at a `heartbeat` receiver - a follow-up, not
-            # a thing to fake now. Until then the gap is known and stated
-            # rather than papered over: if this whole cluster stops, nothing
-            # tells you. Everything it monitors is still second to node01,
-            # and someone is watching it being built.
-            - receiver: "null"
+            # The cadence is node01's, for node01's reason: group_interval
+            # bounds how often a group re-notifies, so leaving it at the 5m
+            # default made a 5m repeat_interval fire every TEN minutes and
+            # silently halved the margin against the 20m alarm threshold.
+            # Ticking every minute makes the real cadence 5-6m as intended.
+            - receiver: heartbeat
               matchers:
                 - alertname = "Watchdog"
+              group_wait: 0s
+              group_interval: 1m
+              repeat_interval: 5m
             # Ships with the stack purely as the source for the info
             # inhibit rule below; it is never something to act on.
             - receiver: "null"
@@ -209,6 +211,24 @@ spec:
           # Quoted on purpose: bare null in YAML is the null VALUE, which
           # makes this receiver nameless and the config invalid.
           - name: "null"
+
+          # Dead-man's switch. Any POST to the ping URL registers a heartbeat;
+          # healthchecks.io raises the alarm when one fails to arrive inside its
+          # period plus grace, and notifies Telegram into the same chat as
+          # everything else.
+          #
+          # The URL is a CREDENTIAL, not just an endpoint: anyone holding it can
+          # keep the check green while this cluster is face down, which silences
+          # the one alarm nothing inside it can raise. Hence url_file and a SOPS
+          # secret rather than a literal here.
+          #
+          # send_resolved false: a resolved notification would ping the same URL
+          # and register as a successful heartbeat, which is misleading even
+          # though it is harmless.
+          - name: heartbeat
+            webhook_configs:
+              - url_file: /etc/alertmanager/secrets/alertmanager-heartbeat/url
+                send_resolved: false
 
           - name: telegram
             telegram_configs:
