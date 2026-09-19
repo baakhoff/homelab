@@ -1,7 +1,16 @@
-# The homelab repo itself, as the first agent project on this cluster. To add
-# another project copy this file: the name appears in four places (PVC,
-# Deployment, labels, PROJECT), then REPO_URL and the resources. Nothing else
-# varies. Bootstrapping the pod once it runs: docs/runbooks/agent-pods.md.
+# The homelab repo itself, as the first agent project on this cluster, and the
+# annotated template for every other file in this directory. To add one, copy
+# this file: the name appears in four places (PVC, Deployment, labels, PROJECT)
+# plus claimName, then the resources. Nothing else varies.
+#
+# REPO_URL is optional. With it the pod clones that repo on first start and
+# every session gets its own git worktree of it. Without it the pod is a general
+# slot - empty ~/work, clone whatever you want from inside - which is what the
+# repo-less files here are, and why: a name and a repo URL in a Deployment are
+# published by this repository, a slot publishes nothing. The full trade is in
+# images/claude-agent/README.md.
+#
+# Bootstrapping the pod once it runs: docs/runbooks/agent-pods.md.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -90,7 +99,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: claude
-          image: ghcr.io/baakhoff/claude-agent:2.1.270
+          image: ghcr.io/baakhoff/claude-agent:2.1.278
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
