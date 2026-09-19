@@ -4,10 +4,26 @@ metadata:
   name: vaultwarden
   namespace: vaultwarden
 spec:
-  # One replica, and this is not a capacity decision. Vaultwarden keeps
-  # everything in a single SQLite file on the volume below. Two replicas would
-  # be two processes writing one database.
-  replicas: 1
+  # PARKED AT ZERO FOR THE MIGRATION. The vault's data is being moved to the lab
+  # cluster, and that move is a stop-copy-start rather than a live migration:
+  # Vaultwarden keeps everything in one SQLite file, and copying that while a
+  # process writes to it is the torn-read problem its own backup script exists
+  # to avoid. The database must be at rest before it is read.
+  #
+  # This is a COMMIT rather than `kubectl scale` because Flux reverts a
+  # hand-scaled Deployment within a minute - and if that happened mid-copy,
+  # Vaultwarden would restart on top of a half-written database.
+  #
+  # Scaling to zero rather than deleting this directory, deliberately. The
+  # volume and its data stay exactly as they are, so reverting this one line
+  # brings the vault back on node01 unchanged. That reversibility is the
+  # rollback for the whole cutover, and it lasts until this directory is
+  # removed - a separate, later change, after the lab cluster has taken a
+  # successful nightly backup of its own copy.
+  #
+  # Was 1, with this note: one replica is not a capacity decision - two
+  # replicas would be two processes writing one SQLite database.
+  replicas: 0
   # Recreate, NOT the default RollingUpdate - the most consequential line in
   # this file. RollingUpdate starts the new pod BEFORE terminating the old one,
   # and on a single node both pods can mount the same ReadWriteOnce volume, so
