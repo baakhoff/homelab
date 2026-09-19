@@ -289,6 +289,32 @@ spec:
       external:
         url: "http://ollama.invalid:11434"
 
+    web:
+      # THE WEB SHELL CANNOT REACH THE CORE WITHOUT THIS on the `testing`
+      # branch. nginx proxies /platform/ to CORE_APP_URL and resolves that name
+      # at REQUEST time through a resolver, and nginx does not apply
+      # /etc/resolv.conf's `search` list. The chart's `epicurus.platformUrl`
+      # helper returns the bare `http://core-app:8080`, so every /platform/
+      # request 502s with `core-app could not be resolved (3: Host not found)`
+      # while both probes stay green - /healthz is a static handler that never
+      # touches the resolver.
+      #
+      # This is FIXED UPSTREAM ON `main`, which grew a second helper described
+      # as "the core's URL *as nginx must be given it* - fully qualified, unlike
+      # every other endpoint in this chart", along with a `clusterDomain` value.
+      # Neither exists on `testing`. This override goes away when that merges
+      # down.
+      #
+      # extraEnv renders AFTER the chart's own CORE_APP_URL in the same env
+      # list, and the kubelet takes the last entry when a name appears twice -
+      # so this wins without a postRenderer. Written down because relying on it
+      # silently would be a trap for whoever edits this next.
+      #
+      # Nothing else in the chart needs qualifying: every other component
+      # resolves through the OS resolver, which does apply the search list.
+      extraEnv:
+        CORE_APP_URL: http://core-app.epicurus.svc.cluster.local:8080
+
     core:
       # NOT `nomic-embed-text`, which is the local model and the reason this
       # line cannot be copied from node01.
