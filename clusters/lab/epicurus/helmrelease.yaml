@@ -1,0 +1,158 @@
+# epicurus, as Kubernetes workloads rather than a compose stack in an Incus
+# container on node01. The decision is ADR 0007; this file is it happening.
+#
+# LANDING EMPTY ON PURPOSE. Every data engine below starts on a fresh PVC, and
+# the data is copied in afterwards. A working empty install is what makes a
+# failed migration diagnosable: without it, a stack that will not start leaves
+# you unable to tell "the chart is misconfigured" from "the data did not copy".
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: epicurus
+  namespace: epicurus
+spec:
+  interval: 1h
+  chart:
+    spec:
+      # A path inside the GitRepository, not a chart name in a registry - see
+      # gitrepository.yaml for why there is no HelmRepository here.
+      chart: ./infra/k8s/epicurus
+      sourceRef:
+        kind: GitRepository
+        name: epicurus
+        namespace: flux-system
+      interval: 10m
+  install:
+    remediation:
+      retries: 3
+    # 23 workloads, several of which wait on Postgres, NATS and the OpenBao
+    # bootstrap Job before they report ready. The 5m default expires while a
+    # healthy stack is still coming up, and a timed-out install rolls back -
+    # which reads as a broken chart.
+    timeout: 20m
+  upgrade:
+    remediation:
+      retries: 3
+    timeout: 20m
+  values:
+    # ── Images ───────────────────────────────────────────────────────────────
+    image:
+      # NOT left blank. Blank resolves to `.Chart.AppVersion`, which in the
+      # unreleased chart is the literal string `latest` - so the default here
+      # is an unpinned tag wearing the costume of a default. `testing` matches
+      # what node01 runs and what gitrepository.yaml tracks: the images CI
+      # built from the same branch this chart came from.
+      tag: testing
+
+    # ── Storage ──────────────────────────────────────────────────────────────
+    # Named rather than left blank. `ceph-block` IS the default on this cluster,
+    # so omitting it would work today and silently produce something else on a
+    # cluster where it is not - and a manifest in git should not depend on a
+    # cluster-wide setting it never mentions. Applies to every PVC the chart
+    # creates.
+    storageClass: ceph-block
+
+    # ── Secrets ──────────────────────────────────────────────────────────────
+    # MANDATORY here, and the chart says why in its own values file: `helm
+    # uninstall` deletes a chart-generated Secret while the PVCs survive, and a
+    # regenerated POSTGRES_PASSWORD does not match old PGDATA. Letting the chart
+    # generate these would make the data intact and unreadable.
+    #
+    # All seven keys are in secret.sops.yaml: POSTGRES_PASSWORD,
+    # NATS_CORE_PASSWORD, NATS_MODULE_PASSWORD, NATS_SYS_PASSWORD,
+    # OAUTH_STATE_SECRET, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD. They are hex,
+    # not base64, because POSTGRES_PASSWORD is interpolated into a DSN and hex
+    # has no `+`, `/` or `=` to escape.
+    secrets:
+      existingSecret: epicurus-secrets
+
+    # ── Ingress ──────────────────────────────────────────────────────────────
+    ingress:
+      enabled: true
+      className: nginx
+      # UNCHANGED from node01, which is the migration working as designed: both
+      # clusters can hold a certificate for this name and DNS decides which one
+      # answers. Rollback is deleting one A record.
+      host: epicurus.lab.baakhoff.com
+      path: /
+      pathType: Prefix
+      tls:
+        # ingress-nginx serves the lab wildcard as its DEFAULT certificate, so
+        # naming a secret here would fight that rather than help it. Every other
+        # Ingress on this cluster is written the same way.
+        enabled: false
+      # THE MAP IS REPLACED WHOLESALE, not merged - so the chart's four defaults
+      # are repeated here rather than inherited. Dropping them is not cosmetic:
+      # upstream calls them the #887 lesson. An ingress that buffers a body or
+      # caps it refuses a tenant-archive import long before the core sees a
+      # byte, and buffering breaks streamed chat outright.
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+        nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        # Discovered by Homepage. href given explicitly because there is no tls
+        # block here, so it would otherwise be inferred as http:// and redirect.
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: epicurus
+        gethomepage.dev/group: Services
+        gethomepage.dev/icon: mdi-robot
+        gethomepage.dev/description: Assistant - core, web shell and modules
+        gethomepage.dev/href: https://epicurus.lab.baakhoff.com
+
+    # ── NetworkPolicy ────────────────────────────────────────────────────────
+    # On, because k3s enforces policy here - the agents namespace already
+    # depends on that, verified by a smoke test that got a connection refused
+    # rather than a certificate error.
+    #
+    # Ingress-only: modules answer only to the core, the core only to the web
+    # and the modules, the data plane only to those. Egress is deliberately
+    # unrestricted upstream - websearch and hosted LLM providers need it, and a
+    # default-deny egress is a footgun.
+    #
+    # `webIngressFrom` left empty means any pod in the cluster may reach
+    # web:8080, which is what lets ingress-nginx through without naming its
+    # namespace. IF THE WEB SHELL IS UNREACHABLE AFTER A CHANGE HERE, this is
+    # the first thing to suspect.
+    networkPolicy:
+      enabled: true
+
+    # ── Metrics ──────────────────────────────────────────────────────────────
+    # This closes one of ADR 0003's accepted costs: "the application exposes its
+    # own /metrics endpoints and nothing reads them yet". kube-prometheus-stack
+    # is already running on this cluster, so the PodMonitor CRD exists before
+    # this release renders one - the ordering constraint that bit three times
+    # elsewhere in this repo does not apply here, but it is the reason to check
+    # rather than assume.
+    #
+    # NO `labels:` BLOCK, and that is checked rather than assumed. The chart
+    # offers `metrics.podMonitor.labels` for "the labels the Prometheus
+    # resource's podMonitorSelector matches on" - which on most clusters means
+    # `release: kube-prometheus-stack`, because kube-prometheus-stack defaults
+    # to selecting only its own. This cluster's monitoring release sets
+    # `podMonitorSelectorNilUsesHelmValues: false`, so the selector is nil and
+    # matches EVERY PodMonitor in the cluster. Adding the label here would be
+    # harmless and would document a rule this cluster does not follow.
+    metrics:
+      podAnnotations: true
+      podMonitor:
+        enabled: true
+
+    # ── Local model runtime: OFF ─────────────────────────────────────────────
+    # THE ONE DELIBERATE BEHAVIOUR CHANGE FROM NODE01, and it is reversible in
+    # one line.
+    #
+    # The runtime is enabled by default and would reserve a 4Gi memory REQUEST -
+    # which the scheduler holds whether or not a model is ever loaded - plus a
+    # 100Gi PVC. Two things say that buys nothing here. ADR 0003 records that
+    # the first-run model pull is disabled and inference goes to a hosted
+    # provider, and the vault on node01 held an `llm/openrouter` entry, which is
+    # what the stack actually calls.
+    #
+    # Worth writing down honestly: node01's container IS running with 2.2 GB of
+    # models on disk, so something pulled them at some point. That contradicts
+    # ADR 0003's description of the current state rather than this decision.
+    # If local inference turns out to be wanted, `enabled: true` brings it back
+    # and the models re-download.
+    ollama:
+      enabled: false
