@@ -146,8 +146,25 @@ listens on `127.0.0.1` as a SOCKS proxy needs no capability whatsoever. Its own
 outbound connection goes to a server on a public address, which the policy
 already allows.
 
-Run the client in the pod — a static binary under `~/.local/bin` survives
-restarts, because `$HOME` is the volume — and point ssh at it:
+Run the client as a **native sidecar** — an `initContainer` with
+`restartPolicy: Always` — so it starts before the agent container and is torn
+down after it. `clusters/lab/agents/slot-3.yaml` is the worked example. The
+agent in that slot cannot reach its remote without the proxy, and a sidecar
+makes "the proxy is up first" a property of the platform rather than of
+remembering to start it.
+
+Two things the sidecar costs. Its requests are **added** to the pod's total
+rather than max()'d like an ordinary initContainer's, so `resourcequota.yaml`
+has to account for it or the pod is rejected at admission. And its config holds
+the server address and credentials, so it is entered by a person onto the volume
+and never committed — this repository is public.
+
+A static binary under `~/.local/bin` started by hand also works, and survives
+restarts because `$HOME` is the volume, but nothing restarts *it*: after any pod
+restart the remote stops resolving until someone notices. Fine for trying
+something out, not for a slot you rely on.
+
+Either way, point ssh at it:
 
 ```
 # ~/.ssh/config
@@ -155,7 +172,7 @@ Host gitlab.example.internal
     ProxyCommand nc -x 127.0.0.1:1080 %h %p
 ```
 
-`nc` is in the image for exactly this. For an HTTPS remote the equivalent is
+`nc` is in the agent image for exactly this. For an HTTPS remote the equivalent is
 `git config --global http.proxy socks5h://127.0.0.1:1080`.
 
 **Use `socks5h`, not `socks5`.** The `h` sends the *hostname* to the proxy
