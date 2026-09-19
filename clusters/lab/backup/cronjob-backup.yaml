@@ -4,10 +4,10 @@ metadata:
   name: backup
   namespace: backup
 spec:
-  # 02:00, an hour ahead of node01's 03:00 timer. Both machines write to the
-  # same bucket over the same domestic uplink, and while they are separate
-  # repositories they are not separate bandwidth. Moves to whenever suits once
-  # node01 is gone.
+  # 02:00, chosen when node01 still ran a 03:00 timer: both wrote to the same
+  # bucket over the same domestic uplink, and separate repositories are not
+  # separate bandwidth. node01 is off, so this is now free to move to whatever
+  # suits - it simply has not needed to.
   schedule: "0 2 * * *"
 
   # LOAD-BEARING, not hygiene. The driver names its temporary objects

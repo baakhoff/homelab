@@ -12,7 +12,7 @@ identifiers.
 | RAM | 16 GB |
 | Disk | 512 GB NVMe SSD (Micron 3400) |
 | NIC | Wi-Fi only — no built-in ethernet port |
-| Role | The cluster's first node: Ubuntu Server 24.04, k3s, Flux, the Incus workbench. The battery doubles as a built-in UPS |
+| Role | **Retired, powered off 2026-09-19.** Was the cluster's first node: Ubuntu Server 24.04, k3s, Flux, the Incus workbench, with the battery doubling as a built-in UPS. What it ran and how it was emptied: [the lab over time](history.md) |
 
 ## Raspberry Pi 3B+ — `exitnode`
 
