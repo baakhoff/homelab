@@ -41,6 +41,21 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log"]
     verbs: ["get", "list", "watch"]
+  # The preflight check reads the restic-repo Secret in the target's namespace
+  # before it takes a snapshot. Missing on 2026-09-19, which is worse than it
+  # sounds: `kubectl get secret` came back Forbidden, the check swallowed stderr,
+  # saw no output and reported "the Secret is missing" - for all three targets,
+  # while all three Secrets existed with all six keys. A check that cannot tell
+  # "absent" from "not allowed to look" sends you to fix the wrong thing.
+  #
+  # NOT an escalation. This ClusterRole already grants `create` on Jobs in these
+  # namespaces, and a Job is a pod spec that can mount any Secret in its own
+  # namespace - which is why the binding is per-namespace in the first place.
+  # Reading one directly is strictly less than what creating a Job already
+  # allows.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
 ---
 # One of these per namespace holding a backed-up volume. Adding a namespace to
 # the backup is this object, a copy of the restic-repo Secret, and one entry in
