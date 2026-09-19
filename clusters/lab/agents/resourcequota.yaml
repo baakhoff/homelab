@@ -6,14 +6,20 @@ metadata:
 spec:
   hard:
     # Raised from node01's numbers, which is what that copy's comment said to
-    # do once the three-node cluster existed.
+    # do once the three-node cluster existed. Raised again for eight pods when
+    # the general slots landed.
     #
-    # The arithmetic is deliberately six times the per-pod shape in
-    # homelab.yaml - 250m and 512Mi requested, 3Gi limit - so six projects can
-    # run at once and the quota is what stops a seventh, rather than a node
-    # quietly filling up.
+    # The arithmetic is deliberately EIGHT times the per-pod shape in
+    # homelab.yaml - 250m and 512Mi requested, 3Gi limit - so eight pods can run
+    # at once and the quota is what stops a ninth, rather than a node quietly
+    # filling up. There is no headroom in that on purpose: a pod that wants more
+    # than the per-pod shape should have to come here and say so.
     #
-    # limits.memory exceeds what the nodes can actually back: 18Gi across three
+    # requests.cpu was previously "3" against a stated six times 250m, which is
+    # 1.5 - the comment and the number disagreed. Corrected here rather than
+    # scaled up, so the arithmetic above is the arithmetic in the file.
+    #
+    # limits.memory exceeds what the nodes can actually back: 24Gi across three
     # machines that also carry etcd, the Ceph OSDs and the mons. That
     # overcommit is safe HERE and would not be anywhere else in this cluster,
     # because agent pods are the only workload at negative priority - under
@@ -27,7 +33,7 @@ spec:
     # rejected at admission rather than scheduled unbounded. limits.cpu is
     # deliberately absent so containers need no CPU limit: throttling an
     # agent's build causes more mystery latency than it prevents.
-    requests.cpu: "3"
-    requests.memory: 3Gi
-    limits.memory: 18Gi
-    pods: "6"
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.memory: 24Gi
+    pods: "8"
