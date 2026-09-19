@@ -24,7 +24,17 @@ spec:
       interval: 10m
   install:
     remediation:
-      retries: 3
+      # TEMPORARILY 0, and it should go back to 3 once this install succeeds.
+      #
+      # Install remediation UNINSTALLS the release before retrying, which
+      # deletes every pod and therefore every log. With retries, a bootstrap Job
+      # that fails four times leaves four pods that no longer exist by the time
+      # you go looking - `pods "openbao-bootstrap-1-4qlq2" not found` is what
+      # that looks like, and it is indistinguishable from never having run.
+      #
+      # At 0, `remediateLastFailure` defaults to false, so a failed install is
+      # left standing and can be read.
+      retries: 0
     # 23 workloads, several of which wait on Postgres, NATS and the OpenBao
     # bootstrap Job before they report ready. The 5m default expires while a
     # healthy stack is still coming up, and a timed-out install rolls back -
@@ -137,6 +147,29 @@ spec:
       podAnnotations: true
       podMonitor:
         enabled: true
+
+    # ── MinIO images come from quay.io, not Docker Hub ───────────────────────
+    # The chart's pinned tags are GONE from Docker Hub - both
+    # `minio/minio:RELEASE.2025-04-22T22-12-26Z` and
+    # `minio/mc:RELEASE.2025-04-16T18-13-26Z` return "object not found" from the
+    # registry API, and listing that repository's tags returns nothing at all.
+    # That is what ImagePullBackOff on minio-0 and ErrImagePull on the init Job
+    # were.
+    #
+    # Both tags still exist on quay.io as multi-architecture manifest lists,
+    # published the same days. Same releases, different registry.
+    #
+    # Worth noting why node01 is unaffected and therefore no warning: it pulled
+    # those images while the tags were still on Docker Hub and has held them in
+    # its local store since. A running container is not evidence that its image
+    # can still be fetched.
+    minio:
+      image:
+        repository: quay.io/minio/minio
+      # Versioned separately from the server - the tags deliberately do not
+      # match, so these are two independent pins and both had to move.
+      initImage:
+        repository: quay.io/minio/mc
 
     # ── Inference: hosted, not local ─────────────────────────────────────────
     # THE DELIBERATE BEHAVIOUR CHANGE FROM NODE01, and it is bigger than it
