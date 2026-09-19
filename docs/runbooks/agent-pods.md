@@ -133,6 +133,40 @@ Open claude.ai/code or the app: the session is listed under the project name
 with a green dot. For permission prompts on your phone, run `/config` in a
 session and enable "Push when actions required".
 
+## A remote that is only reachable through a proxy
+
+Some remotes are not on the public internet — a corporate GitLab behind a VPN,
+say. A pod cannot reach those directly and should not be able to: it has no LAN
+and no tailnet by policy, and that boundary is the reason an agent is safe to run
+here at all. Relaxing the NetworkPolicy is the wrong fix.
+
+A **userspace** proxy is the right one. A tunnel that needs a tun device also
+needs `NET_ADMIN`, which these pods do not have and should not get; a client that
+listens on `127.0.0.1` as a SOCKS proxy needs no capability whatsoever. Its own
+outbound connection goes to a server on a public address, which the policy
+already allows.
+
+Run the client in the pod — a static binary under `~/.local/bin` survives
+restarts, because `$HOME` is the volume — and point ssh at it:
+
+```
+# ~/.ssh/config
+Host gitlab.example.internal
+    ProxyCommand nc -x 127.0.0.1:1080 %h %p
+```
+
+`nc` is in the image for exactly this. For an HTTPS remote the equivalent is
+`git config --global http.proxy socks5h://127.0.0.1:1080`.
+
+**Use `socks5h`, not `socks5`.** The `h` sends the *hostname* to the proxy
+instead of resolving it locally. Without it, git resolves an internal-only name
+inside the pod, gets `NXDOMAIN` or a private address the policy blocks, and fails
+before the tunnel is used at all. The `nc -x` form above has the same property:
+`%h` is passed through, and the far side resolves it.
+
+The proxy's own config carries credentials, so it belongs on the volume, entered
+by a person — not in this repository, which is public.
+
 ## Park and wake
 
 ```bash

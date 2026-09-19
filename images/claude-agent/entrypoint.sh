@@ -42,7 +42,14 @@ fi
 # them at all.
 work="$HOME/work/$PROJECT"
 
-if [ -n "${REPO_URL:-}" ] && [ ! -d "$work/.git" ]; then
+if [ -z "${REPO_URL:-}" ]; then
+  # Say which mode this is, because the log is the only place it shows. Dropped
+  # by accident when the working directory moved into $PROJECT, and missed
+  # immediately: with no startup line a slot's log opens on the bootstrap wait,
+  # and the only way left to ask what a running pod is doing was to read
+  # /proc/1/cwd.
+  echo "no REPO_URL: general slot, working in $work"
+elif [ ! -d "$work/.git" ]; then
   if [ -d "$work" ] && [ -n "$(ls -A "$work" 2>/dev/null)" ]; then
     # Refuse rather than clone over it. This is the path a slot takes when it
     # is PROMOTED to a project by gaining a REPO_URL, and by then the directory
