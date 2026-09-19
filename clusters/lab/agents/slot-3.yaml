@@ -47,6 +47,50 @@ spec:
         app.kubernetes.io/part-of: agents
     spec:
       priorityClassName: agents
+      # A NATIVE SIDECAR - an initContainer with restartPolicy: Always - not an
+      # ordinary container. The difference is ordering: this one is started and
+      # ready BEFORE the agent container starts, and is torn down after it
+      # stops. The agent in this slot cannot reach its remote without the proxy,
+      # so "the proxy is up first" is a property worth having from the platform
+      # rather than from remembering.
+      #
+      # WHY A PROXY AT ALL: this slot's remote is a corporate GitLab that is not
+      # on the public internet. The pod has no LAN and no tailnet by policy, and
+      # that boundary is why an agent is safe to run here - see
+      # networkpolicy.yaml. A userspace SOCKS client does not touch it: it needs
+      # no capability, and its own outbound connection goes to a server on a
+      # public address the policy already allows. ssh reaches it with
+      # `ProxyCommand nc -x 127.0.0.1:1080 %h %p` in ~/.ssh/config, so ONLY that
+      # one host is proxied and nothing else in the pod is affected.
+      initContainers:
+        - name: xray
+          restartPolicy: Always
+          image: ghcr.io/xtls/xray-core:26.3.27
+          # IfNotPresent here, unlike the agent container's Always, and the
+          # difference is not an oversight: this tag is an upstream VERSION and
+          # is immutable, so a cached copy is the same bytes forever. The agent
+          # image's tag is mutable - it is the Claude Code version, rebuilt in
+          # place when the entrypoint changes - which is why that one must
+          # always re-pull.
+          imagePullPolicy: IfNotPresent
+          # The image's own command reads a config directory; point it at the
+          # single file on the volume instead. The config holds the server
+          # address and credentials, so it is entered by a person into the
+          # volume and is NOT in this repository, which is public.
+          args: ["run", "-c", "/home/node/.config/xray/config.json"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: home
+              mountPath: /home/node
       automountServiceAccountToken: false
       hostUsers: false
       securityContext:
