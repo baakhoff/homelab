@@ -22,6 +22,13 @@ set -euo pipefail
 : "${PROJECT:?PROJECT must be set}"
 : "${CLAUDE_CONFIG_DIR:?CLAUDE_CONFIG_DIR must be set}"
 
+# PROJECT names a directory under ~/work and is used to clean up after a failed
+# clone, so it has to be a plain name. Rejected here rather than assumed safe
+# further down, where the check would be a comment instead of a check.
+case "$PROJECT" in
+  */* | .*) echo "PROJECT must be a plain name, got '$PROJECT'" >&2; exit 1 ;;
+esac
+
 mkdir -p "$HOME/work" "$CLAUDE_CONFIG_DIR"
 
 if [ -n "${GH_TOKEN:-}" ]; then
@@ -32,7 +39,23 @@ if [ -n "${REPO_URL:-}" ]; then
   work="$HOME/work/$PROJECT"
   if [ ! -d "$work/.git" ]; then
     echo "first start: cloning $REPO_URL into $work"
-    git clone "$REPO_URL" "$work"
+    # A failed clone must not kill the pod. Under `set -e` it would, and the
+    # pod would CrashLoopBackOff on the one thing you cannot fix from outside:
+    # the bootstrap below is interactive and needs a running container to
+    # `kubectl exec` into. A private repo with no GH_TOKEN fails exactly here,
+    # and the fix - `gh auth login` inside the pod - is unreachable if the pod
+    # is not up. So warn, fall back, and retry on the next restart.
+    if ! git clone "$REPO_URL" "$work"; then
+      echo "clone FAILED: $REPO_URL"
+      echo "  the pod stays up so you can fix it. Most likely the repo is"
+      echo "  private and this pod has no credentials: exec in, run"
+      echo "  'gh auth login', then restart the pod and the clone is retried."
+      # Clear the half-written directory so the retry is not refused with
+      # "already exists and is not an empty directory". Safe because PROJECT is
+      # a validated plain name, so $work is exactly one level under ~/work.
+      rm -rf -- "$work"
+      work="$HOME/work"
+    fi
   fi
 else
   # No repo pinned: the slot starts in the parent directory and whatever is
