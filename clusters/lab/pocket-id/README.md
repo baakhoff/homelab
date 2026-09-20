@@ -59,6 +59,7 @@ setting them as an env var would do nothing.
 | Client | Where | Role mapping |
 |---|---|---|
 | Grafana | `auth.generic_oauth` in `clusters/lab/monitoring/helmrelease.yaml`; id and secret in `grafana-oidc.sops.yaml` beside it | members of the Pocket ID group `grafana-admins` are org Admins, everyone else Viewer, re-evaluated at every login |
+| Headlamp | `config.oidc` in `clusters/lab/headlamp/helmrelease.yaml`; id and secret in `headlamp-oidc.sops.yaml`; the apiserver side in `hosts/nodes/k3s-config.yaml` | the Pocket ID group `headlamp-users` maps to `oidc:headlamp-users`, bound read-only in `clusters/lab/headlamp/rbac.yaml`; anyone outside it logs in and sees nothing |
 | oauth2-proxy | `clusters/lab/oauth2-proxy/`; gates Homepage, Prometheus and Alertmanager through ingress-nginx `auth-url` annotations | yes/no only: anyone the client admits. Restrict on the client's *Allowed User Groups* tab in Pocket ID |
 
 **Not behind it, on purpose: Vaultwarden.** The vault holds the passkeys. An
@@ -69,9 +70,6 @@ Each client is created in Pocket ID's admin UI first, because the client secret
 has to exist before the manifest that references it can. The callback URL for
 Grafana is `https://grafana.lab.baakhoff.com/login/generic_oauth`.
 
-Still to do: **Headlamp**, which replaces pasting a ServiceAccount token. Native
-OIDC in the chart, but the *cluster* has to trust the issuer too: OIDC flags on
-the k3s apiserver on all three nodes, which is a node-side change outside GitOps.
 
 ## Backup — not yet, and in this order
 

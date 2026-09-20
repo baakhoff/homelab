@@ -1,0 +1,23 @@
+apiVersion: v1
+data:
+    OIDC_CLIENT_ID: ENC[AES256_GCM,data:hybMCY/IjPpmo+GHan6foGoFAZ6x+GAZuclugcfrGmqXToVoBvm//LnYhiKnFaqI,iv:w3zD7TDAov6zjkiZc0jMNhT0j6YRdQbwLAz0kSoapck=,tag:XIiIjHZdqY4Bp1pp3eumbQ==,type:str]
+    OIDC_CLIENT_SECRET: ENC[AES256_GCM,data:qZ+4PY13jomsnfiZViICPzI1Hfz31h3gvdN93OV9Ab24xmqKtVhhofVmF3U=,iv:+NYULWgz+y07Bz1JhjrhBwCeglbG63faeUPRR1vjG28=,tag:73SN6pFBl+zQ/CHP1lLdiQ==,type:str]
+kind: Secret
+metadata:
+    name: headlamp-oidc
+    namespace: headlamp
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBMZ3FtL3ByRU0wM2tBYkh4
+            TlF4a0FZd0o1b1RaTE9jNCttckpJMHJlQWpvClJ4dW9oLytrcmY3d3cxVlF0L1dM
+            Q0Y5aFdJUW9SU3g1ZlhRWUNBSFhUZGsKLS0tIEFYYU94TEdqZkRrQnN0dmlNazEv
+            ZTN4S2NqYi94VnF5OEdycUVIU2tEYkUKwMtuTnfINMWKfXIH+rf6pX5Gs9nz0BuF
+            vudc3Djd2Zj9izRothjPDOA1SDNK7HkjzNRg5k3LZtjIgUz0IV4ldQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-09-20T20:53:57Z"
+    mac: ENC[AES256_GCM,data:iuRlpRkhGALW1TrxFMLLn+OrTUD/OAH9FCldtMr6eRpcAJjM6ug0zWptpjWojbDyg70OF7wym6VHpvOtnSK/hNu4zTg2py6OjrHac2872/anjwNHl7HVYOHGWWtnoYA4NHDO42JO7HOuSzMhDpzavcB/Id8McPsbKLWH0nu/uLM=,iv:F2xn0DPEWBFwKSH69Ym2zpJjEGaHHyA6/t2TZ/yR9S4=,tag:fnU4cSNzE0GlzTCyOVhrbA==,type:str]
+    version: 3.13.3
