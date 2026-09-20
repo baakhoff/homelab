@@ -1,0 +1,99 @@
+# Alerting on the certificate machinery itself.
+#
+# cert-manager renews at two thirds of a certificate's lifetime, so the lab
+# wildcard is quietly rewritten around day 60 of its 90 with no human in the
+# loop. That silence is exactly the risk: when renewal starts FAILING there is
+# nothing to notice, and the first symptom is every service in the lab going
+# untrusted on the same morning, a month later.
+#
+# Three rules, layered by how much time is left to act rather than by how
+# alarming they sound. The first is the one that matters - it fires within an
+# hour of renewal breaking, roughly thirty days before anyone would feel it.
+# The other two are the backstop for the case where cert-manager is not
+# failing but simply not running, and they are mutually exclusive by
+# construction so one certificate never raises both.
+#
+# Note what is deliberately NOT here: an alert for "cert-manager is down".
+# Enabling its ServiceMonitor registers cert-manager as a scrape target, and
+# the stack's own TargetDown rule already covers any job whose targets stop
+# answering. Writing our own would duplicate it and drift from it.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cert-manager
+  namespace: monitoring
+spec:
+  groups:
+    - name: cert-manager
+      rules:
+        # The early warning, and the reason this file exists.
+        #
+        # cert-manager keeps a Certificate Ready while it renews in the
+        # background, so Ready=False on a certificate that already exists
+        # means issuance is genuinely broken - a revoked Cloudflare token, a
+        # DNS-01 propagation failure, an ACME rate limit - while the old
+        # certificate is still valid and still being served. That gap is the
+        # whole value here: about thirty days of warning, which is enough to
+        # fix it without hurrying.
+        #
+        # for: 1h because a NEW certificate is legitimately not ready for the
+        # few minutes DNS-01 takes to propagate, and that is not news.
+        - alert: CertManagerCertificateNotReady
+          expr: certmanager_certificate_ready_status{condition="True"} == 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready"
+            description: >-
+              cert-manager cannot issue or renew this certificate. The
+              certificate currently being served is still valid, so nothing is
+              broken yet - but it will not be replaced. Check the Certificate,
+              CertificateRequest and Order objects in that namespace, then the
+              cert-manager controller log.
+
+        # Backstop for the rule above failing to fire: cert-manager not
+        # running at all, the Certificate object deleted, a renewal that was
+        # simply never scheduled. This asks nothing about WHY - only how much
+        # validity is left.
+        #
+        # Twenty-one days lands deliberately ahead of Let's Encrypt's own
+        # expiry email at twenty days, so the lab tells you before your inbox
+        # does, and comfortably after the day-thirty renewal so a healthy
+        # renewal never trips it.
+        - alert: CertManagerCertificateExpiringSoon
+          expr: |-
+            (certmanager_certificate_expiration_timestamp_seconds - time() < 21 * 24 * 3600)
+              and
+            (certmanager_certificate_expiration_timestamp_seconds - time() >= 7 * 24 * 3600)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in {{ $value | humanizeDuration }}"
+            description: >-
+              Renewal was due around day thirty of this certificate's life and
+              has not happened. Investigate while there is still slack.
+
+        # Same measurement, shorter fuse. severity critical routes to the
+        # Alertmanager branch that re-notifies hourly instead of twice a day,
+        # which is the right level of nagging for "the lab breaks this week".
+        #
+        # The `and` in the rule above makes these two mutually exclusive, so a
+        # certificate never produces both messages. That has to be done
+        # explicitly: the inhibit rule that normally suppresses a warning
+        # underneath a critical matches on alertname, and these two differ.
+        #
+        # No lower bound on purpose - once the certificate has expired the
+        # value goes negative and this keeps firing, which is correct.
+        - alert: CertManagerCertificateExpiryImminent
+          expr: certmanager_certificate_expiration_timestamp_seconds - time() < 7 * 24 * 3600
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in {{ $value | humanizeDuration }}"
+            description: >-
+              Automatic renewal has not worked. Every service behind the lab
+              wildcard begins serving an expired certificate when this runs
+              out, and browsers will refuse it outright.
