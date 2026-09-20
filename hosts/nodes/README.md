@@ -12,6 +12,7 @@ How they got into service, and why each setting exists:
 | `99-lab.yaml` | `/etc/netplan/` | DHCP on the onboard NIC, identified by MAC so the router's reservation matches, and `optional` so boot never waits on an unplugged cable |
 | `99-disable-network-config.cfg` | `/etc/cloud/cloud.cfg.d/` | stops cloud-init reasserting its own network configuration — which, after an offline install, was none at all |
 | `00-hardening.conf` | `/etc/ssh/sshd_config.d/` | keys-only SSH, no root login. Named `00-` so it wins sshd's first-match rule against the image's own `50-cloud-init.conf` |
+| `99-inotify.conf` | `/etc/sysctl.d/` | raises the per-user inotify limits a k3s node exhausts; the symptom is "Too many open files" from anything that watches a directory |
 | `k3s-config.yaml` | `/etc/rancher/k3s/config.yaml` | the apiserver trusts Pocket ID as an OIDC issuer, which is what lets Headlamp log a person in. Merged with the flags the install line in the disaster-recovery runbook already passes; nothing there is repeated here |
 
 `00-hardening.conf` is byte-identical to the Pi's copy in
@@ -43,6 +44,15 @@ reach by key means fetching a keyboard.
 sudo install -m 0644 00-hardening.conf /etc/ssh/sshd_config.d/00-hardening.conf
 sudo sshd -t && sudo systemctl reload ssh
 ```
+
+### inotify limits, added later
+
+```
+sudo install -m 0644 99-inotify.conf /etc/sysctl.d/99-inotify.conf
+sudo sysctl --system | grep inotify
+```
+
+Takes effect immediately and on every boot; no restart of anything.
 
 ### k3s OIDC, added later
 
