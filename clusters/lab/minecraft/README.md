@@ -14,7 +14,12 @@ house and from the tailnet, and from nowhere else.
 No Ingress, because Minecraft is not HTTP. No Secret, because the only credential
 the server has — its RCON password — is generated at each start and never leaves
 the pod. The Homepage tile is a hand-written entry in the Homepage ConfigMap,
-since with no Ingress there is nothing for annotation discovery to find.
+since with no Ingress there is nothing for annotation discovery to find. It
+carries the one widget on that page that needs no API key: a server-list ping
+that shows whether the server is up, who is on, and which Minecraft version the
+world is running - the number that matters when reading the paragraph on
+restarts below. Editing that ConfigMap needs a Homepage restart to show, for the
+reason given in the Homepage Deployment.
 
 ## Reaching it
 
