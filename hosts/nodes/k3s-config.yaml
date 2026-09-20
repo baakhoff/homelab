@@ -1,0 +1,30 @@
+# /etc/rancher/k3s/config.yaml on node02, node03 and node04. k3s merges this
+# with the command-line flags the install line passed (see A3 in the
+# disaster-recovery runbook); only what is NOT on that line belongs here.
+#
+# The apiserver trusts Pocket ID as an OpenID Connect issuer. A bearer token
+# signed by it is accepted as user `oidc:<email>` in groups `oidc:<group>` -
+# the prefixes are what stop an IdP group from ever spelling a built-in one
+# like system:masters. Which of those users and groups can do anything is
+# RBAC, in clusters/lab/headlamp/rbac.yaml; this file only makes them exist.
+#
+# The client id is Headlamp's, and it is not a secret: it appears in every
+# login redirect a browser makes. The apiserver checks that a token was issued
+# FOR this client (the `aud` claim), so a token minted for Grafana or for
+# oauth2-proxy is refused here even though the issuer is the same.
+#
+# The apiserver fetches the issuer's discovery document and signing keys over
+# HTTPS at start-up and on key rotation, from the node's own network - i.e.
+# through the public name, ServiceLB and ingress-nginx like any browser. If
+# Pocket ID is unreachable when k3s starts, OIDC logins fail until it is; the
+# kubeconfig, ServiceAccount tokens and everything else are unaffected.
+#
+# The two prefix lines are quoted because they end in a colon, which YAML
+# would otherwise read as a mapping key. k3s would then see the wrong flag.
+kube-apiserver-arg:
+  - oidc-issuer-url=https://id.lab.baakhoff.com
+  - oidc-client-id=REPLACE-WITH-HEADLAMP-CLIENT-ID
+  - oidc-username-claim=email
+  - "oidc-username-prefix=oidc:"
+  - oidc-groups-claim=groups
+  - "oidc-groups-prefix=oidc:"

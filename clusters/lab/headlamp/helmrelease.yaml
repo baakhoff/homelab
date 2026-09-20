@@ -55,6 +55,39 @@ spec:
       # screen asking for a token is the proof, not this line.
       unsafeUseServiceAccountToken: false
 
+      # Sign in with a passkey via Pocket ID instead of pasting a token.
+      # Headlamp does the code exchange itself and then sends the ID token
+      # to the apiserver as a bearer token - so the CLUSTER has to trust the
+      # issuer too, which is the kube-apiserver-arg block in
+      # hosts/nodes/k3s-config.yaml, installed by hand on all three nodes.
+      # Without that half every login succeeds at Headlamp and fails at the
+      # first API call with 401.
+      #
+      # Two halves of the configuration by design: the client id and secret
+      # come from headlamp-oidc.sops.yaml beside this file (externalSecret),
+      # everything that is not a secret is plain env below. The chart builds
+      # its -oidc-* flags from $(VAR) references, so both roads land in the
+      # same place. hasScopes is what makes it emit -oidc-scopes at all.
+      oidc:
+        secret:
+          create: false
+        externalSecret:
+          enabled: true
+          name: headlamp-oidc
+          hasScopes: true
+
+    env:
+      - name: OIDC_ISSUER_URL
+        value: https://id.lab.baakhoff.com
+      # `groups` is what the RBAC in rbac.yaml keys on; without the scope the
+      # claim is absent and a logged-in user can see nothing.
+      - name: OIDC_SCOPES
+        value: openid email profile groups
+      - name: OIDC_CALLBACK_URL
+        value: https://headlamp.lab.baakhoff.com/oidc-callback
+      - name: OIDC_USE_PKCE
+        value: "true"
+
     # Small Go backend serving a static frontend; it holds no data and does no
     # work between requests. Memory limit to enforce, no cpu limit - throttling
     # causes more mystery latency than it prevents.
