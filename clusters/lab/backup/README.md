@@ -33,8 +33,8 @@ Vaultwarden moved here and needed no special handling.
 
 **It is a separate repository.** Same bucket, its own prefix, its own password
 and its own retention. node01's repository is a frozen archive now that the
-machine is off — nothing writes to it, and its password has to outlive the
-laptop for it to stay readable.
+machine is wiped — nothing writes to it, nothing else holds what it holds, and
+its password is what keeps it readable.
 
 ## How it works
 
