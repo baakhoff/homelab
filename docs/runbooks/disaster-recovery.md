@@ -199,6 +199,16 @@ Ceph first, in practice: nothing with a PVC starts until `ceph-block` exists and
 an OSD is up on each node. `kubectl -n rook-ceph get cephcluster` reaching
 `HEALTH_OK` is the gate everything else waits behind.
 
+Monitoring second, and two releases wait for it without saying so. cert-manager
+and the snapshot controller each render a ServiceMonitor, a kind that only
+kube-prometheus-stack installs, and Helm refuses a whole release over one
+unknown kind. Both have their install remediation set to retry forever for this
+reason, so on a bare bootstrap expect them to sit failed and retrying until
+Prometheus's CRDs exist — that is the plan working, not a fault, and it clears
+on its own. Rook takes the same wait differently: its operator logs the missing
+kind and carries on, so Ceph itself is never held up, and `PrometheusJobMissing`
+fires from the moment Prometheus is up until Ceph's ServiceMonitors appear.
+
 ### A6. Re-create the restic Secret
 
 Not in git, and needed in `backup` plus every namespace named in
