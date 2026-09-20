@@ -12,6 +12,7 @@ How they got into service, and why each setting exists:
 | `99-lab.yaml` | `/etc/netplan/` | DHCP on the onboard NIC, identified by MAC so the router's reservation matches, and `optional` so boot never waits on an unplugged cable |
 | `99-disable-network-config.cfg` | `/etc/cloud/cloud.cfg.d/` | stops cloud-init reasserting its own network configuration — which, after an offline install, was none at all |
 | `00-hardening.conf` | `/etc/ssh/sshd_config.d/` | keys-only SSH, no root login. Named `00-` so it wins sshd's first-match rule against the image's own `50-cloud-init.conf` |
+| `k3s-config.yaml` | `/etc/rancher/k3s/config.yaml` | the apiserver trusts Pocket ID as an OIDC issuer, which is what lets Headlamp log a person in. Merged with the flags the install line in the disaster-recovery runbook already passes; nothing there is repeated here |
 
 `00-hardening.conf` is byte-identical to the Pi's copy in
 [`hosts/exitnode/`](../exitnode/). It is duplicated rather than referenced so
@@ -42,6 +43,28 @@ reach by key means fetching a keyboard.
 sudo install -m 0644 00-hardening.conf /etc/ssh/sshd_config.d/00-hardening.conf
 sudo sshd -t && sudo systemctl reload ssh
 ```
+
+### k3s OIDC, added later
+
+One file, and a restart of k3s on each node **one at a time**. The three are
+etcd members; restarting two at once loses quorum and the API with it.
+
+```
+sudo install -m 0644 k3s-config.yaml /etc/rancher/k3s/config.yaml
+sudo systemctl restart k3s
+```
+
+Then, from the workstation, wait for the node to be `Ready` again before the
+next one:
+
+```bash
+kubectl get nodes -w
+```
+
+Ten to twenty seconds of API unavailability per node is normal while the
+apiserver on it comes back; nothing running on the node restarts. The check
+that it took is the Headlamp login working — until all three are done, a login
+succeeds one time in three, which is the lopsided symptom to expect midway.
 
 ## Not files
 
