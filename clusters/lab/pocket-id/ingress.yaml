@@ -1,0 +1,39 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret. HTTPS is not a
+# nicety here: WebAuthn refuses to run outside a secure context, and passkeys
+# are the only way to log in to Pocket ID at all.
+#
+# Reachable by name the moment it is applied: `*.lab.baakhoff.com` already
+# resolves to all three nodes, so a new hostname needs no DNS work. Which
+# means /setup - the page that creates the FIRST admin - is open to the LAN
+# and the tailnet from the first ready pod until someone has been through it.
+# README.md says to do that immediately after merging, and why that is enough.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pocket-id
+  namespace: pocket-id
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Pocket ID
+    gethomepage.dev/group: Platform
+    gethomepage.dev/icon: pocket-id.png
+    gethomepage.dev/description: Sign-in for the lab
+    # Given explicitly because this Ingress carries no tls block, so Homepage
+    # would otherwise infer http:// and every click would take a 308.
+    gethomepage.dev/href: https://id.lab.baakhoff.com
+    # No pod-selector annotation: the Deployment labels its pods
+    # app.kubernetes.io/name=pocket-id, which is what Homepage infers from
+    # this Ingress's name.
+spec:
+  rules:
+    - host: id.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pocket-id
+                port:
+                  number: 80
