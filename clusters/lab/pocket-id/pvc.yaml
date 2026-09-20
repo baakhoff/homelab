@@ -1,0 +1,26 @@
+# Everything Pocket ID keeps: the SQLite database (users, passkeys, OIDC
+# clients, the audit log) and the uploads directory (logos, profile pictures).
+# The token signing keys live in the database too, encrypted with the key in
+# encryption-key.sops.yaml - so this volume plus that Secret is the whole
+# service, and either one without the other is nothing.
+#
+# 1Gi is generous. A household's worth of users and a few OIDC clients is
+# kilobytes; the audit log is the only thing that grows and it prunes itself
+# at 90 days. Thin-provisioned RBD and allowVolumeExpansion, as for
+# Vaultwarden, so this number is a ceiling that can be raised by editing it.
+#
+# NOT BACKED UP YET - see README.md for the three steps and their order. Same
+# position the Minecraft world is in, for the same reason: the Secret the
+# backup driver needs in this namespace cannot come from this repository.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pocket-id-data
+  namespace: pocket-id
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 1Gi
