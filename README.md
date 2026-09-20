@@ -40,7 +40,9 @@ Hardware that has left service is in [the lab over time](docs/history.md).
   here](docs/runbooks/node-bring-up.md)), and a Minecraft server for the
   household, the one thing on the cluster that reaches the LAN as raw TCP
   rather than through the ingress controller
-  ([how](clusters/lab/minecraft/README.md)). Nightly restic backup of its volumes
+  ([how](clusters/lab/minecraft/README.md)), and Pocket ID, a passkey-only
+  OpenID Connect provider that nothing consumes yet
+  ([how](clusters/lab/pocket-id/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
