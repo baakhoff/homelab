@@ -1,6 +1,17 @@
-# The identity a HUMAN logs in as, which is deliberately NOT the identity the
-# Headlamp pod runs as (that one is set by clusterRoleBinding.clusterRoleName in
-# helmrelease.yaml). Keeping them separate means the pod's permissions and the
+# The identities a HUMAN logs in as, which are deliberately NOT the identity
+# the Headlamp pod runs as (that one is set by clusterRoleBinding.clusterRoleName
+# in helmrelease.yaml). Two of them since Pocket ID: the group `headlamp-users`
+# in Pocket ID arrives at the apiserver as `oidc:headlamp-users` - the prefix
+# is set in hosts/nodes/k3s-config.yaml so an IdP group can never collide with
+# a built-in one like system:masters - and is bound to the same two roles as
+# the ServiceAccount below. The ServiceAccount stays as the break-glass token
+# login for the day Pocket ID is down.
+#
+# Read-only for the OIDC group too, and the argument below applies unchanged:
+# an ID token in a browser tab is a shorter-lived thing than a pasted
+# ServiceAccount token, but it is still a credential in a browser on whatever
+# machine is to hand, and the Secrets it must not read are the same Secrets.
+# Write access to this cluster is kubectl from the workstation, on purpose. Keeping them separate means the pod's permissions and the
 # operator's permissions can diverge without touching the chart - in particular
 # it leaves room to add a second, admin-scoped ServiceAccount later without
 # widening what a compromised pod could do.
@@ -42,6 +53,9 @@ subjects:
   - kind: ServiceAccount
     name: headlamp-user
     namespace: headlamp
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: oidc:headlamp-users
 ---
 # `view` is scoped to namespaced resources only: it grants NO access to nodes,
 # persistentvolumes, storageclasses or CRDs. Bound on its own it produces a UI
@@ -109,3 +123,6 @@ subjects:
   - kind: ServiceAccount
     name: headlamp-user
     namespace: headlamp
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: oidc:headlamp-users
