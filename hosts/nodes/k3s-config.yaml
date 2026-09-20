@@ -23,7 +23,7 @@
 # would otherwise read as a mapping key. k3s would then see the wrong flag.
 kube-apiserver-arg:
   - oidc-issuer-url=https://id.lab.baakhoff.com
-  - oidc-client-id=REPLACE-WITH-HEADLAMP-CLIENT-ID
+  - oidc-client-id=c87c18ea-606d-497c-9d67-4e2da61eddd4
   - oidc-username-claim=email
   - "oidc-username-prefix=oidc:"
   - oidc-groups-claim=groups
