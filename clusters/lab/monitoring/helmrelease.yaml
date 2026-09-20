@@ -337,6 +337,24 @@ spec:
       # the new pod sat in Init:0/1 until the old one was deleted by hand.
       # Vaultwarden, Pocket ID and Minecraft already make this choice for the
       # same reason; Grafana had simply been lucky with node placement.
+      #
+      # SWITCHING AN EXISTING DEPLOYMENT TO RECREATE THROUGH HELM FAILS, and
+      # it failed here four times before the reason was read. The chart
+      # renders only `type: Recreate`; the live object still carries the
+      # rollingUpdate.maxSurge/maxUnavailable the apiserver defaulted in at
+      # creation, and server-side apply leaves fields it does not own alone -
+      # so the result has both, which the apiserver rejects ("rollingUpdate:
+      # Forbidden: may not be specified when strategy type is Recreate").
+      # Flux then rolls back, retries, and stalls the release, taking every
+      # later value change with it. The one-time fix, done 2026-09-20:
+      #
+      #   kubectl -n monitoring patch deployment kube-prometheus-stack-grafana \
+      #     --type merge -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+      #   flux reconcile hr kube-prometheus-stack -n monitoring --reset
+      #
+      # Not needed on a fresh install, where the Deployment is created with
+      # Recreate from the start. Needed again only if this ever goes back to
+      # RollingUpdate and then to Recreate.
       deploymentStrategy:
         type: Recreate
       resources:
