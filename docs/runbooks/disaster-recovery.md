@@ -295,9 +295,10 @@ node01 ran the lab until its workloads moved to the three-node cluster; what it
 held and how it was emptied is in [the lab over time](../history.md).
 
 Its restic repository still exists in the bucket as a **frozen archive** with its
-own password. Nothing writes to it. It is the only copy of anything that existed
-only on that machine and was never carried across — so the password outliving
-the laptop is what keeps the archive readable rather than owned-and-unreadable.
+own password. Nothing writes to it. The machine was wiped on 2026-09-20, so this
+is the only copy of anything that existed only on it and was never carried
+across — the password is what keeps the archive readable rather than
+owned-and-unreadable, and there is no longer a disk to fall back on.
 
 Its manifests were deleted once the machine was off and its Flux suspended, so
 there was nothing live for `prune: true` to tear down.
