@@ -19,12 +19,15 @@ FROM node:22-bookworm-slim
 # CI workflow reads this line to tag the image, so the ARG line must keep this
 # exact shape.
 ARG CLAUDE_CODE_VERSION=2.1.278
+ARG GH_VERSION=2.101.0
 ARG GLAB_VERSION=1.118.0
 
 # The toolchain an agent can use inside its pod. Kept general on purpose: a
 # project that needs more (a database client, another language) gets its own
 # image FROM this one, rather than this list growing for everybody.
-#   git, gh         - clone, commit, PRs (gh needs GH_TOKEN; see entrypoint.sh)
+#   git             - clone, commit, branch. gh is deliberately NOT in this
+#                     list; it comes from upstream below, for the reason
+#                     written there
 #   glab            - the same for GitLab. Two slots talk to corporate GitLab
 #                     instances, and both had it installed by hand into
 #                     ~/.local/bin before this - which works and is lost the
@@ -40,7 +43,7 @@ ARG GLAB_VERSION=1.118.0
 #   procps, less, jq, curl, unzip - an agent inspects its own environment
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      ca-certificates curl git gh openssh-client netcat-openbsd \
+      ca-certificates curl git openssh-client netcat-openbsd \
       python3 python3-venv build-essential \
       procps less jq unzip \
  && rm -rf /var/lib/apt/lists/*
@@ -48,6 +51,32 @@ RUN apt-get update \
 # uv: the Python package manager the Python projects use. Copied from its own
 # image so the version is pinned here and Renovate bumps it like any other.
 COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /uvx /usr/local/bin/
+
+# gh from the project's own release, NOT from Debian. bookworm ships 2.23.0 -
+# February 2023 - and a CLI that old does not merely lack features, it makes
+# calls the API has since retired. `gh pr edit` is the one that has already cost
+# this repo: it fails with "Projects (classic) is being deprecated ...
+# repository.pullRequest.projectCards", a field gh asks for and GitHub no longer
+# serves. That happened on 2026-09-20 editing PR #98, and the bad half is that
+# it left the title and body silently unchanged. Upstream was on 2.101.0 that
+# same day, three and a half years ahead of what the image carried.
+#
+# Pinned here and bumped by Renovate (github-releases datasource, regex manager
+# in renovate.json5) rather than taken from GitHub's own apt repository, which
+# would float. This image pins everything else for the reason renovate.json5
+# opens with: an unpinned package is a version that changes with no commit
+# behind it, which is the thing GitOps exists to prevent.
+#
+# The tarball unpacks under a version-named directory, unlike glab's, so the
+# path carries ${GH_VERSION} twice. `gh --version` at the end is the same guard
+# as glab's below.
+RUN set -eux; \
+    curl -fsSL -o /tmp/gh.tar.gz \
+      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz"; \
+    tar -xzf /tmp/gh.tar.gz -C /tmp "gh_${GH_VERSION}_linux_amd64/bin/gh"; \
+    install -m 0755 "/tmp/gh_${GH_VERSION}_linux_amd64/bin/gh" /usr/local/bin/gh; \
+    rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_amd64"; \
+    gh --version
 
 # glab is not in Debian and publishes no apt repository, so it comes from the
 # project's own generic package registry. `%2F` in the project path is required
