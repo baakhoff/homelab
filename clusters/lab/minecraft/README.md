@@ -55,6 +55,25 @@ kubectl -n minecraft exec deploy/minecraft -- rcon-cli say saving in a minute
 `rcon-cli` reads the generated password from the running container, which is
 why nothing needs to be looked up.
 
+**The same console from a browser is Headlamp**, at
+[headlamp.lab.baakhoff.com](https://headlamp.lab.baakhoff.com): open the
+`minecraft` pod, its *Logs* tab is the live server log, and *Terminal* is a
+shell in the container where `rcon-cli` on its own drops into the interactive
+console. Sign in with a token that carries exec rights — the one your
+kubeconfig uses — since Headlamp's own ServiceAccount is bound to `view` and
+deliberately cannot exec.
+
+That is the admin page, by decision rather than by omission. The web console
+usually reached for here, rcon-web-admin, has had no commit since June 2020,
+ships on a Node 12 base that went end-of-life in 2022, and runs as root; a
+dead process with a login page is the wrong thing to add to a repo that pins
+and bumps everything else. The full panels — Crafty, Pterodactyl, PufferPanel
+— want to own the Java process and would replace this Deployment rather than
+sit beside it. Headlamp already exists, is maintained, and gates the console
+on cluster auth rather than on a second password. If scheduled restarts or an
+in-browser file editor ever become wanted, Crafty is the path, and the world
+volume moves across as is.
+
 **A restart is a version change.** `VERSION: LATEST` is resolved when the
 container starts, so any restart — an image bump merged from Renovate, a node
 drain, a crash — may bring the world up on a newer Minecraft. That upgrade is
