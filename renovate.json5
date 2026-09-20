@@ -116,6 +116,18 @@
       datasourceTemplate: "npm",
     },
     {
+      // Same shape as glab's below, different datasource - and the reason the
+      // pin exists at all is in the Dockerfile block this matches: the Debian
+      // package was three and a half years stale and broke `gh pr edit`.
+      customType: "regex",
+      description: "gh CLI version pinned in the agent image",
+      managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],
+      matchStrings: ["ARG GH_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "cli/cli",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v(?<version>.*)$",
+    },
+    {
       customType: "regex",
       description: "glab CLI version pinned in the agent image",
       managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],
