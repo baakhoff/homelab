@@ -1,7 +1,8 @@
 # claude-agent image
 
 The container image for the agent pods in `clusters/lab/agents/`: Node, the
-Claude Code CLI at a pinned version, git with `gh` and `glab`, Python with `uv`, and an
+Claude Code CLI at a pinned version, git with `gh` and `glab` — both pinned too, and
+both from their own releases rather than from Debian — Python with `uv`, and an
 entrypoint that runs `claude remote-control` — in a project it clones, or in an
 empty directory you clone into yourself. What the pods are and how one is
 bootstrapped: [the runbook](../../docs/runbooks/agent-pods.md).
@@ -52,6 +53,12 @@ So that updates flow through Renovate in two ordinary PRs:
 The trade, worth knowing: the tag is **mutable**. A change here without a
 version bump rebuilds the same tag, and there is not always a version to bump
 to — the pinned one may already be the newest release.
+
+`gh` and `glab` are the routine case of that. Renovate watches both and bumps
+them on their own schedules, and neither touches `ARG CLAUDE_CODE_VERSION` — so
+those PRs republish the same tag with a different image behind it. Nothing picks
+that up until the pods restart, which is the cost of tagging by CLI version and
+is why the pull policy below matters.
 
 `imagePullPolicy: IfNotPresent` is the wrong pull policy for a mutable tag, and
 this is not fixed by restarting the pod. `IfNotPresent` keys on the tag: if the
