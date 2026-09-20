@@ -142,6 +142,7 @@ desk, from a phone on mobile data, and from anywhere on the tailnet:
 | `node02.lab` | `192.168.68.102` |
 | `node03.lab` | `192.168.68.103` |
 | `node04.lab` | `192.168.68.104` |
+| `mc.lab` | `192.168.68.102` — the Minecraft server, which every node answers for; [why one node](../clusters/lab/minecraft/README.md#reaching-it) |
 
 Machines on the tailnet have MagicDNS names already and do not need records.
 

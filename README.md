@@ -37,7 +37,10 @@ Hardware that has left service is in [the lab over time](docs/history.md).
   ([ADR 0007](docs/decisions/0007-epicurus-rebuilt-on-kubernetes.md)), and the
   agent pods: Claude Code Remote Control servers on volumes that follow the pod
   between nodes ([how](docs/runbooks/agent-pods.md), [how the nodes got
-  here](docs/runbooks/node-bring-up.md)). Nightly restic backup of its volumes
+  here](docs/runbooks/node-bring-up.md)), and a Minecraft server for the
+  household, the one thing on the cluster that reaches the LAN as raw TCP
+  rather than through the ingress controller
+  ([how](clusters/lab/minecraft/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)

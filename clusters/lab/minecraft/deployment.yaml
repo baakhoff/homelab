@@ -1,0 +1,153 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minecraft
+  namespace: minecraft
+spec:
+  # One replica, and not a capacity decision: a Minecraft server owns its world
+  # directory exclusively, and two processes on one world is corruption, not
+  # scale. Same shape as Vaultwarden's single SQLite file.
+  replicas: 1
+  # Recreate for the same two reasons Vaultwarden gives. RollingUpdate would
+  # start the new server before the old one had saved and quit, briefly running
+  # two JVMs against one world; and a ReadWriteOnce RBD image is mapped by one
+  # node at a time, so a replacement pod on another node would hang in
+  # ContainerCreating waiting for a volume its predecessor still holds.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: minecraft
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: minecraft
+    spec:
+      # The image's own SIGTERM handler issues `stop` over RCON and waits
+      # STOP_DURATION (default 60s) for the server to save every chunk and
+      # exit. The grace period has to be longer than that, or the kubelet
+      # SIGKILLs a server mid-save and the next start replays a world that
+      # is a few seconds behind what the players last saw.
+      terminationGracePeriodSeconds: 90
+      securityContext:
+        # The image normally starts as root, chowns /data and steps down to
+        # uid 1000. Started AS 1000 it skips the step-down and just runs, which
+        # is the documented non-root mode; fsGroup is what makes the fresh
+        # volume writable to it, exactly as for Vaultwarden.
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: minecraft
+          # Pinned to the image's calendar release with the Java suffix spelled
+          # out, so Renovate offers the bump and keeps the suffix. Java 21 is
+          # what current Minecraft requires; the plain `java21` tag would float.
+          image: itzg/minecraft-server:2026.9.1-java21
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Required by the image; without it the container prints the EULA
+            # URL and exits. Setting it here is accepting Mojang's EULA on
+            # behalf of this server.
+            - name: EULA
+              value: "TRUE"
+            - name: TYPE
+              value: VANILLA
+            # THE ONE UNPINNED VERSION IN THIS REPO, and deliberately. The
+            # clients are launchers that update themselves to the newest
+            # release the day it ships, and a vanilla server refuses a client
+            # newer than itself - so a pinned server is one that locks the
+            # household out on a schedule Mojang sets. LATEST resolves at
+            # container start, which means a Minecraft upgrade happens on the
+            # next pod restart: an image bump, a node drain, a crash. That
+            # upgrade is one-way for the world. The nightly snapshot backup is
+            # what makes it acceptable; until that is wired (see README.md)
+            # treat a restart as a version change and know it.
+            - name: VERSION
+              value: LATEST
+            # JVM heap, min and max together. 3G is comfortable for a handful of
+            # players in a vanilla world; the container limit below is higher
+            # because the JVM's total footprint - metaspace, threads, direct
+            # buffers, the GC's own bookkeeping - sits well above the heap.
+            # Setting the limit equal to the heap is how you get OOMKilled with
+            # a healthy-looking heap graph.
+            - name: MEMORY
+              value: 3G
+            # Aikar's flags: the widely-used G1 tuning for Minecraft servers,
+            # shipped by the image as a switch. Fewer, shorter GC pauses than
+            # the JVM's defaults for this allocation pattern.
+            - name: USE_AIKAR_FLAGS
+              value: "true"
+            - name: MOTD
+              value: the lab
+            - name: MAX_PLAYERS
+              value: "8"
+            - name: DIFFICULTY
+              value: normal
+            # Mojang authentication stays ON even though nothing outside the
+            # house can reach this. Online mode is what binds a player to their
+            # account, skin and inventory; turning it off means anyone who
+            # types your username is you, and the LAN has phones on it.
+            # (ONLINE_MODE defaults to true; stated so the decision is in git.)
+            - name: ONLINE_MODE
+              value: "true"
+            # RCON stays enabled - the image needs it for the graceful stop
+            # above - but its password is left unset, which the image treats as
+            # "generate a random one at each start". Nothing else uses it, and
+            # the Service below does not expose the port, so an admin console
+            # is `kubectl exec ... rcon-cli` and nothing else. README.md.
+            - name: SNOOPER_ENABLED
+              value: "false"
+          ports:
+            - name: minecraft
+              containerPort: 25565
+              protocol: TCP
+          # mc-health ships in the image and does a real server-list ping
+          # against the running server, which is the same thing a client does
+          # before it shows the server as reachable. A TCP probe would report
+          # ready while the world is still generating.
+          #
+          # First start downloads the server jar and generates the spawn
+          # chunks; a few minutes is normal. The startup probe absorbs that so
+          # the liveness probe can be strict once the server is up.
+          startupProbe:
+            exec:
+              command: [mc-health]
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: [mc-health]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [mc-health]
+            periodSeconds: 30
+            failureThreshold: 3
+          # No CPU limit, for the reason the agent quota gives: Minecraft's
+          # tick loop is one thread, and throttling it turns into rubber-banding
+          # rather than into anything visible on a graph. One core requested so
+          # the scheduler puts it somewhere that has one.
+          #
+          # Default priority, which on this cluster is HIGHER than the agent
+          # pods' negative class. Under memory pressure the kubelet evicts an
+          # agent before it evicts the world server - the ordering you want
+          # when someone is mid-game.
+          resources:
+            requests:
+              cpu: "1"
+              memory: 3584Mi
+            limits:
+              memory: 5Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minecraft-data
