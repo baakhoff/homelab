@@ -11,11 +11,19 @@
 #
 # Deliberately carries NO gethomepage.dev annotations. Discovery would happily
 # pick this Ingress up and put a link to the dashboard on the dashboard.
+#
+# Behind Pocket ID. Homepage has no login of its own and lists every service
+# in the lab with a health badge on each; that is a map worth asking for a
+# passkey before handing over. ingress-nginx sends each request to
+# oauth2-proxy's auth endpoint first and only proxies it on a 202.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: homepage
   namespace: homepage
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
 spec:
   rules:
     - host: home.lab.baakhoff.com

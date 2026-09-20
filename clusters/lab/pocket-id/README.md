@@ -59,6 +59,11 @@ setting them as an env var would do nothing.
 | Client | Where | Role mapping |
 |---|---|---|
 | Grafana | `auth.generic_oauth` in `clusters/lab/monitoring/helmrelease.yaml`; id and secret in `grafana-oidc.sops.yaml` beside it | members of the Pocket ID group `grafana-admins` are org Admins, everyone else Viewer, re-evaluated at every login |
+| oauth2-proxy | `clusters/lab/oauth2-proxy/`; gates Homepage, Prometheus and Alertmanager through ingress-nginx `auth-url` annotations | yes/no only: anyone the client admits. Restrict on the client's *Allowed User Groups* tab in Pocket ID |
+
+**Not behind it, on purpose: Vaultwarden.** The vault holds the passkeys. An
+identity provider in front of the thing that stores its own credential is a
+loop, and the day it closes is the day you are locked out of both.
 
 Each client is created in Pocket ID's admin UI first, because the client secret
 has to exist before the manifest that references it can. The callback URL for
