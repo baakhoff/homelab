@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pocket-id
+  namespace: pocket-id
+spec:
+  # One replica, and not a capacity decision: SQLite on the volume below, so
+  # two replicas would be two processes writing one database. Same as
+  # Vaultwarden, same as the Minecraft world.
+  replicas: 1
+  # Recreate, for the same two reasons Vaultwarden gives: RollingUpdate would
+  # briefly run two processes against one SQLite file on every image bump, and
+  # a ReadWriteOnce RBD image is mapped by one node at a time, so a replacement
+  # pod on another node would wait forever for a volume its predecessor still
+  # holds.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pocket-id
+  template:
+    metadata:
+      labels:
+        # Homepage builds its health-badge selector from the Ingress name, so
+        # this label is what makes the tile read UP without an annotation.
+        app.kubernetes.io/name: pocket-id
+    spec:
+      securityContext:
+        # The image's entrypoint is a root-then-step-down script (PUID/PGID,
+        # chown /app/data, su-exec). Started as a non-root uid it skips all of
+        # that and just execs the binary - the first line of the script - so
+        # this is the documented way to run it unprivileged. fsGroup makes the
+        # fresh volume writable to uid 1000, exactly as for Vaultwarden.
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pocket-id
+          # Pinned. Not the newest: v2.15.0 and v2.16.0 shipped a day apart
+          # this weekend, and renovate.json5's three-day minimumReleaseAge
+          # exists precisely so that this cluster is not where a re-cut release
+          # gets found. Renovate offers the bump next Monday like any other.
+          #
+          # ALLOW_DOWNGRADE is off by default: a newer version that has touched
+          # the database refuses to be replaced by an older one. Rolling an
+          # image bump back therefore means restoring the volume, not just
+          # reverting the tag - the nightly snapshot is what makes an upgrade
+          # here safe, and README.md says it is not wired yet.
+          image: ghcr.io/pocket-id/pocket-id:v2.14.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Required, and not cosmetic: this is the WebAuthn origin as well as
+            # the OIDC issuer. Get it wrong and passkeys fail to register; change
+            # it later and every passkey already registered stops working, plus
+            # every OIDC client has to be repointed. Same lesson Vaultwarden's
+            # DOMAIN teaches - a service moves by gaining an A record, not by
+            # being renamed.
+            - name: APP_URL
+              value: https://id.lab.baakhoff.com
+            # MANDATORY - the binary refuses to start with fewer than 16 bytes
+            # here. It encrypts the OIDC token signing keys at rest in the
+            # database. Lose it and the keys are unreadable: every client's
+            # trust has to be re-established and every session is void. So it
+            # is in git, encrypted, in encryption-key.sops.yaml beside this
+            # file, which the USER creates - never a value in a tracked file.
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pocket-id-encryption-key
+                  key: ENCRYPTION_KEY
+            # The only path in is ingress-nginx, which sets X-Forwarded-For, so
+            # the pod should believe it. Honest caveat: what nginx forwards is
+            # the ServiceLB hop's address, not the browser's - klipper SNATs on
+            # the way in - so the audit log's IP column shows a 10.42 address
+            # for everyone. Fixing that is externalTrafficPolicy: Local on the
+            # ingress controller's Service, a separate decision with its own
+            # trade-offs, and not one this file makes.
+            - name: TRUST_PROXY
+              value: "true"
+            # http:// callback URLs are for local development. Every client on
+            # this cluster sits behind the lab wildcard, so nothing legitimate
+            # needs the exception and leaving it open is a downgrade waiting
+            # to be misconfigured.
+            - name: ALLOW_INSECURE_CALLBACK_URLS
+              value: "false"
+            # No 24-hourly heartbeat to the project, and no polling GitHub for
+            # a newer version: Renovate is how this cluster learns about
+            # releases, on a schedule, with a diff to read.
+            - name: ANALYTICS_DISABLED
+              value: "true"
+            - name: VERSION_CHECK_DISABLED
+              value: "true"
+            # NOT here: signups, session length, app name and the rest of the
+            # admin UI's settings page. Those are documented as environment
+            # variables too, but the source only reads them from the
+            # environment when UI_CONFIG_DISABLED is true - otherwise they come
+            # from the database and an env var is a silent no-op. The UI is
+            # the right place for a household-sized instance; signups default
+            # to disabled there.
+          ports:
+            - name: http
+              containerPort: 1411
+          # /healthz is the same check the image's own HEALTHCHECK runs. Not
+          # probing / - the SPA shell would report healthy with a broken
+          # database underneath it.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            # The binary's working directory is /app and both defaults are
+            # relative to it: data/pocket-id.db and data/uploads.
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pocket-id-data
