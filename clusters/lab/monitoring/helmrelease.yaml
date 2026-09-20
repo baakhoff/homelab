@@ -341,6 +341,58 @@ spec:
           gethomepage.dev/pod-selector: "app.kubernetes.io/name=grafana"
         hosts:
           - grafana.lab.baakhoff.com
+      # The OIDC client id and secret, as GF_AUTH_GENERIC_OAUTH_CLIENT_ID and
+      # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET. Grafana maps any GF_<SECTION>_<KEY>
+      # env var onto grafana.ini, so the two values that must not be in this
+      # file arrive by a different road and land in the same section as the
+      # settings below. The Secret is grafana-oidc.sops.yaml beside this file,
+      # created by hand from the client Pocket ID generated - never a value in
+      # a tracked file. Missing, the pod sits in CreateContainerConfigError
+      # until it arrives.
+      envFromSecret: grafana-oidc
+
       grafana.ini:
         server:
           root_url: https://grafana.lab.baakhoff.com
+        # Sign in with a passkey via Pocket ID. The admin password in
+        # grafana-admin stays as the break-glass login: the form is not
+        # disabled, because the day Pocket ID is down is also the day you
+        # want Grafana most.
+        auth.generic_oauth:
+          enabled: true
+          name: Pocket ID
+          # The browser goes to the public name. The two server-to-server
+          # calls - exchanging the code, reading userinfo - go to the Service
+          # inside the cluster instead: no hairpin out through ServiceLB and
+          # back in through ingress-nginx, no dependency on the wildcard
+          # certificate for Grafana to log anyone in. Pocket ID's own
+          # discovery document makes the same split (INTERNAL_APP_URL), so
+          # this is the supported shape and not a shortcut.
+          auth_url: https://id.lab.baakhoff.com/authorize
+          token_url: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/token
+          api_url: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/userinfo
+          # `groups` is what makes role mapping possible; without the scope
+          # the claim is absent and everyone is whatever role_attribute_path
+          # falls through to.
+          scopes: openid email profile groups
+          # Public client with PKCE. Pocket ID enforces PKCE when the client
+          # has it enabled, and the Grafana client should.
+          use_pkce: true
+          login_attribute_path: preferred_username
+          name_attribute_path: name
+          email_attribute_path: email
+          # Anyone Pocket ID lets through gets a Grafana account on first
+          # login, as Viewer. Membership of the Pocket ID group
+          # `grafana-admins` makes them an org Admin, re-evaluated at every
+          # login - which is the whole reason to do this: who can edit a
+          # dashboard is decided in one place, not by hand in two.
+          allow_sign_up: true
+          role_attribute_path: contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'
+          # Not strict: a token with no groups claim at all still logs in as
+          # Viewer rather than being refused. Strict would turn a Pocket ID
+          # scope misconfiguration into a lockout.
+          role_attribute_strict: false
+          # Off. Auto-login sends every visit straight to Pocket ID, including
+          # the one where Pocket ID is what is broken and the break-glass form
+          # is the point.
+          auto_login: false
