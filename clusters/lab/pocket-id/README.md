@@ -54,20 +54,19 @@ After that, `/setup` is closed and the admin adds everyone else in the UI.
 Signups are disabled by default and stay a UI setting: the Deployment says why
 setting them as an env var would do nothing.
 
-## What it is for
+## What consumes it
 
-Nothing consumes it yet. The two obvious clients on this cluster, in the order
-they are worth doing:
+| Client | Where | Role mapping |
+|---|---|---|
+| Grafana | `auth.generic_oauth` in `clusters/lab/monitoring/helmrelease.yaml`; id and secret in `grafana-oidc.sops.yaml` beside it | members of the Pocket ID group `grafana-admins` are org Admins, everyone else Viewer, re-evaluated at every login |
 
-1. **Grafana** — replaces the shared admin password with a login button. Native
-   OIDC in `grafana.ini`; the client secret is a SOPS Secret in `monitoring`.
-2. **Headlamp** — replaces pasting a ServiceAccount token. Native OIDC in the
-   chart, but the *cluster* has to trust the issuer too: OIDC flags on the k3s
-   apiserver on all three nodes, which is a node-side change outside GitOps.
+Each client is created in Pocket ID's admin UI first, because the client secret
+has to exist before the manifest that references it can. The callback URL for
+Grafana is `https://grafana.lab.baakhoff.com/login/generic_oauth`.
 
-Each of those is its own change, with its own client created in Pocket ID's
-admin UI first, because the client secret has to exist before the manifest that
-references it can.
+Still to do: **Headlamp**, which replaces pasting a ServiceAccount token. Native
+OIDC in the chart, but the *cluster* has to trust the issuer too: OIDC flags on
+the k3s apiserver on all three nodes, which is a node-side change outside GitOps.
 
 ## Backup — not yet, and in this order
 
