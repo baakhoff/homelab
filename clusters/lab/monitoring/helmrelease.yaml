@@ -282,6 +282,16 @@ spec:
         enabled: true
         size: 2Gi
         storageClassName: ceph-block
+      # Recreate, because the volume above is ReadWriteOnce RBD and the chart's
+      # default is RollingUpdate. RollingUpdate starts the replacement before
+      # it stops the original; land the replacement on another node and it
+      # waits in Init for a volume the original still holds, while the
+      # original waits to be replaced. Found the hard way on the OIDC rollout:
+      # the new pod sat in Init:0/1 until the old one was deleted by hand.
+      # Vaultwarden, Pocket ID and Minecraft already make this choice for the
+      # same reason; Grafana had simply been lucky with node placement.
+      deploymentStrategy:
+        type: Recreate
       resources:
         requests:
           memory: 128Mi
