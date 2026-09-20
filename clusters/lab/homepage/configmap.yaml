@@ -42,20 +42,11 @@ data:
   # gethomepage.dev/* keys on each Ingress. What is left here is the things
   # that have no Ingress and therefore no URL to discover.
   #
-  # Prometheus and Alertmanager are reachable only through a port-forward, so
-  # the href is where they land AFTER you run the command in the description.
-  # Clicking before forwarding gets a connection refused, which is the honest
-  # behaviour: they are genuinely not exposed.
+  # Prometheus and Alertmanager used to be listed here with port-forward
+  # instructions. They have Ingresses now, behind Pocket ID, and discover
+  # themselves like everything else - the annotations are on the chart's
+  # Ingresses in clusters/lab/monitoring/helmrelease.yaml.
   services.yaml: |
-    - Cluster:
-        - Prometheus:
-            icon: prometheus.png
-            href: http://localhost:9090
-            description: port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
-        - Alertmanager:
-            icon: mdi-bell-alert
-            href: http://localhost:9093
-            description: port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9093
     # Minecraft has no Ingress - it is not HTTP - so nothing discovers it. No
     # href either: there is no page to open, the description is the thing you
     # type into the launcher.
