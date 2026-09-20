@@ -1,0 +1,72 @@
+# Alerting on the wire itself.
+#
+# On 2026-09-20 the first Ceph alerts this cluster ever sent were slow OSD
+# heartbeats, and the trail led to node03: its link had been flapping since the
+# evening of the 18th - 121 link changes in two days - and every time it came
+# back it negotiated 100 Mbps on gigabit hardware. A third of the cluster ran
+# at a tenth of its bandwidth for two days, Prometheus on that node kept
+# failing its own probes, and nothing said a word until Ceph's heartbeats
+# crossed one second. Reseating the cable fixed it.
+#
+# node-exporter had the evidence the whole time. These two rules read it.
+#
+# `en.*` rather than `eno1`: all three nodes present the I219-LM as eno1
+# today, but the pattern survives a NIC that enumerates differently, and it
+# still excludes flannel, cni0, the veths and tailscale0, which report no
+# speed and change carrier state whenever a pod starts.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-network
+  namespace: monitoring
+spec:
+  groups:
+    - name: node-network
+      rules:
+        # The symptom that hid for two days. A gigabit NIC that has settled at
+        # anything less has a bad pair, a bad port, or a management engine
+        # holding the PHY - all of them a hands-on fix, none of them something
+        # the node will recover from on its own.
+        #
+        # Guarded by node_network_up because node-exporter reports -1 for the
+        # speed of a link that is down, which would otherwise satisfy `<`.
+        # A down link is a different alert; kube-prometheus-stack's
+        # KubeNodeNotReady covers a node that has actually gone.
+        #
+        # 125000000 is 1 Gbit/s in bytes, the unit node-exporter uses.
+        # for 10m: a link renegotiates during a reseat and a reboot, and may
+        # sit at a lower speed for a few seconds while it does.
+        - alert: NodeLinkBelowGigabit
+          expr: |-
+            node_network_speed_bytes{device=~"en.*"} < 125000000
+              and on (instance, device)
+            node_network_up{device=~"en.*"} == 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.device }} on {{ if $labels.node }}{{ $labels.node }}{{ else }}{{ $labels.instance }}{{ end }} is running at {{ $value | humanize1024 }}B/s, not gigabit"
+            description: >-
+              The link came up below 1 Gbit/s and has stayed there. Every
+              Ceph replica write and every pod on this node is throttled to
+              match. Check `ethtool` on the node, then the cable at both ends,
+              then the switch port.
+
+        # The cause, seen directly. carrier_down counts the NIC losing link;
+        # a healthy node adds to it at boot and never again. Two in an hour
+        # allows a deliberate reseat; the third is a fault.
+        #
+        # No `for`: increase() over an hour is already the debounce, and the
+        # alert clears on its own once an hour has passed without a drop.
+        - alert: NodeLinkFlapping
+          expr: increase(node_network_carrier_down_changes_total{device=~"en.*"}[1h]) > 2
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.device }} on {{ if $labels.node }}{{ $labels.node }}{{ else }}{{ $labels.instance }}{{ end }} lost link {{ $value | humanize }} times in the last hour"
+            description: >-
+              The physical link keeps dropping. On this hardware the causes
+              seen so far are a poorly seated cable and the Intel Management
+              Engine resetting the shared PHY; `journalctl -k | grep 'NIC
+              Link is'` on the node shows the timing, and `mei_me` lines
+              next to it point at the second.
