@@ -29,6 +29,21 @@ PKCE on, Public Client off. Rotating the cookie secret logs everyone out and
 nothing else; rotating the client secret is a new secret in Pocket ID and a
 re-encrypt here.
 
+## Adding a person
+
+oauth2-proxy refuses an ID token whose `email_verified` claim is false, and
+Pocket ID stores that flag per user. It is false for any account created before
+*Emails Verified* was switched on under Application Configuration, and true by
+default for accounts created after. The symptom is a 500 on oauth2-proxy's own
+error page straight after a successful passkey login, with
+`email in id_token (...) isn't verified` in the pod log.
+
+The fix is in Pocket ID, per user: Administration → Users → the account →
+**Email verified** on. It cannot be set from the user's own My Account page.
+The setting is right for this instance because the admin types every address in
+and there is no self-signup; the alternative is an oauth2-proxy flag whose name
+begins with `INSECURE`, which is the wrong side to fix it on.
+
 ## Adding a service
 
 Two annotations on its Ingress, as above. Nothing here changes. Who may reach
