@@ -7,12 +7,12 @@ identifiers.
 
 | Field | Value |
 |---|---|
-| Model | ultrabook-class, exact model TBD (`sudo dmidecode -s system-product-name`) |
+| Model | MSI ultrabook — the exact model was never recorded, and the disk it could have been read from is wiped |
 | CPU | Intel Core i5-1240P (12th gen) — 12 cores (4 P + 8 E), 16 threads |
 | RAM | 16 GB |
 | Disk | 512 GB NVMe SSD (Micron 3400) |
 | NIC | Wi-Fi only — no built-in ethernet port |
-| Role | **Retired, powered off 2026-09-19.** Was the cluster's first node: Ubuntu Server 24.04, k3s, Flux, the Incus workbench, with the battery doubling as a built-in UPS. What it ran and how it was emptied: [the lab over time](history.md) |
+| Role | **Retired: powered off 2026-09-19, wiped 2026-09-20.** Was the cluster's first node: Ubuntu Server 24.04, k3s, Flux, the Incus workbench, with the battery doubling as a built-in UPS. What it ran and how it was emptied: [the lab over time](history.md) |
 
 ## Raspberry Pi 3B+ — `exitnode`
 
@@ -60,4 +60,4 @@ Measured during bring-in, worth keeping as a baseline:
 
 ## Rack
 
-10-inch 3D-printed rack: [KWS Rack V2 (heavy duty)](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) — print in progress. The Pi gets a printed 10″ mount; the laptop lives on a shelf beside it.
+10-inch 3D-printed rack: [KWS Rack V2 (heavy duty)](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) — printed, waiting on hardware, not assembled. The Pi gets a printed 10″ mount.

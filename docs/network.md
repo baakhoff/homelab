@@ -53,7 +53,7 @@ resulting outage arrives weeks later with nothing to connect it to.
 | `node02` | `192.168.68.102` | reservation |
 | `node03` | `192.168.68.103` | reservation |
 | `node04` | `192.168.68.104` | reservation |
-| `node01` (laptop) | DHCP | retired, powered off. Wi-Fi only, never had a reservation |
+| `node01` (laptop) | DHCP | retired, wiped. Wi-Fi only, never had a reservation |
 
 ### Reservations and Ubuntu
 

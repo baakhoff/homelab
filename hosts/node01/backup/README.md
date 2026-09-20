@@ -3,7 +3,7 @@
 Nightly [restic](https://restic.net/) backup of node01 to Hetzner Object Storage,
 driven by a systemd timer. Weekly retention pass and integrity check alongside it.
 
-> **node01 is retired and powered off.** This file is kept as a record: it is
+> **node01 is retired and wiped.** This file is kept as a record: it is
 > where the reasoning behind the lab cluster's own backup came from, and it
 > documents a restic repository that still exists in the bucket as a frozen
 > archive with its own password. Nothing here describes something running.
