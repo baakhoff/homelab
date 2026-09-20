@@ -43,9 +43,19 @@ spec:
       containers:
         - name: minecraft
           # Pinned to the image's calendar release with the Java suffix spelled
-          # out, so Renovate offers the bump and keeps the suffix. Java 21 is
-          # what current Minecraft requires; the plain `java21` tag would float.
-          image: itzg/minecraft-server:2026.9.1-java21
+          # out, so Renovate offers the bump and keeps the suffix; the plain
+          # `java25` tag would float.
+          #
+          # THE SUFFIX IS THE PART THAT BITES, and it bit on day one. This was
+          # `-java21`, and Minecraft 26.3 - which VERSION: LATEST resolved to
+          # on first start - is compiled for Java 25. The server died at
+          # startup with UnsupportedClassVersionError ("class file version
+          # 69.0", i.e. Java 25) twelve restarts in a row. Renovate can never
+          # fix this one: it bumps the calendar part and preserves the suffix,
+          # which is exactly right until Mojang moves to a newer JDK again.
+          # When that happens the symptom is the same error in `kubectl logs`,
+          # and the fix is this suffix.
+          image: itzg/minecraft-server:2026.9.1-java25
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
