@@ -41,7 +41,8 @@ Hardware that has left service is in [the lab over time](docs/history.md).
   household, the one thing on the cluster that reaches the LAN as raw TCP
   rather than through the ingress controller
   ([how](clusters/lab/minecraft/README.md)), and Pocket ID, a passkey-only
-  OpenID Connect provider that Grafana signs in through
+  OpenID Connect provider that Grafana signs in through, and that
+  oauth2-proxy puts in front of everything with no login of its own
   ([how](clusters/lab/pocket-id/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).

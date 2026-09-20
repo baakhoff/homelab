@@ -1,0 +1,22 @@
+# The public face of the gate: where a browser is sent to log in and where
+# Pocket ID sends it back. Under the lab wildcard like everything else.
+#
+# Deliberately NO gethomepage.dev annotations. This is not a place anyone
+# goes on purpose; a tile for it would be a link to a login page.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  rules:
+    - host: auth.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
