@@ -109,6 +109,43 @@ spec:
     # certificates in series.
     ssl: false
 
+  # Metrics and alerts - which, until this block existed, there were none of.
+  # An OSD dying overnight reached nobody, and the HEALTH_WARN the cephx block
+  # above describes was visible only to someone who opened the toolbox.
+  #
+  # `enabled` makes the operator create two ServiceMonitors in this namespace:
+  # one for the mgr's prometheus module (cluster state - health, PGs, pools,
+  # OSD up/in) and one for ceph-exporter (per-daemon performance counters).
+  # Prometheus watches every namespace, so nothing more is needed for them to
+  # be scraped. The alert rules are a separate file, prometheusrule.yaml
+  # beside this one, because the operator does not create those - upstream
+  # that is the rook-ceph-cluster chart's job, and this cluster is written
+  # out by hand rather than installed from it.
+  #
+  # On a rebuild this is the one monitoring toggle SAFE to have on before
+  # kube-prometheus-stack exists. A missing ServiceMonitor CRD is logged by
+  # the operator ("prometheus may need to be installed") and the cluster
+  # reconcile carries on, so Ceph itself is never held up. The monitors then
+  # appear on the operator's next reconcile after the CRDs land - and in the
+  # window between Prometheus arriving and that reconcile, PrometheusJobMissing
+  # in the rules file fires, which is the right alarm for exactly that gap.
+  #
+  # Expect CephHealthWarning to be the first alert out, and to stay out: the
+  # two AUTH_INSECURE_KEYS checks the cephx block explains keep this cluster
+  # in HEALTH_WARN, and that block also says when the cause can be fixed.
+  # Until then the choice is a Ceph-side mute of those two checks, which is
+  # specific to them and shows as muted in `ceph health detail`. Do NOT
+  # silence the alert in Alertmanager instead: CephHealthWarning is the same
+  # rule that would report every other warning, and silencing it there
+  # silences all of them.
+  #
+  # 30s rather than Rook's 10s default. The mgr module answers a scrape by
+  # walking the whole cluster state; twice a minute is plenty for three OSDs,
+  # and it matches what everything else in monitoring/ scrapes at.
+  monitoring:
+    enabled: true
+    interval: 30s
+
   # Crash reports and daily log rotation inside the Ceph daemons. Both cost
   # very little and are the difference between diagnosing an OSD that died
   # last night and guessing about it.

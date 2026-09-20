@@ -16,7 +16,20 @@ spec:
       interval: 1h
   install:
     remediation:
-      retries: 3
+      # -1 is "keep trying", and it is here for one reason: the ServiceMonitor
+      # below. On a rebuild from bare bootstrap this release and
+      # kube-prometheus-stack install side by side and nothing orders them. If
+      # this one renders first, Helm refuses the WHOLE release over a kind the
+      # API server has not heard of - it does not skip unknown objects. With a
+      # finite count that is three failures in seconds, and then a release that
+      # stays failed until someone runs
+      # `flux reconcile hr cert-manager -n cert-manager --reset`: a working
+      # cert-manager never installed, because of a monitoring toggle. Infinite
+      # retries with backoff is Flux's documented answer for a chart whose
+      # prerequisite arrives at the same time as it does; it converges once the
+      # CRDs land. Upgrades keep their three: a failing UPGRADE should roll back
+      # and stop, not loop.
+      retries: -1
   upgrade:
     remediation:
       retries: 3
@@ -24,38 +37,39 @@ spec:
     crds:
       enabled: true
 
-    # OFF here, where node01's copy has it on, and it has to stay off until a
-    # monitoring stack exists on this cluster.
+    # On, now that kube-prometheus-stack is running and its CRDs exist - which
+    # is what the paragraphs this replaces were waiting for. The chart renders a
+    # ServiceMonitor unconditionally when this is enabled, a kind Helm refuses
+    # the whole release over if the API server does not know it, so the toggle
+    # was capable of taking cert-manager down with it. The install remediation
+    # above is what makes that safe on a rebuild; on the running cluster the
+    # race the old comment described cannot happen, because the CRDs are
+    # already there.
     #
-    # The chart creates a ServiceMonitor unconditionally when this is enabled,
-    # and ServiceMonitor is a Prometheus-operator CRD that nothing has
-    # installed here yet. Helm does not skip an object whose kind is unknown -
-    # it fails the release, and the HelmRelease then retries three times and
-    # gives up. So this single `true` would take cert-manager itself down with
-    # it, which is the opposite of what a monitoring toggle should be able to do.
+    # What the scrape buys is monitoring/cert-manager-rules.yaml, carried over
+    # from node01: without it, renewal breaking is silent for a month and the
+    # first symptom is every service in the lab going untrusted on the same
+    # morning.
     #
-    # This used to say "turn it on in the SAME change that installs
-    # kube-prometheus-stack". That change is the one adding
-    # clusters/lab/monitoring/ beside this file, and it deliberately does NOT
-    # flip this - so the instruction is corrected here rather than quietly
-    # disobeyed.
-    #
-    # The reason is a race that the CRD rule from 5978838 does not cover. That
-    # rule is about kustomize-controller, which dry-runs the whole git tree
-    # before applying any of it. This object is not in the tree: it is rendered
-    # by Helm. What happens instead is that both HelmReleases reconcile at
-    # once, and nothing orders cert-manager's upgrade after the Prometheus CRDs
-    # have actually been installed. If it loses that race the release fails,
-    # burns its three retries in seconds, and then sits broken until the next
-    # hourly interval - a working cert-manager taken down by a monitoring
-    # toggle, which is precisely what the paragraph above says must not happen.
-    #
-    # So it goes in the follow-up, once kube-prometheus-stack is RUNNING rather
-    # than merely committed, together with Rook's CSI ServiceMonitor and the
-    # snapshot controller's. Bring `servicemonitor.honorLabels: true` across
-    # with it: without honorLabels the ServiceMonitor's own job label collides
-    # with the one cert-manager already sets on its metrics, and Prometheus
-    # silently relabels rather than complaining.
+    # Lower-case `servicemonitor` is the chart's spelling, not a typo. The
+    # camelCase form is silently ignored, as unknown Helm values always are.
     prometheus:
       servicemonitor:
-        enabled: false
+        enabled: true
+        # cert-manager reports on Certificates that live in OTHER namespaces,
+        # so its metrics carry a `namespace` label naming the certificate's
+        # namespace - while the operator attaches its own `namespace` label
+        # naming the scraped POD's namespace. On a collision Prometheus
+        # defaults to letting the scraper win and shunts the exporter's
+        # version aside as `exported_namespace`.
+        #
+        # That default is wrong here and quietly so: the alerts print
+        # namespace/name, so the lab wildcard would come out as
+        # cert-manager/lab-wildcard and send you to a namespace where no such
+        # Certificate exists. honorLabels keeps the exporter's value, because
+        # for these metrics the exporter is the one that knows.
+        #
+        # Safe to set broadly: cert-manager emits no job or instance label of
+        # its own, so nothing else collides, and controller-level metrics that
+        # carry no namespace still inherit the pod's as before.
+        honorLabels: true

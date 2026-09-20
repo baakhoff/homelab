@@ -47,7 +47,11 @@ spec:
       interval: 1h
   install:
     remediation:
-      retries: 3
+      # Same reason and same number as cert-manager's: the ServiceMonitor below
+      # is a kind only kube-prometheus-stack installs, and on a bare bootstrap
+      # this release must be able to outwait it rather than fail three times and
+      # stay failed. The full argument is in clusters/lab/cert-manager/.
+      retries: -1
   upgrade:
     remediation:
       retries: 3
@@ -96,11 +100,14 @@ spec:
           memory: 128Mi
 
       serviceMonitor:
-        # Off for now, for the same reason as Rook's CSI ServiceMonitor and
-        # cert-manager's: monitoring.coreos.com CRDs do not exist on this
-        # cluster until kube-prometheus-stack has installed them. Flip all
-        # three together, after that chart is actually running.
-        create: false
+        # On, with cert-manager's, now that kube-prometheus-stack is running.
+        # Rook's CSI one did not come along after all - see the reason in
+        # clusters/lab/rook-ceph/helmrelease.yaml. What this buys is small but
+        # real: the controller becomes a scrape target, so the stack's own
+        # TargetDown rule notices if it stops answering, and its snapshot
+        # operation metrics are there to look at when a nightly backup takes
+        # longer than it should.
+        create: true
 
     webhook:
       # The conversion webhook only matters for clusters still holding
