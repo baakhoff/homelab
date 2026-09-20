@@ -59,10 +59,25 @@ data:
     # Minecraft has no Ingress - it is not HTTP - so nothing discovers it. No
     # href either: there is no page to open, the description is the thing you
     # type into the launcher.
+    #
+    # The widget is the one live element on this page besides the cluster
+    # header, and it earns its place the same way: no credential. Homepage
+    # does a server-list ping - the same request a launcher sends before it
+    # shows a server as reachable - and gets status, players online and the
+    # running Minecraft version back. The version is the useful one: the
+    # server floats on LATEST and every restart may move it (the Deployment
+    # says why), so this is where you read what the world is on today.
+    #
+    # `udp://` is only what Homepage's URL parser expects for this widget
+    # type; the ping itself is TCP to the game port, so the in-cluster Service
+    # name is the right target and no NetworkPolicy stands in the way.
     - Lab:
         - Minecraft:
             icon: minecraft.png
             description: mc.lab · Java Edition
+            widget:
+              type: minecraft
+              url: udp://minecraft.minecraft.svc.cluster.local:25565
 
   bookmarks.yaml: |
     - Elsewhere:
@@ -73,11 +88,12 @@ data:
             - abbr: HC
               href: https://healthchecks.io/
 
-  # Deliberately no service widgets. Those pull live status from each service
-  # and every one of them wants an API key, which would mean a SOPS secret per
-  # widget for a dashboard whose job is links. The cluster widget below is the
-  # exception because it needs no credential - it reads the API with the same
-  # ServiceAccount already used for discovery.
+  # Deliberately (almost) no service widgets. Those pull live status from each
+  # service and nearly every one of them wants an API key, which would mean a
+  # SOPS secret per widget for a dashboard whose job is links. The two that
+  # exist are the two that need no credential: the cluster widget below reads
+  # the API with the same ServiceAccount already used for discovery, and the
+  # Minecraft widget in services.yaml is an unauthenticated server ping.
   widgets.yaml: |
     - kubernetes:
         cluster:
