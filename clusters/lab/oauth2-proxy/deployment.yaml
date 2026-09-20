@@ -1,0 +1,134 @@
+# One login gate for every HTTP service that has no login of its own. The
+# mechanism is ingress-nginx's auth_request: an Ingress that carries
+#
+#   nginx.ingress.kubernetes.io/auth-url:    http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+#   nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+#
+# has every request checked here first. A valid session cookie for
+# .lab.baakhoff.com gets a 202 and the request goes through; anything else
+# gets bounced to Pocket ID and back. One cookie covers every gated host, so
+# logging in once is logging in everywhere.
+#
+# Stateless: sessions live in the cookie, encrypted with the cookie secret.
+# Two replicas would work; one is enough for a household, and a restart just
+# means everyone's next request re-validates a cookie that is still valid.
+#
+# Services that CAN speak OIDC themselves (Grafana, Headlamp) do not go
+# through this. Native OIDC gives the app a real identity to attach roles to;
+# this gate gives it a yes or no. Use the native path where it exists.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+        runAsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          # Client id, client secret and the cookie secret, as
+          # OAUTH2_PROXY_CLIENT_ID, OAUTH2_PROXY_CLIENT_SECRET and
+          # OAUTH2_PROXY_COOKIE_SECRET. From secret.sops.yaml beside this
+          # file, created by hand - never a value in a tracked file.
+          envFrom:
+            - secretRef:
+                name: oauth2-proxy
+          env:
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_PROVIDER_DISPLAY_NAME
+              value: Pocket ID
+            # The issuer is the public name, because that is what the `iss`
+            # claim in every token says and the check is exact. The three
+            # URLs the PROXY calls are the in-cluster Service instead: no
+            # hairpin out through ServiceLB and back through ingress-nginx,
+            # no dependency on the wildcard certificate for logins to work.
+            # Same split Grafana makes, and the reason discovery is off:
+            # Pocket ID's discovery document advertises one set of URLs, and
+            # we want two.
+            - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+              value: https://id.lab.baakhoff.com
+            - name: OAUTH2_PROXY_SKIP_OIDC_DISCOVERY
+              value: "true"
+            - name: OAUTH2_PROXY_LOGIN_URL
+              value: https://id.lab.baakhoff.com/authorize
+            - name: OAUTH2_PROXY_REDEEM_URL
+              value: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/token
+            - name: OAUTH2_PROXY_OIDC_JWKS_URL
+              value: http://pocket-id.pocket-id.svc.cluster.local/.well-known/jwks.json
+            - name: OAUTH2_PROXY_REDIRECT_URL
+              value: https://auth.lab.baakhoff.com/oauth2/callback
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SCOPE
+              value: openid email profile groups
+            # Who gets through: anyone Pocket ID lets log in to this client.
+            # Restricting that is a Pocket ID decision - the client's Allowed
+            # User Groups tab - not a list kept here.
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+            # One cookie for every host under the wildcard, and the
+            # post-login redirect may only go back under it. Without the
+            # whitelist the `rd` parameter is an open redirect.
+            - name: OAUTH2_PROXY_COOKIE_DOMAINS
+              value: .lab.baakhoff.com
+            - name: OAUTH2_PROXY_WHITELIST_DOMAINS
+              value: .lab.baakhoff.com
+            - name: OAUTH2_PROXY_COOKIE_SECURE
+              value: "true"
+            - name: OAUTH2_PROXY_COOKIE_SAMESITE
+              value: lax
+            # Behind ingress-nginx: trust X-Forwarded-* for the scheme and
+            # host, which is how /oauth2/auth learns which host it is
+            # answering for.
+            - name: OAUTH2_PROXY_REVERSE_PROXY
+              value: "true"
+            # Straight to Pocket ID rather than a "Sign in with Pocket ID"
+            # interstitial. There is one provider; the button is a click that
+            # decides nothing.
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            # Nothing is proxied. This process only ever answers auth_request
+            # and the /oauth2/* endpoints; a static 202 is what an upstream
+            # looks like when there is none.
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: static://202
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+          ports:
+            - name: http
+              containerPort: 4180
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
