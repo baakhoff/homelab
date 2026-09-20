@@ -288,6 +288,13 @@ spec:
     # `podMonitorSelectorNilUsesHelmValues: false`, so the selector is nil and
     # matches EVERY PodMonitor in the cluster. Adding the label here would be
     # harmless and would document a rule this cluster does not follow.
+    #
+    # Discoverable is not the same as reachable. The NetworkPolicies above shut
+    # Prometheus out of port 8080 along with everyone else, and for as long as
+    # nothing opened it TargetDown reported every epicurus target down.
+    # networkpolicy-metrics.yaml beside this file is the door; if that alert
+    # ever returns for this namespace, check that the policy still exists and
+    # that the pods still carry `epicurus.io/metrics: "true"`.
     metrics:
       podAnnotations: true
       podMonitor:
