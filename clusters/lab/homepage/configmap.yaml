@@ -56,6 +56,13 @@ data:
             icon: mdi-bell-alert
             href: http://localhost:9093
             description: port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9093
+    # Minecraft has no Ingress - it is not HTTP - so nothing discovers it. No
+    # href either: there is no page to open, the description is the thing you
+    # type into the launcher.
+    - Lab:
+        - Minecraft:
+            icon: minecraft.png
+            description: mc.lab · Java Edition
 
   bookmarks.yaml: |
     - Elsewhere:

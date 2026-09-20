@@ -1,0 +1,29 @@
+# The world, and everything the server keeps beside it: server.properties as
+# the image last rendered it, the player and ops lists, logs, and the server
+# jar itself so a restart does not re-download it.
+#
+# 20Gi is generous on purpose. A household survival world grows by exploration
+# rather than by time, and a few GiB is normal after a year; the point of the
+# headroom is that the failure mode of a full volume here is a chunk that
+# cannot be saved, which Minecraft reports quietly and keeps playing. Thin
+# provisioned like every RBD image, so the pool is charged for what is written,
+# and the storage class allows expansion if the number ever turns out small.
+#
+# NOT BACKED UP YET. The RoleBinding for this namespace is already in
+# clusters/lab/backup/rbac.yaml; what is missing is the restic-repo Secret,
+# which cannot come from this repo, and the BACKUP_TARGETS entry that must not
+# land before the Secret does - the driver fails the whole nightly run on a
+# target whose Secret it cannot read. README.md in this directory has the
+# order.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minecraft-data
+  namespace: minecraft
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 20Gi

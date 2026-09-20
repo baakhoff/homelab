@@ -1,0 +1,27 @@
+# Minecraft is its own TCP protocol on 25565, not HTTP, so ingress-nginx and
+# the lab wildcard certificate have nothing to offer it. This is the first
+# Service on the cluster that reaches the LAN without going through the
+# ingress controller.
+#
+# type: LoadBalancer is satisfied by k3s ServiceLB (klipper), the same way the
+# ingress controller's is: a svclb pod on each server node binds 25565 on that
+# node's address, so all three node IPs answer. Which one `mc.lab` resolves to
+# is a Pi-hole decision - README.md - exactly as the ingress hostnames' is a
+# Cloudflare one.
+#
+# Only the game port. RCON (25575) stays inside the pod on purpose; see the
+# Deployment.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minecraft
+  namespace: minecraft
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: minecraft
+  ports:
+    - name: minecraft
+      port: 25565
+      targetPort: minecraft
+      protocol: TCP
