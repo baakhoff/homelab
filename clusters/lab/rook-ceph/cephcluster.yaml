@@ -51,11 +51,20 @@ spec:
         # noise: restricting security.cephx.allowedCiphers to aes256k would
         # lock the CSI clients out of their own cluster.
         #
+        # The rotation itself adds a THIRD: AUTH_INSECURE_CLIENT_KEY_TYPE,
+        # naming the four csi-* entities as "using insecure key type: aes".
+        # That is this block working as written, not a fourth key someone
+        # forgot. All three are muted in Ceph (`ceph health mute <CODE>
+        # --sticky`, 2026-09-20) so the overall status reads HEALTH_OK and
+        # CephHealthWarning stays quiet for real warnings; `ceph health detail`
+        # still lists them, marked MUTED. Unmute all three when the trigger
+        # below is met, so the reversal can be seen to clear them.
+        #
         # TRIGGER TO REVERSE THIS: nodes on Linux 7.0+ AND a ceph-csi image at
         # v3.17.1 or newer. Then rotate CSI back to aes256k (a further
         # generation bump), confirm with `ceph auth dump-keys` that no key
         # anywhere is still aes, and only then restrict allowedCiphers - which
-        # is what finally clears both warnings.
+        # is what finally clears all three warnings.
         #
         # The daemon keys are deliberately left alone. They are already
         # aes256k, they are userspace-only and unaffected by the kernel, and
@@ -130,14 +139,13 @@ spec:
   # window between Prometheus arriving and that reconcile, PrometheusJobMissing
   # in the rules file fires, which is the right alarm for exactly that gap.
   #
-  # Expect CephHealthWarning to be the first alert out, and to stay out: the
-  # two AUTH_INSECURE_KEYS checks the cephx block explains keep this cluster
-  # in HEALTH_WARN, and that block also says when the cause can be fixed.
-  # Until then the choice is a Ceph-side mute of those two checks, which is
-  # specific to them and shows as muted in `ceph health detail`. Do NOT
-  # silence the alert in Alertmanager instead: CephHealthWarning is the same
-  # rule that would report every other warning, and silencing it there
-  # silences all of them.
+  # CephHealthWarning would fire the moment this loads if the three
+  # AUTH_INSECURE_* checks the cephx block explains were not muted in Ceph.
+  # They are, and that is the right layer for it: a mute is specific to the
+  # named checks, shows in `ceph health detail`, and lets the overall status
+  # fall back to HEALTH_OK so this alert is free to report every OTHER
+  # warning. Do NOT silence CephHealthWarning in Alertmanager instead - it is
+  # one rule for all warnings, and silencing it there silences all of them.
   #
   # 30s rather than Rook's 10s default. The mgr module answers a scrape by
   # walking the whole cluster state; twice a minute is plenty for three OSDs,
