@@ -1,0 +1,45 @@
+# Lets Prometheus scrape epicurus. Without this, the PodMonitor the chart
+# renders (helmrelease.yaml, `metrics.podMonitor`) finds the pods and then every
+# scrape is refused, and TargetDown reports 100% of the epicurus targets down -
+# which it did, from the day the PodMonitor existed until this landed.
+#
+# The chart's own NetworkPolicies are the cause, working as designed. With
+# `networkPolicy.enabled: true` the core may be reached on 8080 only from pods
+# of the same release, and a module only from the core. Prometheus lives in
+# `monitoring` and is neither. The chart has no knob for this - its policy
+# template names the web shell and the modules as the only doors in, and the
+# metrics endpoint is the same port as the API - so the exception belongs here,
+# in the cluster that runs Prometheus, rather than as a fork of the chart.
+# NetworkPolicies are additive: this opens one more path and narrows nothing.
+#
+# What it opens: TCP 8080 on the pods the PodMonitor selects (the ones labelled
+# `epicurus.io/metrics: "true"` - core-app and the modules; not the web shell,
+# not the data plane), from Prometheus pods in the monitoring namespace only.
+# Both selectors are required together, so a stray pod in `monitoring` that is
+# not Prometheus gets nothing. NetworkPolicy cannot distinguish /metrics from
+# the rest of the API on that port, so Prometheus can technically reach the
+# platform API too. It only ever GETs /metrics, and the alternative - a second
+# port for metrics - is an upstream change to the application, not to this repo.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: epicurus
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: epicurus
+      app.kubernetes.io/instance: epicurus
+      epicurus.io/metrics: "true"
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 8080
