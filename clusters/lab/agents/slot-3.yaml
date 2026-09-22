@@ -65,7 +65,7 @@ spec:
       initContainers:
         - name: xray
           restartPolicy: Always
-          image: ghcr.io/xtls/xray-core:26.3.27
+          image: ghcr.io/xtls/xray-core:26.9.9
           # IfNotPresent here, unlike the agent container's Always, and the
           # difference is not an oversight: this tag is an upstream VERSION and
           # is immutable, so a cached copy is the same bytes forever. The agent
