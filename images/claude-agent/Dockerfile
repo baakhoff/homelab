@@ -10,7 +10,7 @@
 # NetworkPolicy on the namespace does that job at the right layer).
 
 # Renovate's dockerfile manager watches this line.
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
 # Pinned, and bumped by Renovate through the regex manager in renovate.json5
 # (npm datasource). The CLI's own auto-updater is disabled below: it would try
