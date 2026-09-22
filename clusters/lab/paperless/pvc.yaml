@@ -1,0 +1,30 @@
+# Everything Paperless keeps, on ONE volume, and the one is the point.
+#
+# The upstream compose file splits `data` (the SQLite database, the search
+# index, the classifier model) from `media` (the original files, the archived
+# PDFs, the thumbnails). Two volumes here would mean two RBD snapshots taken
+# seconds apart by the nightly backup, and a document consumed in between them
+# exists in one snapshot and not the other: a database row pointing at a file
+# that is not there, or a file no row knows about. One volume, one snapshot,
+# one consistent moment. The subdirectories are chosen by env vars on the
+# Deployment instead.
+#
+# 20Gi: originals plus an archived PDF of each, and Paperless does not compress
+# scans. A household's paper for a decade fits with room; the storage class
+# allows expansion, so growing it later is an edit to this file. Thin
+# provisioned, so Ceph is charged for what is written, not for the number.
+#
+# Not backed up yet - see README.md for the three things that takes and the
+# order they have to land in.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-data
+  namespace: paperless
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 20Gi
