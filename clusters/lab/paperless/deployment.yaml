@@ -131,7 +131,40 @@ spec:
             # covers giving an account one.
             - name: PAPERLESS_DISABLE_REGULAR_LOGIN
               value: "false"
+            # --- AI suggestions and document chat -----------------------------
+            # A hosted model through OpenRouter, not a local one: three nodes
+            # with no GPU and a game server is no place to run inference. The
+            # cost of that choice is spelled out in the README - the text of
+            # every document the features touch leaves the cluster.
+            - name: PAPERLESS_AI_ENABLED
+              value: "true"
+            # OpenRouter speaks the OpenAI API, so Paperless's generic backend
+            # is all that is needed; only the endpoint and the model name say
+            # which provider and model sit behind it.
+            - name: PAPERLESS_AI_LLM_BACKEND
+              value: openai-like
+            - name: PAPERLESS_AI_LLM_ENDPOINT
+              value: https://openrouter.ai/api/v1
+            - name: PAPERLESS_AI_LLM_MODEL
+              value: deepseek/deepseek-v4.1-flash
+            # Suggestions come back in this language regardless of the model's
+            # habit of answering in the language it was asked in, which for a
+            # Danish letter processed by an English prompt is a coin toss.
+            - name: PAPERLESS_AI_LLM_OUTPUT_LANGUAGE
+              value: Danish
+            # No embedding backend, deliberately for now. OpenRouter serves no
+            # embedding models, so similar-document search and RAG would mean
+            # a Hugging Face model run on the CPU in this pod - a 500MB
+            # download and another gigabyte of memory. Suggestions and
+            # single-document chat work without it. The README has the model
+            # to pick if it is ever wanted.
           envFrom:
+            # PAPERLESS_AI_LLM_API_KEY, the OpenRouter key, created by hand and
+            # encrypted into ai.sops.yaml. Its own Secret rather than a key in
+            # paperless-env, so it can be rotated - or removed with the feature
+            # - without touching the login configuration.
+            - secretRef:
+                name: paperless-ai
             # PAPERLESS_SECRET_KEY and PAPERLESS_SOCIALACCOUNT_PROVIDERS, both
             # created by hand and encrypted into env.sops.yaml beside this
             # file. Until the Secret exists the pod waits in
