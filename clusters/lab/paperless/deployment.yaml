@@ -152,12 +152,17 @@ spec:
             # Danish letter processed by an English prompt is a coin toss.
             - name: PAPERLESS_AI_LLM_OUTPUT_LANGUAGE
               value: Danish
-            # No embedding backend, deliberately for now. OpenRouter serves no
-            # embedding models, so similar-document search and RAG would mean
-            # a Hugging Face model run on the CPU in this pod - a 500MB
-            # download and another gigabyte of memory. Suggestions and
-            # single-document chat work without it. The README has the model
-            # to pick if it is ever wanted.
+            # Embeddings through the same endpoint, for similar-document search
+            # and for retrieval across the archive when answering questions.
+            # bge-m3 is upstream's pick for a multilingual archive, takes 8k
+            # tokens of input so the default chunk size fits, and costs a cent
+            # per million tokens. Running one locally instead would mean a
+            # Hugging Face model on this pod's CPU and another gigabyte of
+            # memory; the model that would be is in the README.
+            - name: PAPERLESS_AI_LLM_EMBEDDING_BACKEND
+              value: openai-like
+            - name: PAPERLESS_AI_LLM_EMBEDDING_MODEL
+              value: baai/bge-m3
           envFrom:
             # PAPERLESS_AI_LLM_API_KEY, the OpenRouter key, created by hand and
             # encrypted into ai.sops.yaml. Its own Secret rather than a key in
