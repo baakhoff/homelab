@@ -1,0 +1,201 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  # One replica, and not as a capacity decision: the database is a single
+  # SQLite file on the volume, and the volume is ReadWriteOnce.
+  replicas: 1
+  # Recreate for the two reasons the Vaultwarden Deployment spells out: never
+  # two processes on one SQLite database, and an RBD image is mapped by exactly
+  # one node, so the old pod must let go before the new one can start.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperless
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # Paperless's image supports running as an arbitrary uid - "rootless" in
+        # its docs - with one cost, paid for in images/paperless-ngx/: the
+        # startup-time install of extra OCR languages needs root, so Danish is
+        # baked into the image instead of installed at each boot.
+        runAsUser: 1000
+        runAsGroup: 1000
+        # kubelet chowns the volume's root to this GID and sets setgid on it;
+        # that is what lets uid 1000 create the data and media directories on a
+        # freshly provisioned PV. Without it: CrashLoopBackOff, permission
+        # denied in `logs --previous`.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: paperless
+          # Our build, not upstream's: upstream plus the Danish tesseract data.
+          # Tagged with the upstream version it wraps, so Renovate can offer
+          # the next one here once the workflow has published it - the same
+          # two-PR flow as the agent image. See images/paperless-ngx/README.md.
+          image: ghcr.io/baakhoff/paperless-ngx:3.2.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # The task broker, in the container beside this one. Nothing durable
+            # goes through it: a lost queue means a document is re-consumed,
+            # not lost - it is still in the consumption directory until the
+            # consumer has finished with it.
+            - name: PAPERLESS_REDIS
+              value: redis://localhost:6379
+            # Sets ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS and CORS in one go, and
+            # is the origin the OIDC callback is built against. Get it wrong
+            # and the login round-trip to Pocket ID ends in a CSRF error that
+            # names neither of them.
+            - name: PAPERLESS_URL
+              value: https://paperless.lab.baakhoff.com
+            # ingress-nginx terminates TLS and tells Django so in this header.
+            # Without it Django believes every request is plain http, and the
+            # redirect back from Pocket ID lands on an http:// URL that the
+            # browser then upgrades - which the CSRF check counts as a
+            # cross-origin POST.
+            - name: PAPERLESS_PROXY_SSL_HEADER
+              value: '["HTTP_X_FORWARDED_PROTO", "https"]'
+            - name: PAPERLESS_TIME_ZONE
+              value: Europe/Copenhagen
+            # Both languages tried on every page; tesseract picks per word.
+            # `dan` is not in the upstream image - see the image directory.
+            - name: PAPERLESS_OCR_LANGUAGE
+              value: dan+eng
+            # All four directories on the one volume - pvc.yaml says why one.
+            # The consumption directory is not: with web and app upload as the
+            # only intake, nothing is ever left there between pod starts.
+            - name: PAPERLESS_DATA_DIR
+              value: /data/data
+            - name: PAPERLESS_MEDIA_ROOT
+              value: /data/media
+            - name: PAPERLESS_CONSUMPTION_DIR
+              value: /consume
+            # Files on the volume laid out as year/correspondent/title rather
+            # than as numbered originals. This is the disaster-recovery
+            # setting: a restored volume with no working database is still a
+            # browsable folder tree, and a document is findable by hand.
+            - name: PAPERLESS_FILENAME_FORMAT
+              value: "{{ created_year }}/{{ correspondent }}/{{ title }}"
+            # One worker. OCR is CPU-heavy and this is a three-node cluster
+            # with a game server on it; a scan finishing in two minutes rather
+            # than one is the right trade for not starving the neighbours.
+            - name: PAPERLESS_TASK_WORKERS
+              value: "1"
+            - name: PAPERLESS_THREADS_PER_WORKER
+              value: "2"
+            # --- Login through Pocket ID -------------------------------------
+            # The provider itself - client id, secret and issuer - is a JSON
+            # blob and arrives from the Secret below, because the secret is
+            # inside the blob. What is here is the policy around it.
+            #
+            # Registers django-allauth's OpenID Connect provider.
+            - name: PAPERLESS_APPS
+              value: allauth.socialaccount.providers.openid_connect
+            # First login through Pocket ID creates the Paperless account,
+            # with username, name and email taken from the token. Who is
+            # allowed that far is decided on the Pocket ID client's Allowed
+            # User Groups tab, not here - the README has the setup.
+            - name: PAPERLESS_SOCIAL_AUTO_SIGNUP
+              value: "true"
+            # Reflect Pocket ID groups on every login, and make one of them
+            # mean admin. Same shape as Grafana's grafana-admins mapping:
+            # membership is checked at each login, so removing someone from
+            # the group in Pocket ID takes effect the next time they sign in.
+            # Superuser status includes the connecting user, so an admin who
+            # leaves the group demotes themself - README says how to recover.
+            - name: PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS
+              value: "true"
+            - name: PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP
+              value: paperless-admins
+            # The password form stays. Not for people - everyone signs in with
+            # a passkey - but for the phone apps, which speak the API with a
+            # token or a password and cannot do the browser dance. The README
+            # covers giving an account one.
+            - name: PAPERLESS_DISABLE_REGULAR_LOGIN
+              value: "false"
+          envFrom:
+            # PAPERLESS_SECRET_KEY and PAPERLESS_SOCIALACCOUNT_PROVIDERS, both
+            # created by hand and encrypted into env.sops.yaml beside this
+            # file. Until the Secret exists the pod waits in
+            # CreateContainerConfigError, which is not a crash and does not
+            # alert - the README's first step is this Secret for that reason.
+            - secretRef:
+                name: paperless-env
+          ports:
+            - name: http
+              containerPort: 8000
+          # Django runs its migrations on start and the first boot also builds
+          # the search index; give it five minutes before liveness gets a vote.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              # OCR of a long scan peaks well above the idle footprint. Tight
+              # limits here show up as a consumer killed mid-document, which
+              # Paperless reports as a failed task rather than a crash.
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: consume
+              mountPath: /consume
+            - name: tmp
+              mountPath: /tmp
+        # The broker. Nothing here needs to survive a restart, so persistence
+        # is switched off and there is no volume: it holds the task queue and
+        # the read cache, both rebuilt from the database.
+        - name: redis
+          image: redis:8.10.2-alpine
+          args: ["redis-server", "--save", "", "--appendonly", "no"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: paperless-data
+        - name: consume
+          emptyDir: {}
+        # Scratch space for the consumer: the PDF being OCR'd, its rendered
+        # pages, the archive being built. Sized so a runaway job cannot fill
+        # the node's disk.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 4Gi
