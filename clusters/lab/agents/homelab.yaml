@@ -111,7 +111,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: claude
-          image: ghcr.io/baakhoff/claude-agent:2.1.278
+          image: ghcr.io/baakhoff/claude-agent:2.1.280
           # Always, not IfNotPresent, because the tag is MUTABLE: it is the
           # Claude Code version, so any change to the image that is not a CLI
           # release rebuilds the same tag in place. IfNotPresent keys on the
