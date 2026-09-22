@@ -20,6 +20,13 @@ spec:
       labels:
         app.kubernetes.io/name: paperless
     spec:
+      # Kubernetes injects an env var per Service in the namespace, Docker-links
+      # style: a Service called `paperless` becomes PAPERLESS_PORT=tcp://<ip>:80
+      # in every pod here. Paperless reads PAPERLESS_PORT as the port its web
+      # server should listen on, and "tcp://10.43.x.x:80" is not a port - the
+      # symptom is granian refusing to start while every init step passed.
+      # Nothing in this pod discovers services by env, so the links go.
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         # Paperless's image supports running as an arbitrary uid - "rootless" in
