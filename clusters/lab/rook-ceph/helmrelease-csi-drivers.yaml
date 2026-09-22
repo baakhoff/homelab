@@ -17,7 +17,7 @@ spec:
       # Matched to the ceph-csi-operator subchart version that Rook v1.20
       # pins in its own Chart.yaml. The two halves of one project should not
       # drift apart.
-      version: "1.0.4"
+      version: "1.0.5"
       sourceRef:
         kind: HelmRepository
         name: ceph-csi
