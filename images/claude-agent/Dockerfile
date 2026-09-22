@@ -50,7 +50,7 @@ RUN apt-get update \
 
 # uv: the Python package manager the Python projects use. Copied from its own
 # image so the version is pinned here and Renovate bumps it like any other.
-COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /usr/local/bin/
 
 # gh from the project's own release, NOT from Debian. bookworm ships 2.23.0 -
 # February 2023 - and a CLI that old does not merely lack features, it makes
