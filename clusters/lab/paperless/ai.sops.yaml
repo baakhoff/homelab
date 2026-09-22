@@ -1,0 +1,22 @@
+apiVersion: v1
+data:
+    PAPERLESS_AI_LLM_API_KEY: ENC[AES256_GCM,data:yuUk/g+knnqL1ZaEUZ1mIrRoo0WMqSEU9U11ciOrZ3xs9dq55Ts7cO6zg9+WEqvM5C4H6hUunddlylS1ErLYBVuW3Z4REvBqJWQ/2rOAQxs8LVJNB55DCy4xLEhoNgozGJNypQ==,iv:27RkbuDi3gmAn4Z8zIFx3PBrNJDsIJoeTsg1VD1HDCA=,tag:f4h85ZQN2RBhvSRk35pltA==,type:str]
+kind: Secret
+metadata:
+    name: paperless-ai
+    namespace: paperless
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBXMUM4RmlkUUtJMEEwcXBj
+            QXJXQ3dmMFBkZ2M2N1lGM1cyZExVSE5vc3hVCkM4dGVlTkZLVVFKcW1TcWFGTjdm
+            cFFVRVF3TExxVEZVRVFkbi9RL0l2MXcKLS0tIDZjd2Uxbno2VXBsRDhZNHlqcEhu
+            RFlKM3ppd0xqQ2h0UXgvYVEvUkNkeDgKVcB/NwkgIKCiDQiZJINJ9Un3v7dDabVa
+            RTHhQOlU3LWCqas9ejP+PsXNW2vJVOpayR7T5vSz5lkKNA2yJB8oOA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-09-22T21:55:02Z"
+    mac: ENC[AES256_GCM,data:MqgBoQ4j06Qn1XDA/0PDIfHl9Fbdb1vNHSnkdpGF2VObyPHFDOziBbmnNriXmfkZZzBFEKjM3lGrODu3I8mk/AoIbVtmdUYh/6pqTV+dLK6aJGzXhxBkueLfklvdlG+dvRdeNKQck7R596Jp9/iODOXiVvQdc9G86EngDn4/TMY=,iv:VcOK9L2hsM+M22qJkaVDE2IjriVgjKlckR8CJ/6dPQo=,tag:SSd4TZpBs8NRADQN+Ux2vg==,type:str]
+    version: 3.13.3
