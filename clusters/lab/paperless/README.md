@@ -14,6 +14,7 @@ else. Sign-in is a passkey through Pocket ID.
 | `service.yaml` | ClusterIP on 80 → 8000 |
 | `ingress.yaml` | `paperless.lab.baakhoff.com` under the lab wildcard, with the Homepage tile |
 | `env.sops.yaml` | the Django secret key and the Pocket ID client - **created by hand, see below** |
+| `ai.sops.yaml` | the OpenRouter API key for the AI features - **created by hand, see below** |
 
 ## The one Secret, and it comes first
 
@@ -61,6 +62,51 @@ every login is a plain user.
 `PAPERLESS_SECRET_KEY` signs sessions. Rotating it logs everyone out and
 nothing more, so it is not precious the way Pocket ID's encryption key is; it
 is in git encrypted because that is where every Secret here lives.
+
+## The second Secret: AI
+
+Suggestions for tags, correspondents, document types and titles, and a chat
+box that answers questions about a document, all come from a hosted model:
+DeepSeek V4.1 Flash through OpenRouter, configured on the Deployment. What
+that means, plainly: **the OCR'd text of a document is sent to OpenRouter, and
+from there to whichever provider serves the model, every time a suggestion is
+generated or a question asked.** Nothing is sent for a document you never ask
+about, and the feature is one env var to turn off. Before turning it on, in
+OpenRouter's settings, disable training on your prompts and consider
+restricting to providers with a zero-retention policy; both are account-level
+switches on their side, not anything this repository can set.
+
+One key, one Secret, same recipe as the first:
+
+```bash
+read -rsp 'openrouter api key: ' KEY; echo
+
+kubectl create secret generic paperless-ai \
+  --namespace paperless \
+  --from-literal=PAPERLESS_AI_LLM_API_KEY="$KEY" \
+  --dry-run=client -o yaml > clusters/lab/paperless/ai.sops.yaml
+
+unset KEY
+sops --encrypt --in-place clusters/lab/paperless/ai.sops.yaml
+```
+
+Commit and push. Make the key in OpenRouter with a spending limit: Flash is
+cheap - fractions of a cent per document - but a limit turns a runaway loop
+into a stopped feature rather than a bill.
+
+**Embeddings** go through OpenRouter as well, to `baai/bge-m3`, the
+multilingual model upstream recommends. They power similar-document search
+and let chat pull in related documents. The index is built by a nightly task
+at 02:10 and covers every document, so this is the one AI feature that sends
+text you did not explicitly ask about - all of it, once, and then each new
+document as it arrives. Cost is a cent per million tokens, so a whole archive
+is small change; the privacy trade is the one to weigh. Set
+`PAPERLESS_AI_LLM_EMBEDDING_BACKEND` to nothing to keep suggestions and
+single-document chat without it. Changing the embedding model later means
+rebuilding the index; the Paperless administration docs have the command.
+The offline alternative is a Hugging Face model in the pod, upstream's pick
+being `intfloat/multilingual-e5-small`, at roughly another gigabyte of memory
+on the Deployment.
 
 ## First run
 
@@ -137,6 +183,8 @@ not: year, correspondent, title.
   ```
 
   That account signs in through the password form.
+- **AI off.** Set `PAPERLESS_AI_ENABLED` to `"false"` on the Deployment; the
+  Secret can stay or go. Nothing already in the archive depends on it.
 - **OCR quality.** `dan+eng` is tried on every page. A document that comes out
   as gibberish is usually a photo rather than a scan: retake it flat, in light,
   and re-upload. *Documents → the document → Actions → Redo OCR* also exists.
