@@ -17,9 +17,20 @@ spec:
   install:
     remediation:
       retries: 3
+    crds: CreateReplace
   upgrade:
     remediation:
       retries: 3
+    # Helm never touches CRDs on upgrade, and this chart bumps its MAJOR every
+    # time the operator ships new ones - the CRDs live in the chart's crds/
+    # directory and the operator expects the matching schema. Flux's default
+    # for upgrades is Skip, so a Renovate major would roll the operator and
+    # leave the old CRDs behind: new fields silently dropped, and the operator
+    # logging about a schema it cannot see. CreateReplace makes Flux apply the
+    # chart's CRDs before the release on install and on every upgrade, which is
+    # the Flux equivalent of the `kubectl apply --server-side` block the
+    # chart's UPGRADE.md asks for by hand at each major.
+    crds: CreateReplace
   values:
     # ---------------------------------------------------------------------
     # k3s runs the control plane as ONE process, so these three components
