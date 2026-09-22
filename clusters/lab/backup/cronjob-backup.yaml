@@ -60,7 +60,7 @@ spec:
               # images/claude-agent, holding exactly kubectl and restic, which
               # would also let the driver and the restic Jobs share one image.
               # Worth doing; not worth blocking the first backup on.
-              image: alpine/k8s:1.35.8
+              image: alpine/k8s:1.37.0
               command: ["/bin/sh", "/script/backup.sh"]
               env:
                 # WHITESPACE-SEPARATED namespace/pvc pairs.
