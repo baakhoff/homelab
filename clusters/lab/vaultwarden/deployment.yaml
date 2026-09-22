@@ -81,7 +81,7 @@ spec:
           # The cutover is done and verified, so that reason has expired: this
           # is now an ordinary pin and Renovate's bump can be taken like any
           # other.
-          image: vaultwarden/server:1.37.1
+          image: vaultwarden/server:1.37.3
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
