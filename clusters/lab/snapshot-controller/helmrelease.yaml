@@ -39,7 +39,7 @@ spec:
       # Both versions carry the same appVersion, v8.6.0, so the wait costs
       # nothing but the chart packaging. Renovate will offer 5.3.0 once it has
       # aged.
-      version: "5.2.0"
+      version: "5.3.0"
       sourceRef:
         kind: HelmRepository
         name: piraeus
