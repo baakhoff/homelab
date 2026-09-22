@@ -94,12 +94,19 @@ Commit and push. Make the key in OpenRouter with a spending limit: Flash is
 cheap - fractions of a cent per document - but a limit turns a runaway loop
 into a stopped feature rather than a bill.
 
-**Not configured: embeddings.** Similar-document search and retrieval across
-the whole archive need an embedding model, and OpenRouter serves none. The
-route, if wanted, is a Hugging Face model run inside the pod - upstream's
-recommendation for a Danish archive is `intfloat/multilingual-e5-small` - at
-the cost of a 500MB download onto the volume and roughly another gigabyte of
-memory on the Deployment's limit.
+**Embeddings** go through OpenRouter as well, to `baai/bge-m3`, the
+multilingual model upstream recommends. They power similar-document search
+and let chat pull in related documents. The index is built by a nightly task
+at 02:10 and covers every document, so this is the one AI feature that sends
+text you did not explicitly ask about - all of it, once, and then each new
+document as it arrives. Cost is a cent per million tokens, so a whole archive
+is small change; the privacy trade is the one to weigh. Set
+`PAPERLESS_AI_LLM_EMBEDDING_BACKEND` to nothing to keep suggestions and
+single-document chat without it. Changing the embedding model later means
+rebuilding the index; the Paperless administration docs have the command.
+The offline alternative is a Hugging Face model in the pod, upstream's pick
+being `intfloat/multilingual-e5-small`, at roughly another gigabyte of memory
+on the Deployment.
 
 ## First run
 
