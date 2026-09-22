@@ -49,7 +49,7 @@ spec:
           # image bump back therefore means restoring the volume, not just
           # reverting the tag - the nightly snapshot is what makes an upgrade
           # here safe, and README.md says it is not wired yet.
-          image: ghcr.io/pocket-id/pocket-id:v2.14.0
+          image: ghcr.io/pocket-id/pocket-id:v2.16.0
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
