@@ -9,7 +9,7 @@ nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.clust
 nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
 ```
 
-Behind it today: Homepage, Prometheus, Alertmanager. Not behind it: anything
+Behind it today: Homepage, Prometheus, Alertmanager, ConvertX. Not behind it: anything
 that speaks OIDC itself (Grafana, Headlamp) — native login gives the app an
 identity to attach roles to, this gives it a yes. And not Vaultwarden, which
 holds the passkeys; the Pocket ID README says why.
