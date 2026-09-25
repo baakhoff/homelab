@@ -1,0 +1,60 @@
+# Firefly's daily work: recurring transactions, bill reminders, and - once
+# switched on in the admin settings - downloading the day's exchange rates.
+# None of it happens unless something calls this URL. Straight to the Service,
+# not through the Ingress: the gate would turn the call away, and the token
+# in the URL is the authorisation.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: firefly-cron
+  namespace: firefly
+spec:
+  schedule: "15 3 * * *"
+  # Load-bearing, as in the backup CronJob: without it this runs in UTC.
+  timeZone: Europe/Copenhagen
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: firefly-cron
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: cron
+              image: docker.io/curlimages/curl:8.22.0
+              # -f fails the Job on an HTTP error; -sS keeps the output to the
+              # error alone, which does not include the URL and its token.
+              command:
+                - sh
+                - -c
+                - curl -fsS --max-time 540 -o /dev/null "http://firefly.firefly.svc.cluster.local/api/v1/cron/${STATIC_CRON_TOKEN}"
+              env:
+                - name: STATIC_CRON_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: firefly-env
+                      key: STATIC_CRON_TOKEN
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 5m
+                  memory: 8Mi
+                limits:
+                  memory: 32Mi
