@@ -45,7 +45,9 @@ Hardware that has left service is in [the lab over time](docs/history.md).
   oauth2-proxy puts in front of everything with no login of its own
   ([how](clusters/lab/pocket-id/README.md)), and Paperless, the household's
   documents scanned, OCR'd and searchable
-  ([how](clusters/lab/paperless/README.md)). Nightly restic backup of its volumes
+  ([how](clusters/lab/paperless/README.md)), and ConvertX, file conversion
+  between most formats in the browser, behind that same gate
+  ([how](clusters/lab/convertx/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
