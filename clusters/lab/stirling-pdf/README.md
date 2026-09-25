@@ -42,6 +42,14 @@ Serbian, Kazakh) are in it. Adding them would mean our own image, as for
 Paperless. That is not worth doing for a tool whose output goes to Paperless
 anyway, which already OCRs in all of them.
 
+## Why it starts as root
+
+Unlike the other web services here. The image's init script is written for a
+root start and fails without one, on its first write outside its own
+directories. So it gets root with five capabilities and no others. It uses them
+to hand the writable directories to its own user, and it starts Java and
+LibreOffice as that user. `deployment.yaml` has the detail.
+
 ## When an operation fails
 
 The browser shows an error; the reason is in the log:
