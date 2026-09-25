@@ -1,0 +1,23 @@
+apiVersion: v1
+data:
+    OIDC_CLIENT_ID: ENC[AES256_GCM,data:w+raHNyKwR+4jhBK+pf93CR2/+1nl41UGpEmxfIwWS828sZv3C2OVFayifpToeTP,iv:kpkAziY63E+O6MwMqkyrwdLVhqZEuCltlB8N82aFnxo=,tag:hDP+/jS0z4WXjPjkT8KSQA==,type:str]
+    OIDC_CLIENT_SECRET: ENC[AES256_GCM,data:bEQaoLcg4VzTKV/uk9SIptCOeZVljT1SNb+1Wi0sD2JUDTeZnIcGkoidynA=,iv:VeDB1rJVUop6aCYE0VV8fiAJLxhhLJOqGXQd3yqNZ9U=,tag:j4Dj9cfNNR8NwPl3jq6k+w==,type:str]
+kind: Secret
+metadata:
+    name: mealie-oidc
+    namespace: mealie
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBKQTVJekFmblpkUmlxaGg2
+            LzlCTkljR3g0UnNTOVpBZjRJNDRuTGZRTzNVCnVyTWF2UEZ6eGltOCtjakJ0K3l3
+            U0YrZVllY0hxNEVVaUg5Ti80QlYvNUkKLS0tIDlhTzdSNEtCQ2tFUGVVMzFCc3BQ
+            b1RsS2hkNUdkVzM5WGlQazJGMWRicWsKSzHXjqXI40dc5u4XTYrcHad3ut3bYDtP
+            ITo2lGI87bUx8QKBT3JAKbJsHMD8WXV0I2bOvMrbDOYFIxtXsrTzcw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-09-25T13:35:20Z"
+    mac: ENC[AES256_GCM,data:W8vzQIsv+P2S6wRubI1jfHn+F56bz18BUhRaCPNbPTubkBh+C0jcppbjUppPsVuU64L8xCjk6lG3udz1GUI46qaN7lnciomVhHCsCBdSQEld97ToPhQFfg7NJVkX4mUqnx2bBXZv3o2JxH8zDRPBHx0sNgfLt2ogUDNnMc5WDUE=,iv:K7cKg0flNkHtsxDXq1r4Gi7dzKJx4bmRZ5+Tabnk7SQ=,tag:WD5+Hk7Y9ronnTbput6Rjw==,type:str]
+    version: 3.13.3
