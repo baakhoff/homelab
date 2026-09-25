@@ -44,6 +44,7 @@ exception: it keeps its own master password.
 | [Stirling-PDF](https://www.stirlingpdf.com) | Merges, splits, reorders and edits PDFs, and turns a stack of images into one PDF. |
 | [cobalt](https://github.com/imputnet/cobalt) | Saves video and audio from a link, streamed straight to the device with nothing kept on the server. |
 | [IT-Tools](https://github.com/CorentinTh/it-tools) | About eighty small browser-side tools: encoders, formatters, generators and converters. |
+| [Actual Budget](https://actualbudget.org) | The household budget, synced across every device and usable offline. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
 | [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
@@ -78,7 +79,9 @@ exception: it keeps its own master password.
   ([how](clusters/lab/stirling-pdf/README.md)), and cobalt, which saves video
   and audio from a link straight to the device
   ([how](clusters/lab/cobalt/README.md)), and IT-Tools, a page of small
-  browser-side utilities ([how](clusters/lab/it-tools/README.md)). Nightly restic backup of its volumes
+  browser-side utilities ([how](clusters/lab/it-tools/README.md)), and Actual
+  Budget, the household budget, signing in through Pocket ID
+  ([how](clusters/lab/actual/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
