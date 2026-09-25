@@ -1,0 +1,38 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Behind Pocket ID. cobalt has no login; this is all of it, for the page and
+# the API alike, which share this host for exactly that reason (nginx.yaml).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cobalt
+  namespace: cobalt
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # A download that has to merge a video's streams first can take a while
+    # to send its first byte, and nginx's 60-second default would cut it.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: cobalt
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: cobalt.png
+    gethomepage.dev/description: Save videos and audio from a link
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://cobalt.lab.baakhoff.com
+spec:
+  rules:
+    # This name is also compiled into the web image - see
+    # images/cobalt-web/README.md before changing it.
+    - host: cobalt.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cobalt
+                port:
+                  number: 80

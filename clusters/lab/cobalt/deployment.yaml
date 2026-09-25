@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cobalt
+  namespace: cobalt
+spec:
+  # Stateless. A download is a stream from the source site through the API to
+  # the browser, and nothing of it is written anywhere in between.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cobalt
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cobalt
+      annotations:
+        # The nginx config is read at start only; a changed ConfigMap alone
+        # would sit unused until something else restarted the pod. Bump this
+        # with any edit to nginx.yaml.
+        cobalt/nginx-config: "1"
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # The page, and the pod's only listener - nginx.yaml says why one.
+        - name: web
+          # Our build of upstream's page; see images/cobalt-web. Its version
+          # is the API's below, and the two move together.
+          image: ghcr.io/baakhoff/cobalt-web:11.7.1
+          securityContext:
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 8080
+          # `/` through nginx with the kubelet's Accept: */* is the API's
+          # server-info, so ready means both containers answer.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /index.html
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: web-tmp
+              mountPath: /tmp
+        - name: api
+          image: ghcr.io/imputnet/cobalt:11.7.1
+          securityContext:
+            # The image's own `node` user.
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            # The public address, which the API writes into every download
+            # link it hands the page. Same origin as the page: see nginx.yaml.
+            - name: API_URL
+              value: https://cobalt.lab.baakhoff.com/
+            # Loopback only. nginx is the way in, so nothing in the cluster
+            # can reach the API around the Ingress and its gate.
+            - name: API_LISTEN_ADDRESS
+              value: 127.0.0.1
+            # No other site's page may use this instance from a browser.
+            - name: CORS_WILDCARD
+              value: "0"
+            - name: CORS_URL
+              value: https://cobalt.lab.baakhoff.com
+          # No ports: section - loopback is not a container port.
+          livenessProbe:
+            exec:
+              command: ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9000/"]
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              # Idle it is a small Node process. Merging a video's separate
+              # audio and video streams runs ffmpeg beside it for the length
+              # of the download.
+              memory: 1Gi
+          volumeMounts:
+            - name: api-tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: cobalt-nginx
+        - name: web-tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: api-tmp
+          emptyDir:
+            sizeLimit: 256Mi
