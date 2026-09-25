@@ -29,26 +29,27 @@ Hardware that has left service is in [the lab over time](docs/history.md).
 
 ## Services
 
-Web services are reached on the LAN or over Tailscale. The cluster's web
-services sign in with a Pocket ID passkey, either through the app's own login
-or through the oauth2-proxy gate. Vaultwarden is the exception: it keeps its
-own master password.
+The cluster's web services sign in with a Pocket ID passkey, either through
+the app's own login or through the oauth2-proxy gate. Vaultwarden is the
+exception: it keeps its own master password.
 
-| Service | Where | What it is |
-|---|---|---|
-| Homepage | <https://home.lab.baakhoff.com> | Dashboard linking everything below, with a health badge on each. |
-| Pocket ID | <https://id.lab.baakhoff.com> | Passkey-only sign-in that every other service in the lab logs in through. |
-| Vaultwarden | <https://vault.lab.baakhoff.com> | Bitwarden-compatible password vault for the household. |
-| Paperless | <https://paperless.lab.baakhoff.com> | Household documents, scanned, OCR'd in four languages and searchable. |
-| ConvertX | <https://convert.lab.baakhoff.com> | Converts files between most formats: images, documents, e-books, audio and video. |
-| Stirling-PDF | <https://pdf.lab.baakhoff.com> | Merges, splits, reorders and edits PDFs, and turns a stack of images into one PDF. |
-| Grafana | <https://grafana.lab.baakhoff.com> | Dashboards for the cluster's metrics and logs. |
-| Prometheus | <https://prometheus.lab.baakhoff.com> | The metrics store and its alert rules. |
-| Alertmanager | <https://alertmanager.lab.baakhoff.com> | Firing alerts and silences; notifications go to Telegram. |
-| Headlamp | <https://headlamp.lab.baakhoff.com> | Kubernetes UI: pods, logs, events and Flux state. |
-| epicurus | <https://epicurus.lab.baakhoff.com> | The assistant: its core, web shell and modules. |
-| Minecraft | `mc.lab`, port 25565 | Java Edition server for the household. |
-| Pi-hole | <http://pi.hole/admin> | DNS and ad blocking for the house and the tailnet, on the Pi. |
+| Service | What it is |
+|---|---|
+| [Homepage](https://gethomepage.dev) | Dashboard linking everything below, with a health badge on each. |
+| [Pocket ID](https://pocket-id.org) | Passkey-only sign-in that every other service in the lab logs in through. |
+| [oauth2-proxy](https://github.com/oauth2-proxy/oauth2-proxy) | The login gate for services that have no login of their own. |
+| [Vaultwarden](https://github.com/dani-garcia/vaultwarden) | Bitwarden-compatible password vault for the household. |
+| [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) | Household documents, scanned, OCR'd in four languages and searchable. |
+| [ConvertX](https://github.com/C4illin/ConvertX) | Converts files between most formats: images, documents, e-books, audio and video. |
+| [Stirling-PDF](https://www.stirlingpdf.com) | Merges, splits, reorders and edits PDFs, and turns a stack of images into one PDF. |
+| [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
+| [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
+| [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
+| [Loki](https://grafana.com/oss/loki/) | Log storage for every pod, queried from Grafana. |
+| [Headlamp](https://headlamp.dev) | Kubernetes UI: pods, logs, events and Flux state. |
+| [epicurus](https://github.com/baakhoff/epicurus) | The assistant: its core, web shell and modules. |
+| [Minecraft server](https://github.com/itzg/docker-minecraft-server) | Java Edition server for the household. |
+| [Pi-hole](https://pi-hole.net) | DNS and ad blocking for the house and the tailnet, on the Pi. |
 
 ## Where things run
 
