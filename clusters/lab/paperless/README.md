@@ -1,9 +1,10 @@
 # paperless
 
-The household's paper: scanned or photographed, OCR'd in Danish and English,
-tagged, searchable, and kept in one place that is backed up. Reachable from the
-house and the tailnet at `https://paperless.lab.baakhoff.com`, and from nowhere
-else. Sign-in is a passkey through Pocket ID.
+The household's paper: scanned or photographed, OCR'd in English, Russian,
+Serbian and Kazakh, tagged, searchable, and kept in one place that is backed
+up. Reachable from the house and the tailnet at
+`https://paperless.lab.baakhoff.com`, and from nowhere else. Sign-in is a
+passkey through Pocket ID.
 
 ## What is here
 
@@ -185,9 +186,9 @@ not: year, correspondent, title.
   That account signs in through the password form.
 - **AI off.** Set `PAPERLESS_AI_ENABLED` to `"false"` on the Deployment; the
   Secret can stay or go. Nothing already in the archive depends on it.
-- **OCR quality.** `dan+eng` is tried on every page. A document that comes out
-  as gibberish is usually a photo rather than a scan: retake it flat, in light,
-  and re-upload. *Documents → the document → Actions → Redo OCR* also exists.
+- **OCR quality.** `eng+rus+srp+srp_latn+kaz` is tried on every page. A
+  document that comes out as gibberish is usually a photo rather than a scan:
+  retake it flat, in light, and re-upload. *Documents → the document → Actions → Redo OCR* also exists.
 - **Storage.** *Documents* shows the count; `kubectl -n paperless exec
   deploy/paperless -c paperless -- df -h /data` shows the volume. Growing it is
   an edit to `pvc.yaml`.
