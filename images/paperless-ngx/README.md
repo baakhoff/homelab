@@ -1,7 +1,7 @@
 # paperless-ngx image
 
-Upstream `ghcr.io/paperless-ngx/paperless-ngx` with the Danish tesseract
-language added at build time, for `clusters/lab/paperless/`. Nothing else
+Upstream `ghcr.io/paperless-ngx/paperless-ngx` with the Russian, Serbian
+(Cyrillic and Latin) and Kazakh tesseract languages added at build time, for `clusters/lab/paperless/`. Nothing else
 changes: same entrypoint, same user, same ports.
 
 ## Why a build at all
@@ -20,10 +20,16 @@ to `main` that touches it and publishes
 manager then sees the new tag on GHCR and offers it to the Deployment. Two
 PRs per upgrade, as for the agent image.
 
-The tag is mutable in the same way the agent image's is, and the Deployment
-does not pin `imagePullPolicy: Always` because the only thing that changes
-under a tag here is this one apt package. If that ever stops being true, the
-agent image README has the trade written out.
+The tag is mutable in the same way the agent image's is: changing the
+languages here rebuilds the same upstream version under the same tag. So the
+Deployment pins `imagePullPolicy: Always`, for the reason the agent image
+README writes out - with `IfNotPresent` a node that already holds the tag never
+pulls the rebuild, however often the pod restarts.
+
+Adding a language is therefore two PRs as well: this file first, and only once
+the build has published, the `PAPERLESS_OCR_LANGUAGE` change in the
+Deployment. The other order restarts the pod on the old image with a language
+it does not have.
 
 The first build is the one to watch: the package is created by that push, and
 the nodes pull anonymously. If the pod reports `ErrImagePull`, the package's

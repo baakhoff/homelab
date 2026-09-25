@@ -69,7 +69,7 @@ hosts/              # host-level config installed by hand, outside GitOps
   nodes/            #   node02-04, configured identically: netplan, cloud-init guard, sshd
 images/
   claude-agent/     # container image for the Claude Code agent pods, built by GitHub Actions
-  paperless-ngx/    # upstream Paperless-ngx plus Danish OCR, built the same way
+  paperless-ngx/    # upstream Paperless-ngx plus extra OCR languages, built the same way
 docs/
   hardware.md       # hardware inventory and specs
   network.md        # addressing, the switch, how the lab is reached from outside
