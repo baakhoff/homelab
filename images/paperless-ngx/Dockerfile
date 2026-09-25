@@ -16,6 +16,7 @@ FROM ghcr.io/paperless-ngx/paperless-ngx:3.2.1
 
 RUN apt-get update \
  && apt-get install --yes --quiet --no-install-recommends \
+      tesseract-ocr-dan \
       tesseract-ocr-rus \
       tesseract-ocr-srp \
       tesseract-ocr-srp-latn \
