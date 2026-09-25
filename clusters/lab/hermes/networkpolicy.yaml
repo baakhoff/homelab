@@ -1,0 +1,73 @@
+# Hermes is an agent with a shell, and on Kubernetes its commands run in
+# this pod rather than in a sandbox container of their own. What it can
+# reach is therefore what anything it is talked into running can reach.
+# These policies make that the internet and nothing of the lab's, the same
+# as the agents namespace, with one door back in.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hermes-ingress
+  namespace: hermes
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    # The dashboard, through the front door only.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 9119
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hermes-egress
+  namespace: hermes
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    # Cluster DNS, matched by the CoreDNS pods' labels as in the agents
+    # policy.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # The internet only: every private range is excepted - pods, Services,
+    # the Kubernetes API, the nodes, the house LAN, the tailnet, link-local.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+    # The one door: the lab's HTTPS front door, because the dashboard's own
+    # login has to fetch Pocket ID's keys from id.lab.baakhoff.com, which
+    # resolves to the nodes. That address is the ingress controller's
+    # LoadBalancer, rewritten to the controller pod before policy is
+    # checked, so this allows exactly that and not the nodes themselves.
+    # Through it Hermes is an anonymous visitor to every lab host: the gate,
+    # or the app's own login, turns it away like any other.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 443

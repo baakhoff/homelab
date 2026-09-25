@@ -1,0 +1,41 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Behind the oauth2-proxy gate as well as the dashboard's own Pocket ID
+# login. One passkey in practice: the second redirect finds the Pocket ID
+# session already there. The dashboard holds every key the agent has, so it
+# gets both locks.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hermes
+  namespace: hermes
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Files handed to the agent in chat.
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    # The chat is a terminal over a websocket; nginx's 60-second default
+    # would cut it whenever the agent is quiet for a minute.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Hermes
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: mdi-robot-outline
+    gethomepage.dev/description: The Hermes agent and its dashboard
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://hermes.lab.baakhoff.com
+spec:
+  rules:
+    - host: hermes.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hermes
+                port:
+                  number: 80
