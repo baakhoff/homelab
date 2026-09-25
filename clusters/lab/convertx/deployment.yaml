@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convertx
+  namespace: convertx
+spec:
+  # One replica: the job list is a SQLite file on the pod's scratch volume, and
+  # a second pod would be a second, disagreeing list - an upload landing on one
+  # and the results page polling the other.
+  replicas: 1
+  # Recreate so the old pod is gone before the new one starts, for the same
+  # reason: never two of it at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: convertx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: convertx
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's own `convertx` user, which owns its home directory.
+        runAsUser: 1000
+        runAsGroup: 1000
+        # kubelet sets the emptyDirs' group to this, so uid 1000 can write them.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: convertx
+          image: ghcr.io/c4illin/convertx:v0.18.0
+          # Past the image's entrypoint, straight to the server. The entrypoint
+          # starts as root to chown the data directory and then drops to the
+          # convertx user with gosu; this pod starts as that user, has no
+          # root to drop from, and the kubelet does the chown via fsGroup.
+          command: ["bun", "run", "dist/src/index.js"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # No accounts. Pocket ID in front of the Ingress decides who gets
+            # this far, and a second login behind it would only be a second
+            # password to keep.
+            - name: ALLOW_UNAUTHENTICATED
+              value: "true"
+            # Without accounts, every visit is otherwise a new anonymous user,
+            # and the history page is empty on each return. Shared, it is one
+            # household's list of recent conversions - which is who is behind
+            # the gate anyway.
+            - name: UNAUTHENTICATED_USER_SHARING
+              value: "true"
+            - name: ACCOUNT_REGISTRATION
+              value: "false"
+            # Uploads and results are deleted a day after the job. This is a
+            # converter, not storage: the result is downloaded, and the copy
+            # here is only a convenience until then.
+            - name: AUTO_DELETE_EVERY_N_HOURS
+              value: "24"
+            # Two converters at once, however many files are dropped in. Each
+            # is ffmpeg or LibreOffice or Calibre at full tilt, and this shares
+            # nodes with Paperless's OCR and a game server.
+            - name: MAX_CONVERT_PROCESS
+              value: "2"
+            - name: TZ
+              value: Europe/Copenhagen
+            # LibreOffice and Calibre keep a profile under $HOME.
+            - name: HOME
+              value: /home/convertx
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              # Idle it is a Bun process and little else. Converting, it is
+              # two of the heavy tools above; a limit hit shows up as a failed
+              # job on the results page rather than as a crash.
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # The SQLite job list, the uploads and the results. Not a PVC: all of
+        # it is gone within a day by design, so a restart losing it early
+        # costs the household a re-upload, and it needs no backup. Sized so a
+        # runaway conversion cannot fill the node's disk; going past it evicts
+        # the pod.
+        - name: data
+          emptyDir:
+            sizeLimit: 8Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 2Gi
