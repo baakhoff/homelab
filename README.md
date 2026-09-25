@@ -98,6 +98,7 @@ hosts/              # host-level config installed by hand, outside GitOps
 images/
   claude-agent/     # container image for the Claude Code agent pods, built by GitHub Actions
   paperless-ngx/    # upstream Paperless-ngx plus extra OCR languages, built the same way
+  cobalt-web/       # cobalt's web page, which upstream does not publish, built the same way
 docs/
   hardware.md       # hardware inventory and specs
   network.md        # addressing, the switch, how the lab is reached from outside
