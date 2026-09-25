@@ -46,6 +46,7 @@ exception: it keeps its own master password.
 | [IT-Tools](https://github.com/CorentinTh/it-tools) | About eighty small browser-side tools: encoders, formatters, generators and converters. |
 | [Firefly III](https://github.com/firefly-iii/firefly-iii) | Household finances: accounts in any currency, budgets, recurring bills and reports. |
 | [n8n](https://n8n.io) | Visual automations: schedules, emails and webhooks wired to any service in or outside the lab. |
+| [Mealie](https://mealie.io) | Recipes imported from any site by link, meal plans and shared shopping lists. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
 | [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
@@ -82,8 +83,9 @@ exception: it keeps its own master password.
   ([how](clusters/lab/cobalt/README.md)), and IT-Tools, a page of small
   browser-side utilities ([how](clusters/lab/it-tools/README.md)), and
   Firefly III for the household's finances in every currency
-  ([how](clusters/lab/firefly/README.md)), and n8n for automations between
-  all of it ([how](clusters/lab/n8n/README.md)). Nightly restic backup of its volumes
+  ([how](clusters/lab/firefly/README.md)), and Mealie for recipes, meal plans
+  and shopping lists ([how](clusters/lab/mealie/README.md)), and n8n for
+  automations between all of it ([how](clusters/lab/n8n/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
