@@ -1,0 +1,34 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# No oauth2-proxy annotations: Actual signs in through Pocket ID itself.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: actual
+  namespace: actual
+  annotations:
+    # A budget file syncs up whole on first upload and on a reset. Actual's
+    # own cap is 20m; ingress-nginx's default of 1m is well under it and
+    # answers with a 413 that names nginx.
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Actual
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: actual-budget.png
+    gethomepage.dev/description: Household budget
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://budget.lab.baakhoff.com
+spec:
+  rules:
+    - host: budget.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: actual
+                port:
+                  number: 80
