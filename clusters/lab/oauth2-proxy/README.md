@@ -9,16 +9,16 @@ nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.clust
 nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
 ```
 
-Behind it today: Homepage, Prometheus, Alertmanager, ConvertX,
-Stirling-PDF, cobalt, IT-Tools, Firefly III, n8n, Mealie. Firefly is the one
-host that also takes *who* from the gate, not just yes or no: its Ingress
-asks for `X-Auth-Request-Email`, which this answers with because of
+Behind it today: Homepage, Prometheus, Alertmanager, ConvertX, Stirling-PDF,
+cobalt, IT-Tools, Firefly III, n8n, Mealie, Hermes. Firefly is the one host
+that also takes *who* from the gate, not just yes or no: its Ingress asks for
+`X-Auth-Request-Email`, which this answers with because of
 `OAUTH2_PROXY_SET_XAUTHREQUEST`, and Firefly signs that address in.
 `clusters/lab/firefly/` has why that is safe there. Not behind it: anything
 that speaks OIDC itself (Grafana, Headlamp) — native login gives the app an
-identity to attach roles to, this gives it a yes. Mealie is the exception
-that has both, for a reason its Ingress gives. And not Vaultwarden, which
-holds the passkeys; the Pocket ID README says why.
+identity to attach roles to, this gives it a yes. Mealie and Hermes are the
+exceptions that have both, for the reasons their Ingresses give. And not
+Vaultwarden, which holds the passkeys; the Pocket ID README says why.
 
 ## The secret
 

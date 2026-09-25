@@ -1,0 +1,19 @@
+# Hermes's whole home, /opt/data: config.yaml and .env (the LLM and platform
+# keys entered in the dashboard), memories, skills, sessions, cron jobs and
+# the agent's own working files. One volume for the reason pvc.yaml in
+# paperless/ gives - one snapshot, one consistent moment.
+#
+# 5Gi: memories and sessions are small; the room is for what the agent
+# writes while it works, and for packages it installs. Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-data
+  namespace: hermes
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 5Gi
