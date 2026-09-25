@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actual
+  namespace: actual
+spec:
+  # One replica on a ReadWriteOnce volume with SQLite on it. Recreate for the
+  # reasons the Vaultwarden Deployment spells out: never two processes on one
+  # database, and the RBD image maps to one node at a time.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: actual
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: actual
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's own `actual` user. The image has no USER line and would
+        # otherwise run as root.
+        runAsUser: 1001
+        runAsGroup: 1001
+        # kubelet hands the fresh volume's root to this group, which is what
+        # lets uid 1001 create its directories on it.
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: actual
+          image: docker.io/actualbudget/actual-server:26.9.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: ACTUAL_DATA_DIR
+              value: /data
+            # --- Login through Pocket ID -------------------------------------
+            # Native OpenID Connect, not the oauth2-proxy gate: Actual has
+            # users and per-budget access of its own, and a gate would give it
+            # a yes where this gives it a name.
+            - name: ACTUAL_LOGIN_METHOD
+              value: openid
+            - name: ACTUAL_ALLOWED_LOGIN_METHODS
+              value: openid
+            # No password fallback, and no password to set on first visit.
+            # Every account is a Pocket ID account.
+            - name: ACTUAL_OPENID_ENFORCE
+              value: "true"
+            - name: ACTUAL_OPENID_PROVIDER_NAME
+              value: Pocket ID
+            - name: ACTUAL_OPENID_DISCOVERY_URL
+              value: https://id.lab.baakhoff.com/.well-known/openid-configuration
+            # Where Pocket ID sends the browser back to: this plus
+            # /openid/callback, which is the callback URL on the Pocket ID
+            # client.
+            - name: ACTUAL_OPENID_SERVER_HOSTNAME
+              value: https://budget.lab.baakhoff.com
+            # First Pocket ID login creates the Actual account. Who may get
+            # that far is the Pocket ID client's Allowed User Groups. The
+            # very first account becomes the owner and admin - the README
+            # says why that first login has to be yours.
+            - name: ACTUAL_USER_CREATION_MODE
+              value: login
+          envFrom:
+            # ACTUAL_OPENID_CLIENT_ID and ACTUAL_OPENID_CLIENT_SECRET, created
+            # by hand into oidc.sops.yaml beside this file. Until it exists the
+            # pod waits in CreateContainerConfigError - README, step 2.
+            - secretRef:
+                name: actual-oidc
+          ports:
+            - name: http
+              containerPort: 5006
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: actual-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

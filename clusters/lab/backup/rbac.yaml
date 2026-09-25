@@ -145,3 +145,21 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: backup-driver
+---
+# The budget. Years of transactions and the categories they were sorted
+# into; every device holds a copy, but only until its browser data is
+# cleared, and the server's is the one they all sync from. Bound ahead of the
+# BACKUP_TARGETS entry, in the order clusters/lab/actual/README.md gives.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-driver
+  namespace: actual
+subjects:
+  - kind: ServiceAccount
+    name: backup-driver
+    namespace: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-driver
