@@ -1,0 +1,34 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Behind Pocket ID like ConvertX. Nothing here is secret - it is a page of
+# browser-side tools - but it is one more host on the gate rather than the
+# one host off it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: it-tools
+  namespace: it-tools
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: IT-Tools
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: it-tools.png
+    gethomepage.dev/description: Small everyday tools for developers
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://tools.lab.baakhoff.com
+spec:
+  rules:
+    - host: tools.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: it-tools
+                port:
+                  number: 80

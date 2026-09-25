@@ -1,0 +1,20 @@
+# Replaces the image's own server block, which listens on 80 - a port only
+# root may bind. Same site, on 8080, so nginx runs as its own unprivileged
+# user instead. IT-Tools is a single-page app: every path that is not a file
+# is the app's router's business, hence the fallback to index.html.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: it-tools-nginx
+  namespace: it-tools
+data:
+  default.conf: |
+    server {
+        listen 8080;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
