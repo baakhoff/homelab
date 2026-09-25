@@ -87,6 +87,15 @@
       dependencyDashboardApproval: true,
     },
     {
+      // IT-Tools tags are `<date>-<commit>`. Renovate's docker versioning
+      // reads everything after the hyphen as a variant, like `-alpine`, and
+      // only offers tags of the same variant - so with a new hash on every
+      // release, it would never offer one. The date alone is the version.
+      description: "IT-Tools: the date is the version, the commit hash is not a variant",
+      matchPackageNames: ["ghcr.io/corentinth/it-tools"],
+      versioning: "regex:^(?<major>\\d{4})\\.(?<minor>\\d+)\\.(?<patch>\\d+)-[0-9a-f]+$",
+    },
+    {
       // Majors get read, not merged. kube-prometheus-stack in particular
       // renames values between majors, and a rename is silently ignored by
       // Helm rather than rejected - the same class of failure as the
