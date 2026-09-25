@@ -28,7 +28,7 @@ a re-upload. So there is no volume and no backup entry.
 
 Several images into one PDF, in an order you choose. ConvertX converts each
 file on its own, so ten photos become ten PDFs. Merging and reordering pages is
-a PDF tool's job.
+a PDF tool's job: Stirling-PDF, at <https://pdf.lab.baakhoff.com>.
 
 ## When a conversion fails
 
