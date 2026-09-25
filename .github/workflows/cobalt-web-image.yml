@@ -1,0 +1,45 @@
+# Builds images/cobalt-web and publishes it to GHCR, tagged with the cobalt
+# version of the API image in the Dockerfile's FROM line. Runs when that
+# directory changes on main, or by hand from the Actions tab. A copy of
+# claude-agent-image.yml with the names changed; the reasoning is there.
+name: cobalt-web image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - images/cobalt-web/**
+      - .github/workflows/cobalt-web-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the pinned upstream version
+        id: version
+        run: |
+          version=$(sed -n 's#^FROM ghcr.io/imputnet/cobalt:\([^ ]*\) AS api$#\1#p' images/cobalt-web/Dockerfile)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: images/cobalt-web
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/cobalt-web:${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
