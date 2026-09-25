@@ -1,0 +1,14 @@
+# The nginx port only. The API listens on the pod's loopback and nothing
+# outside the pod can reach it except through nginx.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cobalt
+  namespace: cobalt
+spec:
+  selector:
+    app.kubernetes.io/name: cobalt
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
