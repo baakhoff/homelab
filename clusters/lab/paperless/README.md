@@ -9,7 +9,7 @@ else. Sign-in is a passkey through Pocket ID.
 
 | File | What |
 |---|---|
-| `deployment.yaml` | the server, from `images/paperless-ngx/` (upstream plus Danish OCR), and its Redis broker beside it; one replica, `Recreate`, non-root |
+| `deployment.yaml` | the server, from `images/paperless-ngx/` (upstream plus extra OCR languages), and its Redis broker beside it; one replica, `Recreate`, non-root |
 | `pvc.yaml` | database, search index, originals, archived PDFs and thumbnails - all on one 20Gi `ceph-block` volume, and the file says why one |
 | `service.yaml` | ClusterIP on 80 → 8000 |
 | `ingress.yaml` | `paperless.lab.baakhoff.com` under the lab wildcard, with the Homepage tile |

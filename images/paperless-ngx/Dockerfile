@@ -1,10 +1,11 @@
-# Upstream Paperless-ngx plus one package: tesseract's Danish model.
+# Upstream Paperless-ngx plus tesseract's models for the household's languages:
+# Russian, Serbian in both scripts, and Kazakh. English is upstream's own.
 #
 # The upstream image ships English, German, French, Italian and Spanish, and
 # offers PAPERLESS_OCR_LANGUAGES to apt-get any other at container start. That
 # install runs as root, and this cluster runs the container as uid 1000 - the
 # image's own rootless mode, which its docs say plainly cannot install
-# languages. So the language moves from boot time to build time: this file,
+# languages. So the languages move from boot time to build time: this file,
 # built once per upstream release, and nothing at start needs root or the
 # internet.
 #
@@ -14,5 +15,10 @@
 FROM ghcr.io/paperless-ngx/paperless-ngx:3.2.1
 
 RUN apt-get update \
- && apt-get install --yes --quiet --no-install-recommends tesseract-ocr-dan \
+ && apt-get install --yes --quiet --no-install-recommends \
+      tesseract-ocr-dan \
+      tesseract-ocr-rus \
+      tesseract-ocr-srp \
+      tesseract-ocr-srp-latn \
+      tesseract-ocr-kaz \
  && rm -rf /var/lib/apt/lists/*
