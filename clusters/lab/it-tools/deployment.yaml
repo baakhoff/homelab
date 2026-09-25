@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: it-tools
+  namespace: it-tools
+spec:
+  # A static site: every tool runs in the browser, and the pod only hands
+  # out the files. Nothing to keep, nothing sent back.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: it-tools
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: it-tools
+      annotations:
+        # nginx reads its config at start only. Bump with any edit to
+        # nginx.yaml, or the change waits for an unrelated restart.
+        it-tools/nginx-config: "1"
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        # The `nginx` user of the image's nginx:alpine base. Without root the
+        # `user` directive in nginx.conf is ignored, with a warning in the log.
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: it-tools
+          # Upstream's image. Releases are rare - the last is from 2024. The
+          # tag is date-and-commit; a rule in renovate.json5 makes Renovate
+          # compare the dates.
+          image: ghcr.io/corentinth/it-tools:2024.10.22-7ca5933
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          # The three places stock nginx writes, as emptyDirs, so the rest of
+          # the filesystem can be read-only: its pid file, its temp files,
+          # and conf.d, replaced by the ConfigMap.
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: run
+              mountPath: /var/run
+            - name: cache
+              mountPath: /var/cache/nginx
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: it-tools-nginx
+        - name: run
+          emptyDir:
+            sizeLimit: 1Mi
+        - name: cache
+          emptyDir:
+            sizeLimit: 64Mi
