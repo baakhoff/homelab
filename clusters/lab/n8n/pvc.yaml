@@ -1,0 +1,19 @@
+# n8n's whole data directory, ~/.n8n: the SQLite database (workflows, stored
+# credentials, execution history) and the config file holding the encryption
+# key those credentials are encrypted with. One volume, so the key and what it
+# unlocks are always snapshotted and backed up together.
+#
+# 2Gi: workflows are kilobytes; execution history is most of it, and n8n
+# prunes that after 14 days by default. Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-data
+  namespace: n8n
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 2Gi
