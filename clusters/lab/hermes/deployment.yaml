@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes
+  namespace: hermes
+spec:
+  # One agent on a ReadWriteOnce volume with SQLite on it. Recreate for the
+  # reasons the Vaultwarden Deployment spells out: never two processes on one
+  # database, and the RBD image maps to one node at a time.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hermes
+    spec:
+      enableServiceLinks: false
+      # Nothing here talks to the Kubernetes API, and an agent with a shell
+      # should not find a token to try.
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: hermes
+          image: docker.io/nousresearch/hermes-agent:v2026.9.24
+          # The main process is the messaging gateway. With no platform
+          # configured it idles; the dashboard runs beside it under the
+          # image's supervisor.
+          args: ["gateway", "run"]
+          # Starts as root, like Stirling-PDF, and for a similar reason: the
+          # image's init (s6-overlay) must be PID 1 as root, fixes the data
+          # volume's ownership, then runs everything as its own user, hermes
+          # (uid 10000). It refuses to start as any other uid. Root here
+          # holds only what that needs: chown and file access for the
+          # volume, setuid/setgid to drop, kill for the supervisor to stop
+          # what it started.
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL]
+          env:
+            - name: TZ
+              value: Europe/Copenhagen
+            - name: HERMES_DASHBOARD
+              value: "1"
+            # The redirect address given to Pocket ID is this plus
+            # /auth/callback, and the dashboard trusts this host name in its
+            # Host and Origin checks.
+            - name: HERMES_DASHBOARD_PUBLIC_URL
+              value: https://hermes.lab.baakhoff.com
+            # --- Login: Pocket ID, through the dashboard's own OIDC ---------
+            # The dashboard refuses to listen on anything but loopback
+            # without a login provider. Who may log in at all is the
+            # client's Allowed User Groups in Pocket ID.
+            - name: HERMES_DASHBOARD_OIDC_ISSUER
+              value: https://id.lab.baakhoff.com
+          envFrom:
+            # HERMES_DASHBOARD_OIDC_CLIENT_ID and
+            # HERMES_DASHBOARD_OIDC_CLIENT_SECRET, created by hand into
+            # oidc.sops.yaml beside this file. Until it exists the pod waits
+            # in CreateContainerConfigError - README, step 2.
+            - secretRef:
+                name: hermes-oidc
+          ports:
+            - name: dashboard
+              containerPort: 9119
+          # The first start seeds config and runs migrations. Five minutes
+          # before liveness gets a vote.
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: dashboard
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: dashboard
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: dashboard
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            # Chromium, when the agent browses, needs more shared memory than
+            # the runtime's 64Mi default.
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-data
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
