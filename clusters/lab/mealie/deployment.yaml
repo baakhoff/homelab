@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mealie
+  namespace: mealie
+spec:
+  # One replica on a ReadWriteOnce volume with SQLite on it. Recreate for the
+  # reasons the Vaultwarden Deployment spells out: never two processes on one
+  # database, and the RBD image maps to one node at a time.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mealie
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        # abc, the image's own user. Started as root, the entrypoint would
+        # chown all of /app and then drop to this uid; started as it, the
+        # entrypoint sees there is nothing to do.
+        runAsUser: 911
+        runAsGroup: 911
+        # kubelet hands the fresh volume's root to this group.
+        fsGroup: 911
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mealie
+          image: ghcr.io/mealie-recipes/mealie:v3.28.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Links in shared recipes and the OIDC callback address are built
+            # from this.
+            - name: BASE_URL
+              value: https://recipes.lab.baakhoff.com
+            - name: TZ
+              value: Europe/Copenhagen
+            # No database server: SQLite in the data directory, the volume.
+            - name: DB_ENGINE
+              value: sqlite
+            # --- Login: Pocket ID, through Mealie's own OpenID Connect -------
+            # Every account is a Pocket ID account, created at its first
+            # login into the default group and household, so the household
+            # shares one recipe book. No sign-up form and no password form.
+            - name: ALLOW_SIGNUP
+              value: "false"
+            - name: ALLOW_PASSWORD_LOGIN
+              value: "false"
+            - name: OIDC_AUTH_ENABLED
+              value: "true"
+            - name: OIDC_CONFIGURATION_URL
+              value: https://id.lab.baakhoff.com/.well-known/openid-configuration
+            - name: OIDC_PROVIDER_NAME
+              value: Pocket ID
+            # Straight to Pocket ID, no login page with one button on it.
+            - name: OIDC_AUTO_REDIRECT
+              value: "true"
+            # A login through a redirect cannot tick "remember me"; this
+            # ticks it, so a phone stays signed in past closing the browser.
+            - name: OIDC_REMEMBER_ME
+              value: "true"
+            # Members of this Pocket ID group are Mealie admins, re-evaluated
+            # at every login, like paperless-admins. Who may log in at all is
+            # the client's Allowed User Groups in Pocket ID.
+            - name: OIDC_ADMIN_GROUP
+              value: mealie-admins
+          envFrom:
+            # OIDC_CLIENT_ID and OIDC_CLIENT_SECRET, created by hand into
+            # oidc.sops.yaml beside this file. Until it exists the pod waits
+            # in CreateContainerConfigError - README, step 2.
+            - secretRef:
+                name: mealie-oidc
+          ports:
+            - name: http
+              containerPort: 9000
+          # Migrations run before the server listens. Five minutes before
+          # liveness gets a vote. The path is the image's own healthcheck's.
+          startupProbe:
+            httpGet:
+              path: /api/app/about
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/app/about
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/app/about
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mealie-data
