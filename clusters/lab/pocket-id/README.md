@@ -62,6 +62,7 @@ setting them as an env var would do nothing.
 | Headlamp | `config.oidc` in `clusters/lab/headlamp/helmrelease.yaml`; id and secret in `headlamp-oidc.sops.yaml`; the apiserver side in `hosts/nodes/k3s-config.yaml` | the Pocket ID group `headlamp-users` maps to `oidc:headlamp-users`, bound read-only in `clusters/lab/headlamp/rbac.yaml`; anyone outside it logs in and sees nothing |
 | Paperless | `PAPERLESS_SOCIALACCOUNT_PROVIDERS` in `clusters/lab/paperless/env.sops.yaml`, policy in the Deployment beside it | the Pocket ID group `paperless-admins` maps to superuser, re-evaluated at every login; who may log in at all is the client's *Allowed User Groups* |
 | Mealie | `OIDC_*` in `clusters/lab/mealie/deployment.yaml`; id and secret in `oidc.sops.yaml` beside it | the Pocket ID group `mealie-admins` maps to Mealie admin, re-evaluated at every login; who may log in at all is the client's *Allowed User Groups* |
+| Hermes | `HERMES_DASHBOARD_OIDC_*` in `clusters/lab/hermes/deployment.yaml`; id and secret in `oidc.sops.yaml` beside it | none: anyone the client admits has the whole dashboard. Restrict on the client's *Allowed User Groups* |
 | oauth2-proxy | `clusters/lab/oauth2-proxy/`; gates every host whose Ingress carries the `auth-url` annotations, listed in its README | yes/no only: anyone the client admits. Restrict on the client's *Allowed User Groups* tab in Pocket ID |
 
 **Not behind it, on purpose: Vaultwarden.** The vault holds the passkeys. An
@@ -72,8 +73,8 @@ Each client is created in Pocket ID's admin UI first, because the client secret
 has to exist before the manifest that references it can. The callback URL for
 Grafana is `https://grafana.lab.baakhoff.com/login/generic_oauth`, and for
 Paperless `https://paperless.lab.baakhoff.com/accounts/oidc/pocketid/login/callback/`,
-and for Mealie `https://recipes.lab.baakhoff.com/login` plus the same with
-`?direct=1`.
+for Mealie `https://recipes.lab.baakhoff.com/login` plus the same with
+`?direct=1`, and for Hermes `https://hermes.lab.baakhoff.com/auth/callback`.
 
 
 ## Backup — not yet, and in this order
