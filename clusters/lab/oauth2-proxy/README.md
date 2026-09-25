@@ -10,7 +10,11 @@ nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/st
 ```
 
 Behind it today: Homepage, Prometheus, Alertmanager, ConvertX,
-Stirling-PDF, cobalt, IT-Tools. Not behind it: anything
+Stirling-PDF, cobalt, IT-Tools, Firefly III. Firefly is the one host that
+also takes *who* from the gate, not just yes or no: its Ingress asks for
+`X-Auth-Request-Email`, which this answers with because of
+`OAUTH2_PROXY_SET_XAUTHREQUEST`, and Firefly signs that address in.
+`clusters/lab/firefly/` has why that is safe there. Not behind it: anything
 that speaks OIDC itself (Grafana, Headlamp) — native login gives the app an
 identity to attach roles to, this gives it a yes. And not Vaultwarden, which
 holds the passkeys; the Pocket ID README says why.
