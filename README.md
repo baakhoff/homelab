@@ -27,6 +27,29 @@ replaced as the build changes, and the one it replaces moves to
 
 Hardware that has left service is in [the lab over time](docs/history.md).
 
+## Services
+
+Web services are reached on the LAN or over Tailscale. The cluster's web
+services sign in with a Pocket ID passkey, either through the app's own login
+or through the oauth2-proxy gate. Vaultwarden is the exception: it keeps its
+own master password.
+
+| Service | Where | What it is |
+|---|---|---|
+| Homepage | <https://home.lab.baakhoff.com> | Dashboard linking everything below, with a health badge on each. |
+| Pocket ID | <https://id.lab.baakhoff.com> | Passkey-only sign-in that every other service in the lab logs in through. |
+| Vaultwarden | <https://vault.lab.baakhoff.com> | Bitwarden-compatible password vault for the household. |
+| Paperless | <https://paperless.lab.baakhoff.com> | Household documents, scanned, OCR'd in four languages and searchable. |
+| ConvertX | <https://convert.lab.baakhoff.com> | Converts files between most formats: images, documents, e-books, audio and video. |
+| Stirling-PDF | <https://pdf.lab.baakhoff.com> | Merges, splits, reorders and edits PDFs, and turns a stack of images into one PDF. |
+| Grafana | <https://grafana.lab.baakhoff.com> | Dashboards for the cluster's metrics and logs. |
+| Prometheus | <https://prometheus.lab.baakhoff.com> | The metrics store and its alert rules. |
+| Alertmanager | <https://alertmanager.lab.baakhoff.com> | Firing alerts and silences; notifications go to Telegram. |
+| Headlamp | <https://headlamp.lab.baakhoff.com> | Kubernetes UI: pods, logs, events and Flux state. |
+| epicurus | <https://epicurus.lab.baakhoff.com> | The assistant: its core, web shell and modules. |
+| Minecraft | `mc.lab`, port 25565 | Java Edition server for the household. |
+| Pi-hole | <http://pi.hole/admin> | DNS and ad blocking for the house and the tailnet, on the Pi. |
+
 ## Where things run
 
 - **node02, node03, node04** — k3s with embedded etcd, all three as servers,
@@ -47,7 +70,9 @@ Hardware that has left service is in [the lab over time](docs/history.md).
   documents scanned, OCR'd and searchable
   ([how](clusters/lab/paperless/README.md)), and ConvertX, file conversion
   between most formats in the browser, behind that same gate
-  ([how](clusters/lab/convertx/README.md)). Nightly restic backup of its volumes
+  ([how](clusters/lab/convertx/README.md)), and Stirling-PDF beside it for
+  merging, splitting and reordering PDFs
+  ([how](clusters/lab/stirling-pdf/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
