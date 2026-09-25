@@ -29,7 +29,8 @@ pulls the rebuild, however often the pod restarts.
 Adding a language is therefore two PRs as well: this file first, and only once
 the build has published, the `PAPERLESS_OCR_LANGUAGE` change in the
 Deployment. The other order restarts the pod on the old image with a language
-it does not have.
+it does not have. Removing one runs the same way in reverse: the setting
+stops asking for it first, then the package goes.
 
 The first build is the one to watch: the package is created by that push, and
 the nodes pull anonymously. If the pod reports `ErrImagePull`, the package's
