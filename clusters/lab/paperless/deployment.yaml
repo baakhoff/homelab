@@ -31,7 +31,7 @@ spec:
         runAsNonRoot: true
         # Paperless's image supports running as an arbitrary uid - "rootless" in
         # its docs - with one cost, paid for in images/paperless-ngx/: the
-        # startup-time install of extra OCR languages needs root, so Danish is
+        # startup-time install of extra OCR languages needs root, so they are
         # baked into the image instead of installed at each boot.
         runAsUser: 1000
         runAsGroup: 1000
@@ -44,11 +44,14 @@ spec:
           type: RuntimeDefault
       containers:
         - name: paperless
-          # Our build, not upstream's: upstream plus the Danish tesseract data.
+          # Our build, not upstream's: upstream plus the tesseract languages.
           # Tagged with the upstream version it wraps, so Renovate can offer
           # the next one here once the workflow has published it - the same
           # two-PR flow as the agent image. See images/paperless-ngx/README.md.
           image: ghcr.io/baakhoff/paperless-ngx:3.2.1
+          # The tag is rebuilt in place when the languages change, and
+          # IfNotPresent would keep serving the node's cached copy of it.
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
