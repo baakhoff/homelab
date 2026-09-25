@@ -1,0 +1,21 @@
+# Firefly's whole storage directory, on one volume for the reason pvc.yaml in
+# paperless/ gives - one snapshot, one consistent moment. In it: the SQLite
+# database (every account, transaction and exchange rate), attachments, and
+# the OAuth keypair that signs API tokens. The keypair is why it is the whole
+# directory and not just the database: generated on first start, a keypair
+# not kept would invalidate every personal access token at each restart.
+#
+# 2Gi: the database is megabytes after years of a household's transactions;
+# the rest is room for attached receipts. Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: firefly-data
+  namespace: firefly
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 2Gi

@@ -107,6 +107,12 @@ spec:
             # decides nothing.
             - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
               value: "true"
+            # Answer each auth check with who the user is, in X-Auth-Request-*
+            # headers. Nothing reads them unless an Ingress asks for them with
+            # the auth-response-headers annotation; Firefly's does, and logs
+            # the user in by the email in them.
+            - name: OAUTH2_PROXY_SET_XAUTHREQUEST
+              value: "true"
             # Nothing is proxied. This process only ever answers auth_request
             # and the /oauth2/* endpoints; a static 202 is what an upstream
             # looks like when there is none.

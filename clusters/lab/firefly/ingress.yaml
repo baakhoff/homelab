@@ -1,0 +1,38 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Behind Pocket ID through oauth2-proxy, with one addition over the other
+# gated hosts: the third annotation copies the signed-in user's email from
+# oauth2-proxy's answer onto the request, and Firefly logs that user in.
+# deployment.yaml and networkpolicy.yaml have the rest.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: firefly
+  namespace: firefly
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    nginx.ingress.kubernetes.io/auth-response-headers: X-Auth-Request-Email
+    # Attachments: scanned receipts and statements.
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Firefly III
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: firefly-iii.png
+    gethomepage.dev/description: Household finances, in every currency
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://firefly.lab.baakhoff.com
+spec:
+  rules:
+    - host: firefly.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: firefly
+                port:
+                  number: 80

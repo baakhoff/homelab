@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firefly
+  namespace: firefly
+spec:
+  # One replica on a ReadWriteOnce volume with SQLite on it. Recreate for the
+  # reasons the Vaultwarden Deployment spells out: never two processes on one
+  # database, and the RBD image maps to one node at a time.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: firefly
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: firefly
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        # www-data, which the image already runs as: PHP-FPM and nginx
+        # unprivileged on 8080.
+        runAsUser: 33
+        runAsGroup: 33
+        # kubelet hands the fresh volume's root to this group.
+        fsGroup: 33
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # The volume replaces the image's storage directory, which is not
+        # empty: Laravel expects framework/cache, framework/sessions,
+        # framework/views and the rest to exist, and stops at the first
+        # request if they do not. Copy the image's skeleton onto the volume,
+        # never over anything already there (-n). Every start, so a directory
+        # a new version adds is added too.
+        - name: storage-skeleton
+          image: docker.io/fireflyiii/core:version-6.7.3
+          command: ["cp", "-R", "-n", "/var/www/html/storage/.", "/volume/"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /volume
+      containers:
+        - name: firefly
+          image: docker.io/fireflyiii/core:version-6.7.3
+          # Not read-only at the root: the image's start script regenerates
+          # Composer's autoloader and Laravel's config cache inside the
+          # application directory on every boot.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: APP_URL
+              value: https://firefly.lab.baakhoff.com
+            # ingress-nginx is the only thing that can reach this pod
+            # (networkpolicy.yaml), so trusting any proxy is trusting it:
+            # https in X-Forwarded-Proto is what makes the links https.
+            - name: TRUSTED_PROXIES
+              value: "**"
+            - name: TZ
+              value: Europe/Copenhagen
+            # No database server: the SQLite file's default place is inside
+            # storage/, which is the volume. A household's finances are small
+            # enough that SQLite is not the limit.
+            - name: DB_CONNECTION
+              value: sqlite
+            # stdout only. The default adds a daily file on the volume, which
+            # would then be backed up nightly for no reader.
+            - name: LOG_CHANNEL
+              value: stdout
+            # --- Login: Pocket ID, through oauth2-proxy ----------------------
+            # Firefly has no OpenID Connect of its own. It does trust a
+            # header naming the user, which is what the gate sends:
+            # oauth2-proxy answers ingress-nginx's auth check with the
+            # Pocket ID email in X-Auth-Request-Email, and ingress-nginx
+            # copies it onto the request (ingress.yaml). An unknown email is
+            # a new Firefly user, created on the spot; the first one is the
+            # owner.
+            #
+            # Safe only because nothing can send this header but ingress-nginx:
+            # it overwrites whatever the browser sent, and networkpolicy.yaml
+            # keeps every other pod in the cluster off this one.
+            - name: AUTHENTICATION_GUARD
+              value: remote_user_guard
+            - name: AUTHENTICATION_GUARD_HEADER
+              value: HTTP_X_AUTH_REQUEST_EMAIL
+            - name: AUTHENTICATION_GUARD_EMAIL
+              value: HTTP_X_AUTH_REQUEST_EMAIL
+            # Firefly's own logout cannot end a session it did not start;
+            # this one ends the gate's.
+            - name: CUSTOM_LOGOUT_URL
+              value: https://auth.lab.baakhoff.com/oauth2/sign_out
+          envFrom:
+            # APP_KEY and STATIC_CRON_TOKEN, generated on the workstation
+            # into env.sops.yaml beside this file. Until it exists the pod
+            # waits in CreateContainerConfigError - README, step 1.
+            - secretRef:
+                name: firefly-env
+          ports:
+            - name: http
+              containerPort: 8080
+          # Migrations run before the web server starts, and a first boot
+          # creates the whole schema. Five minutes before liveness gets a vote.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/html/storage
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: firefly-data
