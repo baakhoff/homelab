@@ -10,7 +10,7 @@ nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/st
 ```
 
 Behind it today: Homepage, Prometheus, Alertmanager, ConvertX,
-Stirling-PDF, cobalt, IT-Tools, Firefly III. Firefly is the one host that
+Stirling-PDF, cobalt, IT-Tools, Firefly III, n8n. Firefly is the one host that
 also takes *who* from the gate, not just yes or no: its Ingress asks for
 `X-Auth-Request-Email`, which this answers with because of
 `OAUTH2_PROXY_SET_XAUTHREQUEST`, and Firefly signs that address in.

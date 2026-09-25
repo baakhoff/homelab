@@ -1,0 +1,42 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Behind Pocket ID through oauth2-proxy, and then n8n's own owner login as
+# well: single sign-on is in n8n's paid edition only. The whole host is gated,
+# webhook paths included. Callers inside the cluster skip the gate by going
+# to the Service; README.md has the addresses.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n
+  namespace: n8n
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # n8n's own request limit, 16 MB, so a file sent to a webhook or a form
+    # is refused by n8n with a reason rather than by nginx.
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    # The editor keeps a websocket open for live execution updates; nginx's
+    # 60-second default would drop it whenever nothing runs for a minute.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: n8n
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: n8n.png
+    gethomepage.dev/description: Automations between everything
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://n8n.lab.baakhoff.com
+spec:
+  rules:
+    - host: n8n.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n
+                port:
+                  number: 80
