@@ -78,10 +78,12 @@ spec:
               value: '["HTTP_X_FORWARDED_PROTO", "https"]'
             - name: PAPERLESS_TIME_ZONE
               value: Europe/Copenhagen
-            # Both languages tried on every page; tesseract picks per word.
-            # `dan` is not in the upstream image - see the image directory.
+            # Every language tried on every page; tesseract picks per word.
+            # Serbian twice, once per script. Each one costs OCR time on every
+            # page, so a language nobody receives mail in comes off the list.
+            # Only `eng` is in the upstream image - see the image directory.
             - name: PAPERLESS_OCR_LANGUAGE
-              value: dan+eng
+              value: eng+rus+srp+srp_latn+kaz
             # All four directories on the one volume - pvc.yaml says why one.
             # The consumption directory is not: with web and app upload as the
             # only intake, nothing is ever left there between pod starts.
@@ -152,9 +154,10 @@ spec:
               value: deepseek/deepseek-v4.1-flash
             # Suggestions come back in this language regardless of the model's
             # habit of answering in the language it was asked in, which for a
-            # Danish letter processed by an English prompt is a coin toss.
+            # Russian letter processed by an English prompt is a coin toss.
+            # One language across the archive, whatever the documents are in.
             - name: PAPERLESS_AI_LLM_OUTPUT_LANGUAGE
-              value: Danish
+              value: English
             # Embeddings through the same endpoint, for similar-document search
             # and for retrieval across the archive when answering questions.
             # bge-m3 is upstream's pick for a multilingual archive, takes 8k
