@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stirling-pdf
+  namespace: stirling-pdf
+spec:
+  # Stateless - every operation is one request in and one PDF out - so one
+  # replica is a sizing decision, not a correctness one.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stirling-pdf
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stirling-pdf
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        # kubelet sets the emptyDirs' group to this, so uid 1000 can write
+        # every directory the app does, whatever the image's own ownership.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: stirling-pdf
+          # The standard image: LibreOffice, Calibre, Tesseract and OCRmyPDF
+          # included. Its OCR languages are English and four the household
+          # does not use - see the README for why that is left alone.
+          image: ghcr.io/stirling-tools/stirling-pdf:2.14.3
+          # The image's init script stays. It runs a pool of LibreOffice
+          # servers beside the JVM and watches them, and it is written to
+          # start as a non-root user: it skips the chown and user switch it
+          # would do as root, and logs a warning that it did.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          # Every setting here overrides its line in settings.yml, which the
+          # app writes to /configs at start from its built-in template.
+          env:
+            # No login. Pocket ID in front of the Ingress decides who gets
+            # this far. The template defaults this to on, which with an empty
+            # volume means a first-run admin account nobody would use.
+            - name: SECURITY_ENABLELOGIN
+              value: "false"
+            # Off, not unset: unset means asking the admin on first visit,
+            # and there is no admin.
+            - name: SYSTEM_ENABLEANALYTICS
+              value: "false"
+            # Renovate proposes new versions here; a banner saying so in the
+            # UI would only be a second, unactionable copy.
+            - name: SYSTEM_SHOWUPDATE
+              value: "false"
+            # $HOME is on a volume below: LibreOffice keeps its profile there.
+            - name: HOME
+              value: /home/stirlingpdfuser
+          ports:
+            - name: http
+              containerPort: 8080
+          # A JVM and a LibreOffice pool starting together, on a node shared
+          # with others: give it five minutes before liveness gets a vote.
+          startupProbe:
+            httpGet:
+              path: /api/v1/info/status
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/info/status
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/v1/info/status
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 768Mi
+            limits:
+              # The init script sizes the JVM heap as a share of this, and the
+              # rest is LibreOffice's. A limit hit is a failed operation and a
+              # restart, not a lost file - nothing is kept here.
+              memory: 2Gi
+          volumeMounts:
+            - name: configs
+              mountPath: /configs
+            - name: logs
+              mountPath: /logs
+            - name: custom-files
+              mountPath: /customFiles
+            - name: pipeline
+              mountPath: /pipeline
+            - name: storage
+              mountPath: /storage
+            - name: home
+              mountPath: /home/stirlingpdfuser
+            - name: tmp
+              mountPath: /tmp
+      # All emptyDirs. The settings file is regenerated from the template and
+      # the env above on every start; logs go to stdout as well; server-side
+      # file storage needs login, which is off. Mounted rather than left to the
+      # image so that writability comes from fsGroup, not from the image's
+      # ownership of each path.
+      volumes:
+        - name: configs
+          emptyDir: {}
+        - name: logs
+          emptyDir:
+            sizeLimit: 512Mi
+        - name: custom-files
+          emptyDir: {}
+        - name: pipeline
+          emptyDir: {}
+        - name: storage
+          emptyDir: {}
+        - name: home
+          emptyDir: {}
+        # Every upload and every intermediate file of an operation. Sized so a
+        # runaway job cannot fill the node's disk; going past it evicts the pod.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 4Gi
