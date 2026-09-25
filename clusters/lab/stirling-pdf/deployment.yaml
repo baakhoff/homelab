@@ -16,12 +16,21 @@ spec:
         app.kubernetes.io/name: stirling-pdf
     spec:
       enableServiceLinks: false
+      # Starts as root, unlike everything else here, because the image's init
+      # script is written for it and not for the alternative. It has non-root
+      # branches, but it also creates symlinks in /usr/local/bin under
+      # `set -e`, and started as uid 1000 it dies there, in a CrashLoopBackOff
+      # whose log ends in `ln: ... Permission denied`. The root it gets is
+      # the minimum the script uses (see the capabilities below), and it hands
+      # off: Java and every LibreOffice server run as the image's own user,
+      # switched to with setpriv. What stays root is the script itself and a
+      # virtual display. Bypassing the script instead would mean losing the
+      # LibreOffice pool it runs and watches, which is the Office conversion.
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        # kubelet sets the emptyDirs' group to this, so uid 1000 can write
-        # every directory the app does, whatever the image's own ownership.
+        runAsUser: 0
+        runAsGroup: 0
+        # kubelet sets the emptyDirs' group to this; the script chowns them
+        # to its user as well, and either is enough.
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
@@ -31,14 +40,17 @@ spec:
           # included. Its OCR languages are English and four the household
           # does not use - see the README for why that is left alone.
           image: ghcr.io/stirling-tools/stirling-pdf:2.14.3
-          # The image's init script stays. It runs a pool of LibreOffice
-          # servers beside the JVM and watches them, and it is written to
-          # start as a non-root user: it skips the chown and user switch it
-          # would do as root, and logs a warning that it did.
           securityContext:
+            # setpriv switches user with the capabilities below, not through a
+            # setuid binary, so no_new_privs does not get in its way.
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
+              # What root is for in this pod: CHOWN and FOWNER to hand the
+              # writable directories to the runtime user, DAC_OVERRIDE for the
+              # symlinks and for reading what it does not own, SETUID and
+              # SETGID for setpriv to become that user.
+              add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
           # Every setting here overrides its line in settings.yml, which the
           # app writes to /configs at start from its built-in template.
           env:
@@ -56,6 +68,8 @@ spec:
             - name: SYSTEM_SHOWUPDATE
               value: "false"
             # $HOME is on a volume below: LibreOffice keeps its profile there.
+            # Set because the script chowns $HOME to its user, and root's
+            # would otherwise be /root.
             - name: HOME
               value: /home/stirlingpdfuser
           ports:
