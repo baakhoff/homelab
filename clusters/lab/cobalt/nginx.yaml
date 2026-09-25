@@ -1,0 +1,75 @@
+# The front door of the pod: serves the web page, and hands API calls to the
+# API container on loopback. Page and API on one origin is what lets the
+# Pocket ID gate cover both - the page calls the API with fetch() and no
+# credentials option, and a browser only sends cookies on such a call to its
+# own origin. On two hostnames the gate would bounce every API call.
+#
+# Upstream's page takes the origin of its API setting and nothing else, so
+# the API has to own the root path. The one clash is `/`: the page's index for
+# a browser, and for the page's own code the API's server-info (GET) and its
+# download request (POST). Told apart below by method and Accept header - a
+# navigation asks for text/html, the page's fetches do not.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cobalt-nginx
+  namespace: cobalt
+data:
+  default.conf: |
+    map "$request_method $http_accept" $cobalt_root_is_api {
+        "~^POST "        1;
+        "~^GET .*text/html" 0;
+        default          1;
+    }
+
+    server {
+        listen 8080;
+        root /usr/share/nginx/html;
+
+        # What upstream's own hosting sends on every response: the page
+        # remuxes video in the browser with ffmpeg compiled to WebAssembly,
+        # which needs cross-origin isolation for its shared memory.
+        add_header Cross-Origin-Opener-Policy same-origin always;
+        add_header Cross-Origin-Embedder-Policy require-corp always;
+
+        location = / {
+            error_page 418 = @api;
+            if ($cobalt_root_is_api) {
+                return 418;
+            }
+            try_files /index.html =404;
+        }
+
+        location = /session {
+            proxy_pass http://127.0.0.1:9000;
+            include /etc/nginx/conf.d/proxy.inc;
+        }
+
+        # Downloads. Streamed as they arrive rather than spooled to this
+        # pod's disk first - the reason for cobalt in the first place.
+        location /tunnel {
+            proxy_pass http://127.0.0.1:9000;
+            include /etc/nginx/conf.d/proxy.inc;
+            proxy_buffering off;
+            proxy_read_timeout 1h;
+        }
+
+        location @api {
+            proxy_pass http://127.0.0.1:9000;
+            include /etc/nginx/conf.d/proxy.inc;
+        }
+
+        # The page's routes are prerendered as .html files; anything else is
+        # the page's own 404, which is also its client-side router's entry.
+        location / {
+            try_files $uri $uri.html $uri/index.html /404.html;
+        }
+    }
+  # Not named .conf, so nginx's conf.d glob does not load it on its own.
+  proxy.inc: |
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    # The API trusts loopback and private-range proxies, so its rate limits
+    # key on the device behind ingress-nginx, not on this nginx.
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
