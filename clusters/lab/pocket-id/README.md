@@ -61,7 +61,6 @@ setting them as an env var would do nothing.
 | Grafana | `auth.generic_oauth` in `clusters/lab/monitoring/helmrelease.yaml`; id and secret in `grafana-oidc.sops.yaml` beside it | members of the Pocket ID group `grafana-admins` are org Admins, everyone else Viewer, re-evaluated at every login |
 | Headlamp | `config.oidc` in `clusters/lab/headlamp/helmrelease.yaml`; id and secret in `headlamp-oidc.sops.yaml`; the apiserver side in `hosts/nodes/k3s-config.yaml` | the Pocket ID group `headlamp-users` maps to `oidc:headlamp-users`, bound read-only in `clusters/lab/headlamp/rbac.yaml`; anyone outside it logs in and sees nothing |
 | Paperless | `PAPERLESS_SOCIALACCOUNT_PROVIDERS` in `clusters/lab/paperless/env.sops.yaml`, policy in the Deployment beside it | the Pocket ID group `paperless-admins` maps to superuser, re-evaluated at every login; who may log in at all is the client's *Allowed User Groups* |
-| Actual Budget | `clusters/lab/actual/deployment.yaml`; id and secret in `oidc.sops.yaml` beside it | the first account to sign in is owner and admin; later ones are created on login and see only budgets shared with them; who may log in at all is the client's *Allowed User Groups* |
 | oauth2-proxy | `clusters/lab/oauth2-proxy/`; gates every host whose Ingress carries the `auth-url` annotations, listed in its README | yes/no only: anyone the client admits. Restrict on the client's *Allowed User Groups* tab in Pocket ID |
 
 **Not behind it, on purpose: Vaultwarden.** The vault holds the passkeys. An
