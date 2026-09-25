@@ -1,0 +1,39 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Behind the oauth2-proxy gate as well as Mealie's own Pocket ID login. The
+# two cost nothing extra in practice: one passkey, and the second redirect
+# finds the Pocket ID session already there. The gate is for the seeded
+# default admin that networkpolicy.yaml describes, and stays afterwards as
+# the one rule for every host here. The price is that Mealie's mobile apps
+# and API tokens cannot get through it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mealie
+  namespace: mealie
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Recipe photos uploaded from a phone camera.
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Mealie
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: mealie.png
+    gethomepage.dev/description: Recipes, meal plans and shopping lists
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://recipes.lab.baakhoff.com
+spec:
+  rules:
+    - host: recipes.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mealie
+                port:
+                  number: 80

@@ -1,0 +1,18 @@
+# Mealie's data directory: the SQLite database (recipes, meal plans, shopping
+# lists, users) and every recipe's images. One volume for the reason pvc.yaml
+# in paperless/ gives - one snapshot, one consistent moment.
+#
+# 5Gi: the database stays small; the images are most of it, a few hundred
+# kilobytes per recipe after Mealie's own resizing. Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mealie-data
+  namespace: mealie
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 5Gi

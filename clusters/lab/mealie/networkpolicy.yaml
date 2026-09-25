@@ -1,0 +1,26 @@
+# ingress-nginx is the only way in, so the gate in ingress.yaml cannot be
+# walked around from inside the cluster. That matters here for one reason:
+# Mealie seeds an admin with a published default password on first start,
+# and its API accepts a password login even with the login form switched off
+# (README, step 4). Until that account is deleted, the gate is what stands in
+# front of it.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mealie-ingress
+  namespace: mealie
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 9000
