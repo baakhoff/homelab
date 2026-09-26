@@ -15,8 +15,9 @@ switched off, so there is no ConvertX user to create and no first-run setup
 page. Who may reach it is the oauth2-proxy client's *Allowed User Groups* in
 Pocket ID - the same setting as every other gated host.
 
-Everyone who gets through shares one conversion history. That is a household
-behind a passkey; it would be the wrong choice for anything wider.
+Nobody shares a conversion history. Each visit is its own anonymous user, so
+people behind the gate never see each other's files, and history does not
+survive leaving the page: download results before closing it.
 
 ## What it keeps
 
