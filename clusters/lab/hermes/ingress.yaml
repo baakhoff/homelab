@@ -5,14 +5,15 @@
 # Behind the oauth2-proxy gate as well as the dashboard's own Pocket ID
 # login. One passkey in practice: the second redirect finds the Pocket ID
 # session already there. The dashboard holds every key the agent has, so it
-# gets both locks.
+# gets both locks, and the gate is the admin one: only lab-admins get as far
+# as the dashboard's login page.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: hermes
   namespace: hermes
   annotations:
-    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
     nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
     # Files handed to the agent in chat.
     nginx.ingress.kubernetes.io/proxy-body-size: "64m"
