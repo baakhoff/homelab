@@ -9,11 +9,12 @@ nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.clust
 nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
 ```
 
-Behind it today: Homepage, Prometheus, Alertmanager, ConvertX, Stirling-PDF,
-cobalt, IT-Tools, Firefly III, n8n, Mealie, Hermes. Firefly is the one host
-that also takes *who* from the gate, not just yes or no: its Ingress asks for
-`X-Auth-Request-Email`, which this answers with because of
-`OAUTH2_PROXY_SET_XAUTHREQUEST`, and Firefly signs that address in.
+Behind it today, for anyone the client admits: Homepage, ConvertX,
+Stirling-PDF, cobalt, IT-Tools, Firefly III, n8n, Mealie. Behind it for
+`lab-admins` only: Prometheus, Alertmanager, Hermes (the admin gate, below).
+Firefly is the one host that also takes *who* from the gate, not just yes or
+no: its Ingress asks for `X-Auth-Request-Email`, which this answers with
+because of `OAUTH2_PROXY_SET_XAUTHREQUEST`, and Firefly signs that address in.
 `clusters/lab/firefly/` has why that is safe there. Not behind it: anything
 that speaks OIDC itself (Grafana, Headlamp) — native login gives the app an
 identity to attach roles to, this gives it a yes. Mealie and Hermes are the
@@ -56,6 +57,25 @@ Two annotations on its Ingress, as above. Nothing here changes. Who may reach
 it is decided in Pocket ID on the client's *Allowed User Groups* tab — one
 setting for every gated host, which is the point of one client rather than
 one per service.
+
+## The admin gate
+
+Some hosts are for the admin, not the household: Prometheus answers any
+question about the cluster, Alertmanager can silence alerts, Hermes holds an
+agent's keys. They use the same gate with one addition to the check URL:
+
+```yaml
+nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
+```
+
+oauth2-proxy then answers 403 unless the session's `groups` claim includes
+`lab-admins`. Same client, same cookie, same login; someone outside the group
+signs in once and gets a plain 403 page on these hosts only. The group has to
+be one the client admits as well, or nobody in it gets as far as a session.
+
+Groups are read from the ID token at login and kept in the session cookie, so
+a change in Pocket ID applies at the next login: to take the group away from
+someone now, have them sign out at `https://auth.lab.baakhoff.com/oauth2/sign_out`.
 
 ## When it is down
 
