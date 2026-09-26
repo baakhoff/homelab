@@ -263,7 +263,7 @@ new one is scheduled, and the scheduler is free to place it on a different node
 — where the attach blocks on `FailedAttachVolume`, *"already exclusively
 attached to one node, waiting on detach"*, until the old node's
 `VolumeAttachment` clears. That is correct behaviour and it resolves itself in
-tens of seconds. Restarting all eight pods at once means eight of those at once,
+tens of seconds. Restarting all nine pods at once means nine of those at once,
 and the namespace is briefly unavailable.
 
 What survives a restart is what is on the volume, which is all of `/home/node`:
