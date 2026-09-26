@@ -7,11 +7,11 @@ spec:
   hard:
     # Raised from node01's numbers, which is what that copy's comment said to
     # do once the three-node cluster existed. Raised again for eight pods when
-    # the general slots landed.
+    # the general slots landed, and to nine for slot-4.
     #
-    # The arithmetic is deliberately EIGHT times the per-pod shape in
-    # homelab.yaml - 250m and 512Mi requested, 3Gi limit - so eight pods can run
-    # at once and the quota is what stops a ninth, rather than a node quietly
+    # The arithmetic is deliberately NINE times the per-pod shape in
+    # homelab.yaml - 250m and 512Mi requested, 3Gi limit - so nine pods can run
+    # at once and the quota is what stops a tenth, rather than a node quietly
     # filling up. There is no headroom in that on purpose: a pod that wants more
     # than the per-pod shape should have to come here and say so.
     #
@@ -19,17 +19,17 @@ spec:
     # sidecar that proxies its one VPN-only remote, and a NATIVE sidecar's
     # requests are ADDED to the pod's total rather than max()'d like an ordinary
     # initContainer's - so the quota has to know about it or the pod is rejected
-    # at admission. Hence 50m / 64Mi / 256Mi on top of eight times the shape:
-    #   cpu     8 x 250m  + 50m   = 2050m
-    #   memory  8 x 512Mi + 64Mi  = 4160Mi
-    #   limits  8 x 3Gi   + 256Mi = 24832Mi
+    # at admission. Hence 50m / 64Mi / 256Mi on top of nine times the shape:
+    #   cpu     9 x 250m  + 50m   = 2300m
+    #   memory  9 x 512Mi + 64Mi  = 4672Mi
+    #   limits  9 x 3Gi   + 256Mi = 27904Mi
     # `pods` is unchanged: a sidecar is another container, not another pod.
     #
     # requests.cpu was previously "3" against a stated six times 250m, which is
     # 1.5 - the comment and the number disagreed. Corrected here rather than
     # scaled up, so the arithmetic above is the arithmetic in the file.
     #
-    # limits.memory exceeds what the nodes can actually back: ~24Gi across three
+    # limits.memory exceeds what the nodes can actually back: ~27Gi across three
     # machines that also carry etcd, the Ceph OSDs and the mons. That
     # overcommit is safe HERE and would not be anywhere else in this cluster,
     # because agent pods are the only workload at negative priority - under
@@ -43,7 +43,7 @@ spec:
     # rejected at admission rather than scheduled unbounded. limits.cpu is
     # deliberately absent so containers need no CPU limit: throttling an
     # agent's build causes more mystery latency than it prevents.
-    requests.cpu: "2050m"
-    requests.memory: 4160Mi
-    limits.memory: 24832Mi
-    pods: "8"
+    requests.cpu: "2300m"
+    requests.memory: 4672Mi
+    limits.memory: 27904Mi
+    pods: "9"
