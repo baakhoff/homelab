@@ -35,12 +35,21 @@ spec:
           containers:
             - name: cron
               image: docker.io/curlimages/curl:8.22.0
-              # -f fails the Job on an HTTP error; -sS keeps the output to the
-              # error alone, which does not include the URL and its token.
+              # -f fails the Job on an HTTP error; -sS keeps curl's own output
+              # to errors, which do not include the URL and its token. The
+              # reply is Firefly's report of each task it ran, and goes to the
+              # log.
+              #
+              # The retries are load-bearing. k3s's policy controller adds a
+              # new pod's address to the set networkpolicy.yaml admits a moment
+              # after the pod starts, and curl starts in milliseconds: the
+              # first attempts are refused outright, every run, and a Job
+              # retry is a new pod that loses the same race. Retrying refused
+              # connections for up to a minute outlasts it.
               command:
                 - sh
                 - -c
-                - curl -fsS --max-time 540 -o /dev/null "http://firefly.firefly.svc.cluster.local/api/v1/cron/${STATIC_CRON_TOKEN}"
+                - curl -fsS --retry 12 --retry-delay 5 --retry-connrefused --max-time 540 "http://firefly.firefly.svc.cluster.local/api/v1/cron/${STATIC_CRON_TOKEN}"
               env:
                 - name: STATIC_CRON_TOKEN
                   valueFrom:

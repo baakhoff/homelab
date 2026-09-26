@@ -58,12 +58,13 @@ currency, the one reports convert to, and a first account.
 
 **3. Turn on exchange rates**, as the owner, under Administration →
 Configuration: *Enable exchange rates*, and *Download exchange rates* if the
-daily download should keep them current. The download comes from a file
-Firefly's author publishes. Its built-in defaults cover EUR, USD and RUB but
-not RSD or KZT, so check Options → Exchange rates after the first nightly
-run, and enter rates by hand for any pair it does not have. A transaction
-between two currencies always stores both actual amounts, so a missing rate
-only affects reports, never the balances.
+daily download should keep them current. Ticking it fetches nothing by
+itself: the download is part of the nightly cron below. It comes from files
+Firefly's author publishes weekly, which cover EUR, USD, RUB, RSD and KZT
+among others, and each rate is dated the Monday of its week. A rate is saved
+only for pairs where both currencies are enabled under Options → Currencies.
+A transaction between two currencies always stores both actual amounts, so a
+missing rate only affects reports, never the balances.
 
 **4. Add accounts** in whichever currencies they are held in, under Accounts →
 Asset accounts → Create, choosing the currency on each.
@@ -78,6 +79,15 @@ recurring transactions stop appearing:
 ```bash
 kubectl -n firefly get jobs
 kubectl -n firefly logs job/<latest firefly-cron job>
+```
+
+The log is Firefly's JSON reply, one section per task. To run it now rather
+than at 03:15:
+
+```bash
+kubectl -n firefly create job --from=cronjob/firefly-cron firefly-cron-manual
+kubectl -n firefly logs -f job/firefly-cron-manual
+kubectl -n firefly delete job firefly-cron-manual
 ```
 
 ## Not here, for now
