@@ -130,11 +130,14 @@ spec:
       # A real hostname instead of a port-forward, and only because the
       # gate exists: Prometheus has no login and answers any query about
       # anything, so it is exposed exactly as far as Pocket ID lets it be.
+      # The admin gate, not the household one: allowed_groups makes
+      # oauth2-proxy answer 403 to anyone outside lab-admins
+      # (clusters/lab/oauth2-proxy/README.md).
       # No tls block, no ingressClassName - the lab wildcard, as everywhere.
       ingress:
         enabled: true
         annotations:
-          nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+          nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
           nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
           gethomepage.dev/enabled: "true"
           gethomepage.dev/name: Prometheus
@@ -152,10 +155,12 @@ spec:
         pathType: Prefix
 
     alertmanager:
+      # The admin gate, like Prometheus: a silence mutes an alert before it
+      # reaches Telegram, which is not a household-wide button.
       ingress:
         enabled: true
         annotations:
-          nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+          nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
           nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
           gethomepage.dev/enabled: "true"
           gethomepage.dev/name: Alertmanager

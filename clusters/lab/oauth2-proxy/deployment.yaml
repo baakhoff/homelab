@@ -9,6 +9,9 @@
 # gets bounced to Pocket ID and back. One cookie covers every gated host, so
 # logging in once is logging in everywhere.
 #
+# Admin-only hosts add ?allowed_groups=lab-admins to that auth-url; this then
+# answers 403 to a session outside the group. README, "The admin gate".
+#
 # Stateless: sessions live in the cookie, encrypted with the cookie secret.
 # Two replicas would work; one is enough for a household, and a restart just
 # means everyone's next request re-validates a cookie that is still valid.
