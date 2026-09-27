@@ -197,6 +197,14 @@ spec:
       # is an unpinned tag wearing the costume of a default. `testing` is what
       # gitrepository.yaml tracks: the images CI built from the same branch
       # this chart came from.
+      #
+      # A tag alone does NOT keep them current. CI re-pushes `:testing` without
+      # changing the name, so nothing rolls out, and the chart's IfNotPresent
+      # keeps each node's cached copy. follow-testing.yaml pins every Deployment
+      # to the digest `:testing` currently points at, which is what makes a new
+      # build actually arrive. Leave pullPolicy alone: the chart has one global
+      # setting, and `Always` would also cover Postgres and the other
+      # third-party images - see follow-testing.yaml for why that is worse.
       tag: testing
 
     # ── Storage ──────────────────────────────────────────────────────────────
