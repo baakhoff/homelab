@@ -25,6 +25,13 @@ spec:
     #   limits  9 x 3Gi   + 256Mi = 27904Mi
     # `pods` is unchanged: a sidecar is another container, not another pod.
     #
+    # slot-4 came here too. Its limit is 6Gi rather than 3Gi, after four
+    # OOM kills at 3Gi in one day - its file records the measurement - so
+    # limits.memory carries 3Gi (3072Mi) more on top of the line above:
+    #   limits  27904Mi + 3072Mi = 30976Mi
+    # Requests are unchanged: the limit is for build spikes, and idle use is
+    # under the per-pod request.
+    #
     # requests.cpu was previously "3" against a stated six times 250m, which is
     # 1.5 - the comment and the number disagreed. Corrected here rather than
     # scaled up, so the arithmetic above is the arithmetic in the file.
@@ -45,5 +52,5 @@ spec:
     # agent's build causes more mystery latency than it prevents.
     requests.cpu: "2300m"
     requests.memory: 4672Mi
-    limits.memory: 27904Mi
+    limits.memory: 30976Mi
     pods: "9"

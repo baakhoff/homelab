@@ -272,6 +272,39 @@ work. What does not survive is anything running at that moment — an in-flight
 session is killed, along with any background process started by hand inside the
 container.
 
+## A slot does not answer in the app
+
+The server log says which of four states the pod is in, and they need
+different fixes, so read it before restarting anything:
+
+```bash
+kubectl -n agents logs deploy/slot-4 --tail=20
+kubectl -n agents describe pod -l app.kubernetes.io/name=slot-4 | grep -iA3 'last state\|restart count'
+```
+
+- **`not bootstrapped yet: waiting for ...` every minute.** A new slot that
+  nobody has logged in to. Do the [bootstrap](#bootstrap-once-per-pod) against
+  this slot's Deployment.
+- **No pod, or `Pending`.** The quota has no headroom, and a pod from another
+  Deployment stuck in `Terminating` counts against it. `describe rs` for the
+  slot shows an `exceeded quota` event. Delete the stuck pod.
+- **`Connected · <name>` and `Last State: Terminated, Reason: OOMKilled`.** The
+  server is fine now, but the container was killed for memory and the restart
+  count says how often. The kernel kills the whole container, so one build
+  that outgrows the limit takes down the server and every open session, and a
+  session comes back only when the server resumes it, with its in-flight work
+  lost. Raise the limit in the slot's file and account for it in
+  `resourcequota.yaml`; `slot-4.yaml` is the worked example.
+- **`Connected · <name>`, no kills.** The session is alive and busy or waiting.
+  `kubectl exec` in and run `ps -eo pid,etime,args --sort=-rss` — a `sleep`
+  under a `bash -c` is the session pacing itself, a command running for a long
+  time is a build or a test, and nothing at all is a session waiting on a
+  permission prompt that only the app can answer. Open the session and scroll
+  to the bottom.
+
+Only when none of those fits, replace the pod as in [Restart a
+pod](#restart-a-pod). It kills every open session in the slot.
+
 ## Smoke test, once after the first deploy
 
 Verify the network boundary instead of trusting it. From the pod, the internet:
