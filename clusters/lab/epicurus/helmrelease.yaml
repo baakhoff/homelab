@@ -308,29 +308,29 @@ spec:
       podMonitor:
         enabled: true
 
-    # ── MinIO images come from quay.io, not Docker Hub ───────────────────────
-    # The chart's pinned tags are GONE from Docker Hub - both
-    # `minio/minio:RELEASE.2025-04-22T22-12-26Z` and
-    # `minio/mc:RELEASE.2025-04-16T18-13-26Z` return "object not found" from the
-    # registry API, and listing that repository's tags returns nothing at all.
-    # That is what ImagePullBackOff on minio-0 and ErrImagePull on the init Job
-    # were.
+    # ── MinIO images: the chart's own pins, deliberately not overridden ──────
+    # There used to be a `minio:` block here that moved `image.repository` and
+    # `initImage.repository` to quay.io, after MinIO Inc. pulled the chart's
+    # tags from Docker Hub. It set the repository and left the tag to the
+    # chart - half of a two-part pin. Then chart 0.2.1 (epicurus #974,
+    # 2026-09-26) changed both halves, to `docker.io/pgsty/minio` and
+    # `docker.io/pgsty/mc` with new tags, because quay.io had started
+    # answering 401 to anonymous pulls of the whole repository. The override
+    # kept the old repository and picked up the new tags, and the result,
+    # `quay.io/minio/minio:RELEASE.2026-08-04T00-00-00Z`, exists nowhere. That
+    # was ImagePullBackOff on minio-0, KubeStatefulSetReplicasMismatch on
+    # epicurus/minio and KubeJobFailed on minio-init-23 on 2026-09-28.
     #
-    # Both tags still exist on quay.io as multi-architecture manifest lists,
-    # published the same days. Same releases, different registry.
+    # The rule this leaves behind: a third-party image in this chart is
+    # repository AND tag, and an override here sets both or neither. Neither,
+    # now: the pgsty images are a community-maintained fork of the AGPL MinIO
+    # server and client, not MinIO Inc., and that choice was made upstream in
+    # the chart, where it is documented, tested against, and Renovate's to
+    # move. Overriding it here would only recreate the drift that broke.
     #
-    # node01 was unaffected and gave no warning: it had pulled those images
-    # while the tags were still on Docker Hub and held them in its local store
-    # afterwards. A running container is not evidence that its image can still
-    # be fetched - which is the part worth remembering now that the machine
-    # that demonstrated it is gone.
-    minio:
-      image:
-        repository: quay.io/minio/minio
-      # Versioned separately from the server - the tags deliberately do not
-      # match, so these are two independent pins and both had to move.
-      initImage:
-        repository: quay.io/minio/mc
+    # Still true, and worth keeping: a running container is not evidence that
+    # its image can still be fetched. node01 ran the Docker Hub images for
+    # months after the tags were gone, from its local store.
 
     # ── Inference: hosted, not local ─────────────────────────────────────────
     # THE DELIBERATE BEHAVIOUR CHANGE FROM NODE01, and it is bigger than it
