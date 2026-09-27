@@ -132,6 +132,60 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/www/html/storage
+        # Works around a Firefly bug that silently stops the nightly exchange
+        # rate download. Which currencies a household uses is kept per set of
+        # books (transaction_currency_user_group), but the download fetches
+        # only currencies whose old site-wide flag (transaction_currencies.
+        # enabled) is set - and enabling, disabling or editing a currency in
+        # the app always clears that flag. A fresh install ends up with no
+        # currency flagged, so nothing is fetched, nothing fails, and the cron
+        # still reports success. Still so upstream as of 6.7.5.
+        #
+        # Every ten minutes this sets the flag again on every currency some
+        # books use. It reads first and writes only when the app has cleared
+        # a flag, so it holds SQLite's write lock only right after a currency
+        # edit, and ten minutes is well inside the gap before the 03:15 run.
+        # The same image, already on the node: PHP with SQLite, and nothing
+        # to pull. Remove this once Firefly's download reads the per-books
+        # setting.
+        - name: rate-currencies
+          image: docker.io/fireflyiii/core:version-6.7.3
+          command:
+            - sh
+            - -c
+            # The trap and the backgrounded sleep let the pod stop at once,
+            # not after the 30-second grace period.
+            - |
+              trap 'exit 0' TERM
+              while :; do
+                php -r '
+                  try {
+                    $db = new PDO("sqlite:/data/database/database.sqlite", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 30]);
+                    $where = "enabled = 0 AND id IN (SELECT transaction_currency_id FROM transaction_currency_user_group)";
+                    if ($db->query("SELECT count(*) FROM transaction_currencies WHERE $where")->fetchColumn() > 0) {
+                      echo $db->exec("UPDATE transaction_currencies SET enabled = 1 WHERE $where"), " currencies flagged for the rate download\n";
+                    }
+                  } catch (Throwable $e) {
+                    fwrite(STDERR, $e->getMessage() . "\n");
+                  }
+                '
+                sleep 600 &
+                wait $!
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
       volumes:
         - name: data
           persistentVolumeClaim:
