@@ -339,16 +339,25 @@ spec:
     #   duckduckgo   CAPTCHA                 startpage   suspended: CAPTCHA
     #   brave        too many requests       google      200 with zero results
     #   yahoo        HTTP protocol error     presearch   HTTP error
-    #   qwant        access denied (region)
+    #   qwant        access denied (region)  bing        200 with zero results
+    #   mojeek       200 with zero results
     #   yandex       10 results              seznam      9 results
     #   wiby         12 results              wikipedia   infobox only, by design
     #
-    # The chart's shipped settings enable the first group and disable bing and
-    # mojeek. Every search therefore asked six engines that cannot answer,
-    # got back an empty list with `unresponsive_engines` set, and the app
-    # showed "No web results found" for everything. Each rejected request
-    # also extends the suspension the engine already has on this address, so
-    # leaving them on makes the situation worse over time.
+    # SearXNG's defaults for this build enable exactly five general engines:
+    # duckduckgo, brave, startpage, google and wikipedia. Everything else in
+    # the table is disabled upstream. So every search asked four engines that
+    # cannot answer from here plus one that only returns an infobox, got back
+    # an empty list with `unresponsive_engines` set, and the app showed "No
+    # web results found" for everything. Each rejected request also extends
+    # the suspension the engine already has on this address, so leaving them
+    # on makes the situation worse over time.
+    #
+    # Note for the next measurement: `engines=<name>` queries an engine even
+    # when it is disabled, so the probe says whether an engine answers, not
+    # whether the default search uses it. The first version of this override
+    # missed that, switched off the failing five and switched on bing and
+    # mojeek, and the default search then asked nothing that answers.
     #
     # `settings` replaces the whole file, so the shipped one is repeated
     # here - keep it in step with infra/k8s/epicurus/files/searxng-settings.yml
@@ -358,12 +367,12 @@ spec:
     # only from the websearch module and the key guards CSRF on a UI nobody
     # opens, which is why it is a ConfigMap and not in secret.sops.yaml.
     #
-    # bing and mojeek are switched ON here untested: a disabled engine cannot
-    # be probed with `engines=`. If they turn out to be blocked too, they go
-    # in the first list. Scraping from one fixed home IP will always be this
-    # brittle; if search becomes something that must work, the next step is
-    # an engine with an API key, stored in secret.sops.yaml and mounted as a
-    # settings file instead of this value.
+    # Yandex is the only broad general index in the set that works; Seznam
+    # is Czech-centred and Wiby is a small index of hand-made pages. Scraping
+    # from one fixed home IP will always be this brittle; if search becomes
+    # something that must work, the next step is an engine with an API key,
+    # stored in secret.sops.yaml and mounted as a settings file instead of
+    # this value.
     searxng:
       settings: |
         use_default_settings: true
@@ -381,6 +390,7 @@ spec:
           debug: false
           instance_name: "epicurus-search"
         engines:
+          # Off: enabled upstream, refuse this address.
           - name: duckduckgo
             disabled: true
           - name: brave
@@ -389,15 +399,12 @@ spec:
             disabled: true
           - name: google
             disabled: true
-          - name: yahoo
-            disabled: true
-          - name: presearch
-            disabled: true
-          - name: qwant
-            disabled: true
-          - name: bing
+          # On: disabled upstream, answer from here.
+          - name: yandex
             disabled: false
-          - name: mojeek
+          - name: seznam
+            disabled: false
+          - name: wiby
             disabled: false
 
     # ── Inference: hosted, not local ─────────────────────────────────────────
