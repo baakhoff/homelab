@@ -332,6 +332,74 @@ spec:
     # its image can still be fetched. node01 ran the Docker Hub images for
     # months after the tags were gone, from its local store.
 
+    # ── SearXNG: only engines that answer from this connection ──────────────
+    # Measured 2026-09-28 from the pod, one engine at a time, query "Belgrade",
+    # egress = the household's Orion Telekom address:
+    #
+    #   duckduckgo   CAPTCHA                 startpage   suspended: CAPTCHA
+    #   brave        too many requests       google      200 with zero results
+    #   yahoo        HTTP protocol error     presearch   HTTP error
+    #   qwant        access denied (region)
+    #   yandex       10 results              seznam      9 results
+    #   wiby         12 results              wikipedia   infobox only, by design
+    #
+    # The chart's shipped settings enable the first group and disable bing and
+    # mojeek. Every search therefore asked six engines that cannot answer,
+    # got back an empty list with `unresponsive_engines` set, and the app
+    # showed "No web results found" for everything. Each rejected request
+    # also extends the suspension the engine already has on this address, so
+    # leaving them on makes the situation worse over time.
+    #
+    # `settings` replaces the whole file, so the shipped one is repeated
+    # here - keep it in step with infra/k8s/epicurus/files/searxng-settings.yml
+    # upstream. `use_default_settings: true` merges the `engines` entries by
+    # name into SearXNG's defaults, so only the flags differ. The secret_key
+    # is the same placeholder the compose stack ships: SearXNG is reachable
+    # only from the websearch module and the key guards CSRF on a UI nobody
+    # opens, which is why it is a ConfigMap and not in secret.sops.yaml.
+    #
+    # bing and mojeek are switched ON here untested: a disabled engine cannot
+    # be probed with `engines=`. If they turn out to be blocked too, they go
+    # in the first list. Scraping from one fixed home IP will always be this
+    # brittle; if search becomes something that must work, the next step is
+    # an engine with an API key, stored in secret.sops.yaml and mounted as a
+    # settings file instead of this value.
+    searxng:
+      settings: |
+        use_default_settings: true
+        server:
+          secret_key: "epicurus-internal-search-placeholder-change-me"
+          limiter: false
+          image_proxy: false
+        search:
+          formats:
+            - html
+            - json
+          default_lang: "en"
+          autocomplete: ""
+        general:
+          debug: false
+          instance_name: "epicurus-search"
+        engines:
+          - name: duckduckgo
+            disabled: true
+          - name: brave
+            disabled: true
+          - name: startpage
+            disabled: true
+          - name: google
+            disabled: true
+          - name: yahoo
+            disabled: true
+          - name: presearch
+            disabled: true
+          - name: qwant
+            disabled: true
+          - name: bing
+            disabled: false
+          - name: mojeek
+            disabled: false
+
     # ── Inference: hosted, not local ─────────────────────────────────────────
     # THE DELIBERATE BEHAVIOUR CHANGE FROM NODE01, and it is bigger than it
     # looks, so it is written down rather than left to be inferred.
