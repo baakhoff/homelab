@@ -1,0 +1,215 @@
+# Makes the running epicurus images follow the `testing` branch, the way
+# gitrepository.yaml already makes the chart follow it.
+#
+# WHY THIS IS NEEDED AT ALL. The chart deploys every epicurus service as
+# `ghcr.io/baakhoff/epicurus-<svc>:testing`, and upstream CI re-pushes that same
+# tag on every push to `testing`. A new build under an unchanged tag changes
+# nothing Kubernetes can see - the rendered manifest is byte-identical - so no
+# rollout ever happens. And the chart's pullPolicy is IfNotPresent, so even a
+# pod that restarts for some other reason reuses whatever `:testing` its node
+# cached last. Before this existed, the build a service ran depended on which
+# node its pod had landed on and when that node last pulled.
+#
+# WHAT IT DOES. Every five minutes it asks GHCR which digest `:testing` points
+# at for each epicurus image, and pins the Deployment to it as
+# `...:testing@sha256:...`. When the digest has moved, that is a real change to
+# the pod template, so the Deployment rolls out and pulls exactly that build.
+# When it has not, nothing is touched. The same thing upstream's own
+# auto-deploy runbook does on a compose box with a reconcile script or
+# Watchtower: poll, pull, restart what differs.
+#
+# WHY PIN BY DIGEST RATHER THAN `pullPolicy: Always`. The chart has ONE global
+# pullPolicy, and it also governs Postgres, NATS, MinIO, Qdrant, OpenBao and
+# SearXNG. `Always` does not fall back to the local copy when the registry is
+# unreachable, so a Docker Hub outage would stop Postgres from restarting -
+# and the MinIO tags already vanished from Docker Hub once (see helmrelease.yaml).
+# Pinning touches only the images built from `testing`, and it answers "which
+# build is running?" with `kubectl -n epicurus get deploy -o wide`.
+#
+# THE INTERPLAY WITH HELM. The pin is a change Helm did not make. When the chart
+# on `testing` changes and helm-controller upgrades the release, it may put the
+# plain `:testing` reference back. The next run here re-pins it within five
+# minutes, so the cost is at most one extra restart per chart change, never a
+# stuck state. Drift detection is off on the HelmRelease, which is what keeps
+# helm-controller from reverting the pin every hour; turning it on would make
+# the two fight.
+#
+# The cost that does not go away is the one gitrepository.yaml already names:
+# `testing` is unprotected and unverified, and whatever CI builds from it now
+# runs here within about five minutes of the build finishing.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: follow-testing
+  namespace: epicurus
+---
+# Deployments in this namespace only, and only what `kubectl set image` needs.
+# No Secrets, no pods/exec, no create: this account can repoint an existing
+# Deployment and nothing else.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: follow-testing
+  namespace: epicurus
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: follow-testing
+  namespace: epicurus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: follow-testing
+subjects:
+  - kind: ServiceAccount
+    name: follow-testing
+    namespace: epicurus
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: follow-testing
+  namespace: epicurus
+data:
+  follow-testing.sh: |
+    #!/bin/sh
+    #
+    # Pin every epicurus-built image in this namespace to the digest `:testing`
+    # currently points at on GHCR. POSIX sh: the image is Alpine-based.
+    set -eu
+
+    NS=epicurus
+    # Only images built from the epicurus repo. Postgres, NATS and the rest are
+    # pinned by tag in the chart and are Renovate's business, not this job's.
+    MATCH='^ghcr\.io/baakhoff/epicurus-[a-z0-9-]+:testing(@sha256:[0-9a-f]{64})?$'
+    # An index first: the digest of a multi-arch image is the index's, and that
+    # is what containerd reports back as the running imageID.
+    ACCEPT='application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json'
+
+    log() { printf '%s\n' "$*"; }
+
+    # $1 = baakhoff/epicurus-<svc>. The packages are public, so an anonymous
+    # pull token is enough - no credential lives in this namespace for it.
+    resolve() {
+      token=$(curl -fsS --max-time 20 \
+        "https://ghcr.io/token?scope=repository:$1:pull" | jq -er .token) || return 1
+      curl -fsSI --max-time 20 \
+        -H "Authorization: Bearer $token" -H "Accept: $ACCEPT" \
+        "https://ghcr.io/v2/$1/manifests/testing" \
+        | tr -d '\r' \
+        | awk 'tolower($1) == "docker-content-digest:" { print $2 }' \
+        | grep -E '^sha256:[0-9a-f]{64}$'
+    }
+
+    targets=/tmp/targets
+    kubectl -n "$NS" get deployments -o json | jq -r --arg re "$MATCH" '
+      .items[]
+      | .metadata.name as $deploy
+      | (.spec.template.spec.containers + (.spec.template.spec.initContainers // []))[]
+      | select(.image | test($re))
+      | "\($deploy) \(.name) \(.image)"' > "$targets"
+
+    if [ ! -s "$targets" ]; then
+      # Not an error to shrug at: either the release is not installed or the
+      # chart stopped naming images this way, and either means this job is now
+      # checking nothing. Fail so the KubeJobFailed alert says so.
+      log "no Deployment in $NS runs a ghcr.io/baakhoff/epicurus-*:testing image"
+      exit 1
+    fi
+
+    failed=0
+    changed=0
+    while read -r deploy container image; do
+      repo=${image#ghcr.io/}
+      repo=${repo%%:*}
+      if ! digest=$(resolve "$repo"); then
+        # One unreachable package must not hold the others back. Carry on,
+        # and fail the Job at the end so the miss is visible.
+        log "could not resolve $repo:testing - left $deploy/$container as it is"
+        failed=1
+        continue
+      fi
+      want="ghcr.io/$repo:testing@$digest"
+      [ "$image" = "$want" ] && continue
+      log "$deploy/$container: $image -> $want"
+      kubectl -n "$NS" set image "deployment/$deploy" "$container=$want" >/dev/null
+      changed=$((changed + 1))
+    done < "$targets"
+
+    log "$(wc -l < "$targets") images checked, $changed repinned"
+    exit "$failed"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: follow-testing
+  namespace: epicurus
+spec:
+  # Five minutes, against the GitRepository's ten: a new build should not wait
+  # longer than the chart it came with. Each run is two small HTTPS requests per
+  # image and one list call to the API server.
+  schedule: "*/5 * * * *"
+  # A slow run is simply superseded by the next one; two at once would only race
+  # each other to the same patch.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 240
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 240
+      # Finished pods are deleted after an hour rather than kept for the life of
+      # the history limit - at twelve runs an hour they add up in `get pods`.
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: follow-testing
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: follow-testing
+              # Same image as the backup driver, for the same reason: it has a
+              # shell, kubectl, curl and jq, and the official kubectl images are
+              # distroless. See clusters/lab/backup/cronjob-backup.yaml.
+              image: alpine/k8s:1.37.0
+              command: ["/bin/sh", "/script/follow-testing.sh"]
+              env:
+                # kubectl writes a discovery cache under $HOME; the root
+                # filesystem is read-only, so point it at the scratch volume.
+                - name: HOME
+                  value: /tmp
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /script
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: script
+              configMap:
+                name: follow-testing
+            - name: tmp
+              emptyDir:
+                sizeLimit: 16Mi
