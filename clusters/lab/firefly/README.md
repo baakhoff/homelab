@@ -62,8 +62,10 @@ daily download should keep them current. Ticking it fetches nothing by
 itself: the download is part of the nightly cron below. It comes from files
 Firefly's author publishes weekly, which cover EUR, USD, RUB, RSD and KZT
 among others, and each rate is dated the Monday of its week. A rate is saved
-only for pairs where both currencies are enabled under Options → Currencies.
-A transaction between two currencies always stores both actual amounts, so a
+only for pairs where both currencies are enabled under Options → Currencies,
+in the books doing the converting: every account's own books count
+separately. See [below](#exchange-rates-and-the-rate-currencies-container)
+for the Firefly bug that otherwise stops the download. A transaction between two currencies always stores both actual amounts, so a
 missing rate only affects reports, never the balances.
 
 **4. Add accounts** in whichever currencies they are held in, under Accounts →
@@ -88,6 +90,36 @@ than at 03:15:
 kubectl -n firefly create job --from=cronjob/firefly-cron firefly-cron-manual
 kubectl -n firefly logs -f job/firefly-cron-manual
 kubectl -n firefly delete job firefly-cron-manual
+```
+
+Firefly downloads rates at most once per 12 hours, so a manual run soon
+after another skips them. As the owner, from inside the pod, and for last
+week's files when this week's are not published yet (a Monday, usually):
+
+```bash
+kubectl -n firefly exec deploy/firefly -c firefly -- \
+  php /var/www/html/artisan firefly-iii:cron --download-cer --force --date=<yesterday>
+```
+
+### Exchange rates and the rate-currencies container
+
+"Exchange rates cron job fired successfully" says nothing about whether any
+rate was saved. A failed download is a warning in the Firefly container's
+log, and a skipped one is silent.
+
+A Firefly bug made every download skip every currency: the download fetches
+only currencies carrying an old site-wide flag, and enabling or editing a
+currency in the app clears that flag. The `rate-currencies` container in
+`deployment.yaml` sets it again within ten minutes on every currency some
+books use, and logs a line when it does. Remove it once Firefly's download
+reads the per-books setting. To see what is stored:
+
+```bash
+kubectl -n firefly exec -i deploy/firefly -c firefly -- php <<'PHP'
+<?php
+$db = new PDO('sqlite:/var/www/html/storage/database/database.sqlite', null, null, [PDO::SQLITE_ATTR_OPEN_FLAGS => PDO::SQLITE_OPEN_READONLY]);
+foreach ($db->query("SELECT user_group_id AS grp, date(date) AS week_of, count(*) AS n FROM currency_exchange_rates WHERE deleted_at IS NULL GROUP BY 1, 2 ORDER BY 2 DESC LIMIT 10", PDO::FETCH_ASSOC) as $r) echo implode(' | ', $r), "\n";
+PHP
 ```
 
 ## Not here, for now
