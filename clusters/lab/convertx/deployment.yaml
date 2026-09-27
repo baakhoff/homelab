@@ -48,12 +48,13 @@ spec:
             # password to keep.
             - name: ALLOW_UNAUTHENTICATED
               value: "true"
-            # Without accounts, every visit is otherwise a new anonymous user,
-            # and the history page is empty on each return. Shared, it is one
-            # household's list of recent conversions - which is who is behind
-            # the gate anyway.
+            # Not shared: every visit is its own anonymous user, so nobody
+            # sees anyone else's files. Shared, it was one list of everyone's
+            # recent conversions, which stopped being fine once the gate let in
+            # people outside the house. The cost is that history does not
+            # survive leaving the page: download results before closing it.
             - name: UNAUTHENTICATED_USER_SHARING
-              value: "true"
+              value: "false"
             - name: ACCOUNT_REGISTRATION
               value: "false"
             # Uploads and results are deleted a day after the job. This is a
