@@ -90,7 +90,17 @@ spec:
               cpu: 250m
               memory: 512Mi
             limits:
-              memory: 3Gi
+              # 6Gi, not the 3Gi of the per-pod shape, and the quota knows -
+              # see resourcequota.yaml. Measured, not guessed: at 3Gi this
+              # container was OOM-killed four times in one day (2026-09-27)
+              # while a session built and tested a Node project. The kernel
+              # kills the whole container, so one heavy build takes down the
+              # server and every open session in the slot, and each session
+              # comes back only when the server resumes it, with whatever it
+              # was doing lost. Idle use is under 500Mi; the limit is for the
+              # spikes. Agent pods run at negative priority, so if a node
+              # cannot back this it is this pod that is evicted, not a neighbour.
+              memory: 6Gi
           volumeMounts:
             - name: home
               mountPath: /home/node
