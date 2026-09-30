@@ -93,12 +93,22 @@ data:
 
     log() { printf '%s\n' "$*"; }
 
+    # Two retries a few seconds apart before a request counts as failed. One
+    # DNS lookup that times out is not news - it happened once on 2026-09-30
+    # and paged for a job whose next run, five minutes later, was fine. A
+    # failure that outlasts the retries still fails the Job, which is the point.
+    # --retry alone covers a timeout like that one; --retry-all-errors adds a
+    # lookup that fails outright, and also retries a 404, harmlessly. A real
+    # outage now tends to end at the Job's 240 s deadline instead of at a log
+    # line - `describe job` says DeadlineExceeded - and still fails the Job.
+    CURL='curl -fsS --max-time 20 --retry 2 --retry-delay 3 --retry-all-errors'
+
     # $1 = baakhoff/epicurus-<svc>. The packages are public, so an anonymous
     # pull token is enough - no credential lives in this namespace for it.
     resolve() {
-      token=$(curl -fsS --max-time 20 \
+      token=$($CURL \
         "https://ghcr.io/token?scope=repository:$1:pull" | jq -er .token) || return 1
-      curl -fsSI --max-time 20 \
+      $CURL -I \
         -H "Authorization: Bearer $token" -H "Accept: $ACCEPT" \
         "https://ghcr.io/v2/$1/manifests/testing" \
         | tr -d '\r' \
