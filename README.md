@@ -87,9 +87,8 @@ exception: it keeps its own master password.
   ([how](clusters/lab/firefly/README.md)), and Mealie for recipes, meal plans
   and shopping lists ([how](clusters/lab/mealie/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and the
-  Hermes agent, fenced off to the internet
-  ([how](clusters/lab/hermes/README.md)), with three test slots for Hermes
-  Desktop to attach to ([how](clusters/lab/hermes-slots/README.md)). Nightly restic backup of its volumes
+  Hermes agent in three slots for Hermes Desktop to attach to, fenced off to
+  the internet ([how](clusters/lab/hermes-slots/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
