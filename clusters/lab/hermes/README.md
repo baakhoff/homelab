@@ -66,7 +66,27 @@ sops --encrypt --in-place clusters/lab/hermes/oidc.sops.yaml
 
 Commit and push. The pre-commit hook asserts the file is encrypted.
 
-**3. Sign in** at <https://hermes.lab.baakhoff.com>, and add a model provider
+**3. Trust the front door.** ingress-nginx ends TLS and talks to Hermes over
+plain HTTP, saying `X-Forwarded-Proto: https`. Hermes believes that header
+only from loopback unless told otherwise, so it decides the site is HTTP and
+sets its login cookie without `SameSite=None; Secure` - and Chromium, which is
+what Hermes Desktop is, drops it on the way back from Pocket ID. The sign-in
+then ends in `Missing PKCE state cookie`. The setting lives in `config.yaml`
+on the volume, not in an environment variable:
+
+```bash
+kubectl -n hermes exec deploy/hermes -- runuser -u hermes -- env HOME=/opt/data \
+  hermes config set dashboard.trusted_proxies '["10.42.0.0/16"]'
+kubectl -n hermes delete pod -l app.kubernetes.io/name=hermes
+```
+
+`10.42.0.0/16` is the k3s pod range, which is wider than ingress-nginx. That
+is safe here because `networkpolicy.yaml` admits no other pod to the
+dashboard's port. The check that it took is in [the slots'
+README](../hermes-slots/README.md#setup-in-this-order): here the gate answers
+first.
+
+**4. Sign in** at <https://hermes.lab.baakhoff.com>, and add a model provider
 under the dashboard's keys: an OpenRouter key works. Keys entered there live
 in `.env` on the volume, not in git.
 
