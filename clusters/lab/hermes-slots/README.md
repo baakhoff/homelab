@@ -65,10 +65,11 @@ add a model provider under the dashboard's keys, as for the main Hermes.
 Check from the workstation that a slot answers without the gate:
 
 ```bash
-curl -sI https://hermes-1.lab.baakhoff.com/api/status | head -1
+curl -s -o /dev/null -w '%{http_code}\n' https://hermes-1.lab.baakhoff.com/api/status
 ```
 
-`HTTP/2 200` is right. A `302` means the request met a gate.
+`200` is right. A `302` means the request met a gate. Not `curl -I`: the
+endpoint answers only GET, and a HEAD gets a `405` that looks like a fault.
 
 **4. The Claude subscription as the model**, if wanted: the steps in [the main
 Hermes's README](../hermes/README.md#claude-subscription), with the slot's
