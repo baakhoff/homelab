@@ -1,6 +1,6 @@
 # Hermes slots
 
-Two test instances of [Hermes Agent](https://github.com/NousResearch/hermes-agent)
+Three test instances of [Hermes Agent](https://github.com/NousResearch/hermes-agent)
 for Hermes Desktop to attach to as remote gateways, beside the main Hermes in
 [`../hermes/`](../hermes/README.md). Each has its own volume, memory, skills
 and keys; nothing is shared between them or with the main one.
@@ -9,6 +9,7 @@ and keys; nothing is shared between them or with the main one.
 |---|---|
 | `slot-1` | `https://hermes-1.lab.baakhoff.com` |
 | `slot-2` | `https://hermes-2.lab.baakhoff.com` |
+| `slot-3` | `https://hermes-3.lab.baakhoff.com` |
 
 ## How login works, and why there is no gate
 
@@ -34,12 +35,12 @@ Administration → OIDC Clients → Add:
 | Field | Value |
 |---|---|
 | Name | Hermes slots |
-| Callback URLs | `https://hermes-1.lab.baakhoff.com/auth/callback` and `https://hermes-2.lab.baakhoff.com/auth/callback` |
+| Callback URLs | `https://hermes-N.lab.baakhoff.com/auth/callback`, one per slot in the table above |
 | PKCE | on |
 | Public Client | off |
 | Allowed User Groups | just you, as for the main Hermes |
 
-**2. Create the Secret on the workstation.** One Secret serves both slots.
+**2. Create the Secret on the workstation.** One Secret serves every slot.
 
 ```bash
 read -rsp 'client id: ' CID; echo
@@ -55,7 +56,7 @@ unset CID CSEC
 sops --encrypt --in-place clusters/lab/hermes-slots/oidc.sops.yaml
 ```
 
-Commit and push. Until it reconciles, both pods wait in
+Commit and push. Until it reconciles, the pods wait in
 `CreateContainerConfigError`, which is not a crash and does not alert.
 
 **3. Attach Desktop.** Settings → Gateways → Connection mode → Remote gateway,
