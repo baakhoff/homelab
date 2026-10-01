@@ -87,6 +87,56 @@ kubectl -n hermes logs deploy/hermes | grep -i -E 'oidc|discovery|jwks'
   internet. A bot token entered there is one more key on the volume.
 - **The API server** (an OpenAI-compatible endpoint on port 8642) is off.
 
+## Claude subscription
+
+The [Claude subscription DirectSDK
+plugin](https://hermes-agent.nousresearch.com/docs/plugins/claude-subscription-directsdk)
+makes a Claude Pro/Max subscription the model provider, through the official
+Claude Code CLI, instead of an API key. Each turn spends the subscription's
+Agent SDK allowance, at about 1.7× what the same turn costs in Claude Code
+itself, and every Hermes logged in to the account - this one and the
+[slots](../hermes-slots/README.md) - draws on the same allowance.
+
+The image has Node and npm but not the CLI, so it is installed onto the
+volume, where it survives restarts and image upgrades.
+`CLAUDE_SUBSCRIPTION_DIRECTSDK_COMMAND` in the Deployment points the plugin at
+it. Once per instance, as the `hermes` user so that the files are its own
+(`kubectl exec` lands as root):
+
+```bash
+kubectl -n hermes exec -it deploy/hermes -- runuser -u hermes -- env HOME=/opt/data bash
+```
+
+Inside:
+
+```bash
+npm install -g --prefix ~/.local @anthropic-ai/claude-code
+~/.local/bin/claude auth login
+hermes plugins install claude-subscription-directsdk
+exit
+```
+
+`claude auth login` prints a URL: open it, sign in to the Claude account, and
+paste the code back. The login lands in `/opt/data/.claude`, on the volume.
+
+Then make it the provider - in the dashboard's model settings, or in
+`/opt/data/config.yaml`:
+
+```yaml
+model:
+  provider: claude-subscription-directsdk-experimental
+  default: sonnet
+```
+
+and restart the pod so the gateway loads the plugin:
+
+```bash
+kubectl -n hermes delete pod -l app.kubernetes.io/name=hermes
+```
+
+The CLI does not update itself from here. Rerun the `npm install` line to
+update it. `claude auth login` again when the login expires.
+
 ## Backup - not yet, and in this order
 
 The same three pieces as Paperless, whose README has the reasoning:
