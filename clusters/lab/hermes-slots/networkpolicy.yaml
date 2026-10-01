@@ -1,7 +1,8 @@
-# The same containment as ../hermes/networkpolicy.yaml, which explains each
-# rule: the internet and nothing of the lab's, with one door back in for the
-# dashboard's Pocket ID login. A slot is a test instance, not a trusted one,
-# so it gets no more than the main Hermes does.
+# Hermes is an agent with a shell, and on Kubernetes its commands run in
+# this pod rather than in a sandbox container of their own. What it can
+# reach is therefore what anything it is talked into running can reach.
+# These policies make that the internet and nothing of the lab's, the same
+# as the agents namespace, with one door back in.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
