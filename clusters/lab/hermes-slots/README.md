@@ -58,7 +58,25 @@ sops --encrypt --in-place clusters/lab/hermes-slots/oidc.sops.yaml
 Commit and push. Until it reconciles, both pods wait in
 `CreateContainerConfigError`, which is not a crash and does not alert.
 
-**3. Attach Desktop.** Settings → Gateways → Connection mode → Remote gateway,
+**3. Trust the front door**, once per slot, then restart it - [the main
+Hermes's README](../hermes/README.md#setup-in-this-order) has why. Without it
+Desktop's sign-in ends in `Missing PKCE state cookie`.
+
+```bash
+kubectl -n hermes-slots exec deploy/slot-1 -- runuser -u hermes -- env HOME=/opt/data \
+  hermes config set dashboard.trusted_proxies '["10.42.0.0/16"]'
+kubectl -n hermes-slots delete pod -l app.kubernetes.io/name=slot-1
+```
+
+Once it is back, the login cookie should say `SameSite=none; Secure`:
+
+```bash
+curl -s -D - -o /dev/null 'https://hermes-1.lab.baakhoff.com/auth/login?provider=self-hosted' | grep -i set-cookie
+```
+
+A bare name with `SameSite=lax` means the setting did not take.
+
+**4. Attach Desktop.** Settings → Gateways → Connection mode → Remote gateway,
 Remote URL from the table above. Sign-in opens the browser at Pocket ID; then
 add a model provider under the dashboard's keys, as for the main Hermes.
 
@@ -71,7 +89,7 @@ curl -s -o /dev/null -w '%{http_code}\n' https://hermes-1.lab.baakhoff.com/api/s
 `200` is right. A `302` means the request met a gate. Not `curl -I`: the
 endpoint answers only GET, and a HEAD gets a `405` that looks like a fault.
 
-**4. The Claude subscription as the model**, if wanted: the steps in [the main
+**5. The Claude subscription as the model**, if wanted: the steps in [the main
 Hermes's README](../hermes/README.md#claude-subscription), with the slot's
 namespace, Deployment and label:
 
