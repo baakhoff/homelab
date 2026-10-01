@@ -1,0 +1,111 @@
+# Text to speech - the other half of Assist's speech services, Whisper
+# beside this file is the first. Text goes in, spoken audio comes back, over
+# the same Wyoming protocol.
+#
+# Same shape as whisper.yaml on purpose: root by upstream's choice with every
+# capability dropped, one replica on a ReadWriteOnce volume, Recreate.
+#
+# The image also starts a small HTTP demo server on port 5000 (an add-on
+# leftover). Nothing can reach it: the NetworkPolicy opens only the Wyoming
+# port, and nothing on the lab side talks HTTP to these pods anyway.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wyoming-piper-data
+  namespace: voice
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wyoming-piper
+  namespace: voice
+  labels:
+    app.kubernetes.io/name: wyoming-piper
+    app.kubernetes.io/part-of: voice
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wyoming-piper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wyoming-piper
+        app.kubernetes.io/part-of: voice
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wyoming-piper
+          image: rhasspy/wyoming-piper:2.5.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          # The entrypoint already pins --uri to tcp://0.0.0.0:10200 and both
+          # --data-dir and --download-dir to /data. The --voice here is only
+          # the default: the server advertises the whole catalog (including
+          # da_DK-talesyntese-medium) and downloads a voice the first time it
+          # is requested, so the language is picked in Home Assistant, not
+          # here.
+          args: ["--voice", "en_US-lessac-medium"]
+          ports:
+            - name: wyoming
+              containerPort: 10200
+          # Same reasoning as whisper: nothing listens until the default
+          # voice (~60 MB) is downloaded, so first boot gets the long leash;
+          # after that the probes are plain TCP connects.
+          startupProbe:
+            tcpSocket:
+              port: wyoming
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: wyoming
+          livenessProbe:
+            tcpSocket:
+              port: wyoming
+            periodSeconds: 30
+          resources:
+            # A loaded voice is ~100-250 MB resident and synthesis is fast;
+            # the request is the honest standing cost, the limit holds one
+            # converted stray in check. Raise it if the house ever stacks
+            # many voices at once.
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: wyoming-piper-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wyoming-piper
+  namespace: voice
+spec:
+  selector:
+    app.kubernetes.io/name: wyoming-piper
+  ports:
+    - name: wyoming
+      port: 10200
+      targetPort: wyoming

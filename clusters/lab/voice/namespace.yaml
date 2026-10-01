@@ -1,0 +1,9 @@
+# The two speech services behind Home Assistant's Assist pipeline: Whisper
+# turns an utterance into text, Piper reads the answer back out. They live
+# here as Deployments because this HA is the container image - add-ons exist
+# only for HAOS, and the lab's way is that anything that would be an add-on
+# becomes a Deployment of its own.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: voice
