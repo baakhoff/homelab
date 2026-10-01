@@ -88,7 +88,7 @@ exception: it keeps its own master password.
   and shopping lists ([how](clusters/lab/mealie/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and the
   Hermes agent, fenced off to the internet
-  ([how](clusters/lab/hermes/README.md)), with two test slots for Hermes
+  ([how](clusters/lab/hermes/README.md)), with three test slots for Hermes
   Desktop to attach to ([how](clusters/lab/hermes-slots/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
