@@ -1,9 +1,13 @@
-# Hermes slot 1: a test Hermes for Hermes Desktop to attach to as a remote
-# gateway. The container is the main Hermes's - ../hermes/deployment.yaml
-# explains every field - and what differs is the name, the host, smaller
-# requests, and the Ingress: no oauth2-proxy gate, because Desktop cannot pass
-# it (README). What varies per file is the name, in every object and in
-# HERMES_DASHBOARD_PUBLIC_URL and the host.
+# Hermes slot 1. Every field of the Deployment is explained here; slot-2 and
+# slot-3 are the same with the number changed and fewer comments. What
+# varies per slot is the name - PVC, Deployment, labels, Service, Ingress,
+# claimName - HERMES_DASHBOARD_PUBLIC_URL and the host, and the resources.
+#
+# Hermes's whole home, /opt/data: config.yaml and .env (the LLM and platform
+# keys entered in the dashboard), memories, skills, sessions, cron jobs, the
+# Claude CLI and its login, and the agent's own working files. One volume
+# for the reason pvc.yaml in paperless/ gives - one snapshot, one consistent
+# moment. Expandable in place.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -23,6 +27,9 @@ metadata:
   name: slot-1
   namespace: hermes-slots
 spec:
+  # One agent on a ReadWriteOnce volume with SQLite on it. Recreate for the
+  # reasons the Vaultwarden Deployment spells out: never two processes on one
+  # database, and the RBD image maps to one node at a time.
   replicas: 1
   strategy:
     type: Recreate
@@ -36,6 +43,8 @@ spec:
         app.kubernetes.io/part-of: hermes-slots
     spec:
       enableServiceLinks: false
+      # Nothing here talks to the Kubernetes API, and an agent with a shell
+      # should not find a token to try.
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:
@@ -43,7 +52,17 @@ spec:
       containers:
         - name: hermes
           image: docker.io/nousresearch/hermes-agent:v2026.9.24
+          # The main process is the messaging gateway. With no platform
+          # configured it idles; the dashboard runs beside it under the
+          # image's supervisor.
           args: ["gateway", "run"]
+          # Starts as root, like Stirling-PDF, and for a similar reason: the
+          # image's init (s6-overlay) must be PID 1 as root, fixes the data
+          # volume's ownership, then runs everything as its own user, hermes
+          # (uid 10000). It refuses to start as any other uid. Root here
+          # holds only what that needs: chown and file access for the
+          # volume, setuid/setgid to drop, kill for the supervisor to stop
+          # what it started.
           securityContext:
             runAsUser: 0
             allowPrivilegeEscalation: false
@@ -55,27 +74,39 @@ spec:
               value: Europe/Copenhagen
             - name: HERMES_DASHBOARD
               value: "1"
-            # Also where Pocket ID sends the login back to, so it must be the
-            # address Desktop is given: the login's two halves are joined by
-            # a cookie on this host.
+            # The redirect address given to Pocket ID is this plus
+            # /auth/callback, and the dashboard trusts this host name in its
+            # Host and Origin checks. It must also be the address Desktop is
+            # given: the login's two halves are joined by a cookie on this
+            # host.
             - name: HERMES_DASHBOARD_PUBLIC_URL
               value: https://hermes-1.lab.baakhoff.com
+            # --- Login: Pocket ID, through the dashboard's own OIDC ---------
+            # The dashboard refuses to listen on anything but loopback
+            # without a login provider. Who may log in at all is the
+            # client's Allowed User Groups in Pocket ID.
             - name: HERMES_DASHBOARD_OIDC_ISSUER
               value: https://id.lab.baakhoff.com
-            # The Claude CLI for the subscription provider plugin, installed
-            # by hand onto the volume - ../hermes/README.md, "Claude
-            # subscription".
+            # The Claude subscription provider plugin runs the official Claude
+            # Code CLI. The CLI is installed by hand onto the volume, so it
+            # survives restarts, and is not on the gateway's PATH - README,
+            # "Claude subscription". Its login lands in /opt/data/.claude:
+            # the hermes user's home is the volume.
             - name: CLAUDE_SUBSCRIPTION_DIRECTSDK_COMMAND
               value: /opt/data/.local/bin/claude
           envFrom:
-            # One Pocket ID client for all slots, with each slot's callback
-            # URL on it - README, step 2. Until the Secret exists the pod
-            # waits in CreateContainerConfigError.
+            # HERMES_DASHBOARD_OIDC_CLIENT_ID and
+            # HERMES_DASHBOARD_OIDC_CLIENT_SECRET, created by hand into
+            # oidc.sops.yaml beside this file: one Pocket ID client for all
+            # slots, with each slot's callback URL on it. Until it exists the
+            # pod waits in CreateContainerConfigError - README, step 2.
             - secretRef:
                 name: hermes-slots-oidc
           ports:
             - name: dashboard
               containerPort: 9119
+          # The first start seeds config and runs migrations. Five minutes
+          # before liveness gets a vote.
           startupProbe:
             httpGet:
               path: /api/health
@@ -91,17 +122,19 @@ spec:
               path: /api/health
               port: dashboard
             periodSeconds: 30
-          # Half the main Hermes's request: a test slot idles most of the
-          # time. The limit leaves room for Chromium when it browses.
+          # The everyday slot, so more room than the others: Claude Code
+          # subprocesses and Chromium on top of the agent itself.
           resources:
             requests:
-              cpu: 50m
-              memory: 512Mi
+              cpu: 100m
+              memory: 1Gi
             limits:
-              memory: 3Gi
+              memory: 6Gi
           volumeMounts:
             - name: data
               mountPath: /opt/data
+            # Chromium, when the agent browses, needs more shared memory than
+            # the runtime's 64Mi default.
             - name: shm
               mountPath: /dev/shm
       volumes:

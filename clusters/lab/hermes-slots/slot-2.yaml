@@ -1,9 +1,5 @@
-# Hermes slot 2: a test Hermes for Hermes Desktop to attach to as a remote
-# gateway. The container is the main Hermes's - ../hermes/deployment.yaml
-# explains every field - and what differs is the name, the host, smaller
-# requests, and the Ingress: no oauth2-proxy gate, because Desktop cannot pass
-# it (README). What varies per file is the name, in every object and in
-# HERMES_DASHBOARD_PUBLIC_URL and the host.
+# Hermes slot 2: slot-1.yaml with the number changed, a smaller memory
+# request and limit, and fewer comments - slot-1.yaml explains every field.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -63,8 +59,7 @@ spec:
             - name: HERMES_DASHBOARD_OIDC_ISSUER
               value: https://id.lab.baakhoff.com
             # The Claude CLI for the subscription provider plugin, installed
-            # by hand onto the volume - ../hermes/README.md, "Claude
-            # subscription".
+            # by hand onto the volume - README, "Claude subscription".
             - name: CLAUDE_SUBSCRIPTION_DIRECTSDK_COMMAND
               value: /opt/data/.local/bin/claude
           envFrom:
