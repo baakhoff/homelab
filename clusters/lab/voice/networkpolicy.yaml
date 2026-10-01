@@ -1,0 +1,73 @@
+# Two policies. The voice services are cluster-internal and stay that way:
+# no Ingress, no oauth2-proxy, no gate - the only door in is Home Assistant
+# itself, and the only way out is the internet, which they need exactly once
+# per download (the whisper model on first boot; a Piper voice the first time
+# it is requested). After that they open no connections anywhere.
+#
+# k3s enforces NetworkPolicy with its embedded controller - see the agents
+# policy for the smoke test; a policy that is silently not enforced looks
+# exactly like one that is.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingress-from-home-assistant
+  namespace: voice
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: voice
+  policyTypes: [Ingress]
+  ingress:
+    # Namespace-selector only: any pod Home Assistant runs may reach the
+    # voice services, on the two Wyoming ports and nothing else - the ports
+    # are named so Piper's port-5000 demo server stays unreachable even from
+    # HA.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: home-assistant
+      ports:
+        - protocol: TCP
+          port: 10300
+        - protocol: TCP
+          port: 10200
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-dns-and-internet
+  namespace: voice
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: voice
+  policyTypes: [Egress]
+  egress:
+    # Cluster DNS. Policies are evaluated after the Service DNAT, so the
+    # destination seen here is the CoreDNS pod itself, matched by its labels.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Everything else: the internet only, where Hugging Face serves both
+    # whisper's models and Piper's voices. The same exceptions as the agents
+    # policy - every private range is unreachable, so the Kubernetes API,
+    # other namespaces and the house LAN are all out, downloads included
+    # nothing else needs to leave.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
