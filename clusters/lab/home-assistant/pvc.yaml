@@ -1,0 +1,24 @@
+# Everything Home Assistant keeps: configuration.yaml, the SQLite recorder
+# database, the auth store and the automations. One volume, like Paperless,
+# and for the same reason: one volume means one RBD snapshot, one consistent
+# moment, when the backup wiring lands later.
+#
+# 10Gi: the recorder prunes itself by default, so the database is bounded;
+# originals (snapshots taken through the UI) are what grows. Thin-provisioned,
+# so Ceph charges for what is written - raise the number by editing this file
+# if history or snapshots ever need more.
+#
+# Not backed up yet - when that changes it is the three pieces in
+# ../backup/README.md, in the order it gives.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: home-assistant-config
+  namespace: home-assistant
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 10Gi

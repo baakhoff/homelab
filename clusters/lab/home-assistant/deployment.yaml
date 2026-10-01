@@ -1,0 +1,98 @@
+# Home Assistant, the official container - not HAOS, which is an appliance OS
+# and not a workload. The container runs the same core with the integrations
+# this household needs; anything that would be an add-on becomes a Deployment
+# of its own or does not happen (the lab's way).
+#
+# The image runs as ROOT (unlike almost everything else in this repo): its
+# entrypoint manages /config ownership itself and is not supported
+# unprivileged. Root keeps only the short capability list below - read it
+# before adding anything back.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: home-assistant
+  namespace: home-assistant
+spec:
+  # One replica, and not a capacity decision: HA keeps everything in a single
+  # SQLite database under /config, so two replicas would be two processes on
+  # one database - and the state machine is single-instance by design.
+  replicas: 1
+  # Recreate, NOT RollingUpdate - the two reasons from Vaultwarden's file:
+  # never two HA processes on one database, and a ReadWriteOnce RBD image maps
+  # to exactly one node at a time (RollingUpdate would deadlock on the volume
+  # while the old pod still holds it).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: home-assistant
+  template:
+    metadata:
+      labels:
+        # Homepage infers its health-badge selector from the Ingress name,
+        # which is why this label follows the convention (see vaultwarden).
+        app.kubernetes.io/name: home-assistant
+    spec:
+      securityContext:
+        # Root, deliberately - see the header comment. Everything else here
+        # still applies: no privilege escalation, seccomp on.
+        runAsUser: 0
+        allowPrivilegeEscalation: false
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: home-assistant
+          # Pinned exact version; Renovate's kubernetes manager offers bumps
+          # for clusters/lab images like any other pin in this repo.
+          image: ghcr.io/home-assistant/home-assistant:2026.9.0
+          securityContext:
+            capabilities:
+              drop: [ALL]
+              # What root was allowed to keep:
+              #   CHOWN / FOWNER / DAC_OVERRIDE - /config ownership and
+              #     permissions across restarts and upgrades.
+              #   NET_RAW - the network-scanning integrations (DHCP discovery,
+              #     IPP, ...) want raw sockets. Without it they fail at setup
+              #     with an error that names the socket, not the capability.
+              add: [CHOWN, FOWNER, DAC_OVERRIDE, NET_RAW]
+          env:
+            - name: TZ
+              value: Europe/Copenhagen
+          ports:
+            - name: http
+              containerPort: 8123
+          # The first start seeds /config and runs migrations; five minutes
+          # before liveness gets a vote (the same budget as the Hermes slots).
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            # Idle sits around 300-500Mi; the limit is headroom for recorder
+            # bursts during onboarding and history imports. Watch it for a day
+            # and adjust - these numbers are a starting point, not a
+            # measurement.
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: home-assistant-config
