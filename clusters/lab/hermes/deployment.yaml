@@ -61,6 +61,13 @@ spec:
             # client's Allowed User Groups in Pocket ID.
             - name: HERMES_DASHBOARD_OIDC_ISSUER
               value: https://id.lab.baakhoff.com
+            # The Claude subscription provider plugin runs the official Claude
+            # Code CLI. The CLI is installed by hand onto the volume, so it
+            # survives restarts, and is not on the gateway's PATH - README,
+            # "Claude subscription". Its login lands in /opt/data/.claude:
+            # the hermes user's home is the volume.
+            - name: CLAUDE_SUBSCRIPTION_DIRECTSDK_COMMAND
+              value: /opt/data/.local/bin/claude
           envFrom:
             # HERMES_DASHBOARD_OIDC_CLIENT_ID and
             # HERMES_DASHBOARD_OIDC_CLIENT_SECRET, created by hand into
