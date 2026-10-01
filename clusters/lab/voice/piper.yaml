@@ -57,16 +57,17 @@ spec:
           # The entrypoint already pins --uri to tcp://0.0.0.0:10200 and both
           # --data-dir and --download-dir to /data. The --voice here is only
           # the default: the server advertises the whole catalog (including
-          # da_DK-talesyntese-medium) and downloads a voice the first time it
-          # is requested, so the language is picked in Home Assistant, not
-          # here.
-          args: ["--voice", "en_US-lessac-medium"]
+          # the Russian ru_RU-* voices and da_DK-talesyntese-medium) and
+          # downloads a voice the first time it is requested, so the
+          # language is picked in Home Assistant, not here. lessac-high is
+          # the old default's high-fidelity tier - same voice, more detail.
+          args: ["--voice", "en_US-lessac-high"]
           ports:
             - name: wyoming
               containerPort: 10200
           # Same reasoning as whisper: nothing listens until the default
-          # voice (~60 MB) is downloaded, so first boot gets the long leash;
-          # after that the probes are plain TCP connects.
+          # voice (~110 MB) is downloaded, so first boot gets the long
+          # leash; after that the probes are plain TCP connects.
           startupProbe:
             tcpSocket:
               port: wyoming
