@@ -19,9 +19,13 @@ slot towards it. `/v1/...` maps onto Firefly's `/api/v1/...`; the broker
 replaces the caller's Authorization header with the token, strips the login
 headers Firefly trusts, and forwards Firefly's response unmodified.
 
-A caller's own `Accept` header passes through (the CSV export wants
-`text/csv`); with none, the broker sends JSON:API's
-`application/vnd.api+json`. `GET` only, for now: `limit_except` in the
+A caller's own `Accept` header passes through. One trap, found live during
+acceptance: do **not** send `Accept: text/csv` - Firefly's content
+negotiation answers 406 for anything outside its whitelist (JSON, JSON:API,
+form-urlencoded, octet-stream, `*/*`). On the default accept the export
+returns the CSV itself, as `application/octet-stream`; with no `Accept` at
+all, the broker sends JSON:API's `application/vnd.api+json`. `GET` only, for
+now: `limit_except` in the
 ConfigMap answers anything else with 403. The seat's mandate starts with
 reads (accounts, transactions, budgets, exports); enabling writes is a CEO
 call and a one-line change in `configmap.yaml`.
@@ -41,8 +45,9 @@ web session, and the API answers only tokens.
 
 Created once, by hand, from Firefly's own UI:
 
-1. In Firefly, signed in as the owner: Options → Profile → OAuth →
-   Personal Access Tokens → Create, name it `cfo-broker`.
+1. In Firefly, signed in as the owner, open
+   <https://firefly.lab.baakhoff.com/profile/oauth> - the token page exists
+   but is not linked from the UI - and create a token named `cfo-broker`.
 2. On the workstation, from the repo root:
 
    ```bash
@@ -62,7 +67,7 @@ Created once, by hand, from Firefly's own UI:
    Deployment's not-ready warnings (KubePodNotReady, replicas mismatch, rollout
    stuck) fire after 15 minutes; they clear the moment the token lands.
 
-Rotation: revoke the old token on the same UI screen, create a new one and
+Rotation: revoke the old token on the same page, create a new one and
 repeat step 2. Quarterly is the plan; any doubt, rotate now.
 
 ## Verify, from slot-1
