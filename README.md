@@ -65,7 +65,8 @@ exception: it keeps its own master password.
   CSI snapshot class on top of it. cert-manager and ingress-nginx,
   kube-prometheus-stack and Loki, Headlamp and Homepage, Vaultwarden, epicurus
   ([ADR 0007](docs/decisions/0007-epicurus-rebuilt-on-kubernetes.md)), and the
-  agent pods: Claude Code Remote Control servers on volumes that follow the pod
+  agent pods: Claude Code Remote Control servers, and one Codex server for
+  the ChatGPT app, on volumes that follow the pod
   between nodes ([how](docs/runbooks/agent-pods.md), [how the nodes got
   here](docs/runbooks/node-bring-up.md)), and a Minecraft server for the
   household, the one thing on the cluster that reaches the LAN as raw TCP
@@ -112,6 +113,7 @@ hosts/              # host-level config installed by hand, outside GitOps
   nodes/            #   node02-04, configured identically: netplan, cloud-init guard, sshd
 images/
   claude-agent/     # container image for the Claude Code agent pods, built by GitHub Actions
+  codex-agent/      # container image for the Codex agent pod, built the same way
   paperless-ngx/    # upstream Paperless-ngx plus extra OCR languages, built the same way
   cobalt-web/       # cobalt's web page, which upstream does not publish, built the same way
 docs/

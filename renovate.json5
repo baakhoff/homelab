@@ -117,6 +117,16 @@
   // ------------------------------------------------------------------
   customManagers: [
     {
+      // The codex-agent image's counterpart of the rule below; the same
+      // two-PR flow, with the tag being the Codex version.
+      customType: "regex",
+      description: "Codex CLI version pinned in the codex-agent image",
+      managerFilePatterns: ["/^images/codex-agent/Dockerfile$/"],
+      matchStrings: ["ARG CODEX_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "@openai/codex",
+      datasourceTemplate: "npm",
+    },
+    {
       customType: "regex",
       description: "Claude Code CLI version pinned in the agent image",
       managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],
@@ -130,7 +140,7 @@
       // package was three and a half years stale and broke `gh pr edit`.
       customType: "regex",
       description: "gh CLI version pinned in the agent image",
-      managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],
+      managerFilePatterns: ["/^images/(claude|codex)-agent/Dockerfile$/"],
       matchStrings: ["ARG GH_VERSION=(?<currentValue>\\S+)"],
       depNameTemplate: "cli/cli",
       datasourceTemplate: "github-releases",
