@@ -17,7 +17,8 @@ Two doors, deliberately different:
   OIDC phase replaces it).
 - **The Service, from inside only.**
   `http://vikunja.vikunja.svc.cluster.local` (port 80 -> 3456), reachable
-  from slot-1 and nowhere else (`networkpolicy.yaml`). No gate on this path
+  from no pod at the moment: its one caller, the Hermes slot-1, is gone, and
+  an agent given a seat needs a rule in `networkpolicy.yaml`. No gate on this path
   by construction - callers skip the proxy by talking to the Service
   directly. API tokens are the authentication here, per seat.
 
@@ -67,11 +68,6 @@ commit and push. Verify in step 5.
 **5. Verify.**
 
 ```bash
-# From slot-1: the API answers ungated, and shows the registration state.
-kubectl -n hermes-slots exec deploy/slot-1 -- runuser -u hermes -- \
-  curl -s http://vikunja.vikunja.svc.cluster.local/api/v1/info
-# -> JSON with the version; "registration_enabled": true until step 4 ran.
-
 # From anywhere: the front door answers behind the gate.
 curl -s -o /dev/null -w '%{http_code}\n' https://tasks.lab.baakhoff.com/
 # -> 302 to the sign-in while logged out; 200 once a browser session exists.

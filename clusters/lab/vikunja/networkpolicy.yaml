@@ -1,10 +1,10 @@
 # Who may talk to the board, and what it may talk to.
 #
-# In: the gate (the humans' door) and the hermes-slots namespace's slot-1 -
-# the entire agent fleet lives there as profiles, and every seat's API client
-# calls the Service directly at this port. A second slot given a seat needs
-# one podSelector added here, the same note the firefly-broker policy
-# carries. Nothing else: not the other lab pods, not the LAN.
+# In: the gate (the humans' door), and nothing else: not the other lab
+# pods, not the LAN. The agent seats used to call the Service directly from
+# the Hermes slot-1, which is gone; an agent given a seat needs one ingress
+# rule here, naming its pods, on port 3456 - the same note the
+# firefly-broker policy carries.
 #
 # Out: cluster DNS, and nothing else - yet. When the OpenID Connect phase
 # lands, Vikunja will need the lab's HTTPS front door (Pocket ID's keys to
@@ -29,17 +29,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
-      ports:
-        - protocol: TCP
-          port: 3456
-    # The seats: every agent profile on slot-1 reaches the API through here.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: hermes-slots
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: slot-1
       ports:
         - protocol: TCP
           port: 3456
