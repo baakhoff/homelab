@@ -17,9 +17,14 @@ spec:
   accessModes:
     - ReadWriteOnce
   storageClassName: ceph-block
+  # The image keeps its download caches on /data as well as the model - the
+  # Xet chunk cache used while fetching can run to several GB - and a model
+  # swap holds the old and new model on the volume at once. 3Gi was sized for
+  # one small download; 5Gi keeps the medium-model fetch from wedging.
+  # (ceph-block expands online; everything on the volume re-downloads.)
   resources:
     requests:
-      storage: 3Gi
+      storage: 5Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
