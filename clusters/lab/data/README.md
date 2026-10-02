@@ -1,49 +1,71 @@
 # data
 
 The lab's data platform: [Apache Kafka](https://kafka.apache.org) as the
-event bus and [ClickHouse](https://clickhouse.com) as the store everything
-is queried from.
+event bus and [ClickHouse](https://clickhouse.com) as the warehouse.
 
-    [sources] --JSON--> [Kafka topic raw.<source>] --> [ClickHouse raw.events]
+    [source] --JSON--> [Kafka topic raw.<source>] --> [ClickHouse raw.<source>]
+                                                            |
+                                                ods  ->  ads  ->  dm
 
-Every source writes its data **raw** - the JSON exactly as the source
-produced it - to its own topic. ClickHouse consumes all the topics itself,
-through its Kafka table engine, into one table. Nothing is parsed or
+Every source system writes its data **raw** - the JSON exactly as the
+system produced it - to its own topic, and ClickHouse consumes each topic
+into that system's own table in the `raw` database. Nothing is parsed or
 reshaped on the way in, so nothing a source sends is rejected or lost for
-its shape. Shaping happens at query time, or in views over the raw table.
+its shape.
+
+## The layers
+
+One ClickHouse database each:
+
+| Database | What is in it | Built by |
+|---|---|---|
+| `raw` | One table per source system, every message as it arrived | the Kafka consumers, set up by `clickhouse-schema.yaml` |
+| `ods` | Operational data store: each system's raw rows parsed into typed, cleaned, deduplicated tables | transformation models, from `raw` |
+| `ads` | Aggregated data storage: joins and aggregates across systems | transformation models, from `ods` |
+| `dm` | Data marts: the tables a question or a dashboard reads | transformation models, from `ads` |
+
+A fifth database, `kafka`, holds the plumbing between Kafka and `raw` - one
+Kafka engine table (`<source>_queue`) and one materialized view
+(`<source>_to_raw`) per source - so that `raw` holds data and nothing else.
+The schema job creates `ods`, `ads` and `dm` empty; nothing writes into
+them by hand.
 
 ## What is here
 
 | File | What |
 |---|---|
-| `kafka.yaml` | One broker, KRaft mode (no ZooKeeper), 20Gi, one week of retention. Kafka is the buffer; ClickHouse is the archive |
-| `clickhouse.yaml` | One server, 50Gi, tuned for a 16 GB node it shares |
-| `clickhouse-schema.yaml` | An hourly job that creates the topics and the tables. Idempotent |
+| `kafka.yaml` | One broker, KRaft mode (no ZooKeeper), 10Gi, one week of retention. Kafka is the buffer; ClickHouse is the archive |
+| `clickhouse.yaml` | One server, 30Gi, tuned for a 16 GB node it shares |
+| `clickhouse-schema.yaml` | An hourly job that creates the topics, the databases and the raw tables. Idempotent |
 | `networkpolicy.yaml` | Kafka has no login, so this is its access control: the list of everything allowed to write |
 | `ingress.yaml` | `https://clickhouse.lab.baakhoff.com/play`, behind the admin gate |
 
-## The table
+## A raw table
+
+Every source's table has the same shape:
 
 ```sql
-raw.events (
-  topic       LowCardinality(String),  -- raw.homeassistant, raw.firefly, ...
+raw.<source> (
   partition   UInt64,
-  offset      UInt64,                  -- with topic and partition: the message's identity
-  key         String,                  -- the Kafka key, if the producer set one
-  kafka_ts    DateTime64(3),           -- when Kafka received it
-  ingested_at DateTime64(3),           -- when ClickHouse stored it
-  payload     String                   -- the original JSON, untouched
+  offset      UInt64,         -- with partition: the message's identity in its topic
+  key         String,         -- the Kafka key, if the producer set one
+  kafka_ts    DateTime64(3),  -- when Kafka received it
+  ingested_at DateTime64(3),  -- when ClickHouse stored it
+  payload     String          -- the original JSON, untouched
 )
 ```
 
-Ordered by `(topic, kafka_ts)` and partitioned by topic and month, so a
-query that names a topic and a time range reads only that. `raw.logs` rows
-are deleted after 90 days; everything else is kept.
+Ordered by `kafka_ts` and partitioned by month, so a time-range query reads
+only that range. `raw.logs` rows are deleted after 90 days; every other
+table keeps everything.
 
-The topics are `TOPICS` in `clickhouse-schema.yaml`. Adding one is a line
-there: on its next run the job creates the topic and recreates the consumer
-with the new list. The consumer's position is kept in Kafka, so nothing is
-read twice or skipped.
+The sources are `SOURCES` in `clickhouse-schema.yaml`:
+`homeassistant logs k8s-events firefly vikunja mealie paperless`. Topic
+`raw.<name>`, table `raw.<name>`, a dash becoming an underscore
+(`raw.k8s-events` -> `raw.k8s_events`). Adding a source is one word there:
+the next run creates its topic, its table and its consumer. Removing one is
+by hand - drop its view and queue in `kafka` first, then decide whether its
+raw table goes too.
 
 ## Setup
 
@@ -72,7 +94,7 @@ kubectl -n data create job --from=cronjob/clickhouse-schema schema-now
 kubectl -n data logs -f job/schema-now --all-containers
 ```
 
-The last line says `schema in place for:` and the topic list.
+The last line says `schema in place for:` and the source list.
 
 ## Use it
 
@@ -87,33 +109,34 @@ kubectl -n data exec -it clickhouse-0 -- clickhouse-client --user admin --ask-pa
 What has arrived, per source:
 
 ```sql
-SELECT topic, count() AS rows, max(kafka_ts) AS latest
-FROM raw.events GROUP BY topic ORDER BY topic;
+SELECT table, sum(rows) AS rows
+FROM system.parts WHERE database = 'raw' AND active
+GROUP BY table ORDER BY table;
 ```
 
-Reading JSON out of the payload:
+Reading JSON out of a payload:
 
 ```sql
 SELECT kafka_ts, JSONExtractString(payload, 'entity_id') AS entity
-FROM raw.events
-WHERE topic = 'raw.homeassistant' AND kafka_ts > now() - INTERVAL 1 DAY
+FROM raw.homeassistant
+WHERE kafka_ts > now() - INTERVAL 1 DAY
 LIMIT 10;
 ```
 
-Is the consumer keeping up? Its lag, from Kafka's side:
+Are the consumers keeping up? Their lag, from Kafka's side:
 
 ```bash
 kubectl -n data exec kafka-0 -- /opt/kafka/bin/kafka-consumer-groups.sh \
-  --bootstrap-server localhost:9092 --describe --group clickhouse-raw
+  --bootstrap-server localhost:9092 --describe --all-groups
 ```
 
-`LAG` near 0 on every topic is right.
+One group per source, `clickhouse-<source>`. `LAG` near 0 is right.
 
 ## Things to know
 
 - **Writing to Kafka** takes a rule in `networkpolicy.yaml` naming the
-  producer's namespace and pods, and the topic in `TOPICS`. Without both, the
-  producer is refused or its messages go nowhere.
+  producer's namespace and pods, and the source in `SOURCES`. Without both,
+  the producer is refused or its messages go nowhere.
 - **Producers send JSON.** Anything else still lands, as a string, but is no
   use to `JSONExtract`.
 - **One broker, one replica per topic.** The volume is Ceph's three copies,

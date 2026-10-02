@@ -1,6 +1,7 @@
-# ClickHouse: where every source's raw data ends up, for querying and
-# research. It consumes the Kafka topics itself (the Kafka table engine,
-# set up by clickhouse-schema.yaml), so there is no connector in between.
+# ClickHouse: the warehouse. Every source's raw data lands here, and the
+# layers above it (ods, ads, dm - clickhouse-schema.yaml) are built from
+# it. It consumes the Kafka topics itself (the Kafka table engine), so
+# there is no connector in between.
 #
 # One server on one Ceph volume. Its own login is the lock on the data: the
 # `admin` user, password from the clickhouse-admin Secret. The built-in
@@ -166,6 +167,6 @@ spec:
         resources:
           requests:
             # ClickHouse compresses JSON roughly 5-10x. Ceph keeps three
-            # copies, so this is 150 GB of the pool's raw space. Expandable
-            # in place when it fills.
-            storage: 50Gi
+            # copies, so this is 90 GB of the pool's raw space. Started
+            # small on purpose: it expands in place when it fills.
+            storage: 30Gi
