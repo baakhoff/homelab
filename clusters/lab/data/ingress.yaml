@@ -1,0 +1,36 @@
+# ClickHouse's HTTP interface, for the browser: https://clickhouse.lab.baakhoff.com/play
+# is its built-in SQL page. Two locks: the admin gate (lab-admins only, as
+# for Prometheus) and ClickHouse's own login behind it.
+#
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clickhouse
+  namespace: data
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Research queries can run for minutes; nginx's 60-second default would
+    # cut them off mid-result.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: ClickHouse
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: clickhouse.png
+    gethomepage.dev/description: Every source's raw data, in SQL
+    gethomepage.dev/href: https://clickhouse.lab.baakhoff.com/play
+spec:
+  rules:
+    - host: clickhouse.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clickhouse
+                port:
+                  number: 8123

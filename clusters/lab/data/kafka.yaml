@@ -1,0 +1,164 @@
+# Kafka: the lab's event bus. Every source - Home Assistant's state changes,
+# every pod's log lines, Kubernetes events, the services pulled by Airflow -
+# writes raw JSON to a topic here, and ClickHouse consumes the topics into
+# its tables (clickhouse-schema.yaml). Kafka is the buffer, not the archive:
+# a week of retention covers a ClickHouse outage, and ClickHouse keeps the
+# data.
+#
+# One broker in KRaft combined mode (broker and controller in one process,
+# no ZooKeeper). Replication factor 1, because there is one broker - the
+# volume underneath is Ceph, replicated three times, so losing a node costs
+# a restart, not the data.
+#
+# No authentication on the listener. networkpolicy.yaml is the access
+# control: only the named producers and ClickHouse reach port 9092.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: data
+spec:
+  selector:
+    app.kubernetes.io/name: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: kafka
+---
+# The StatefulSet's governing Service: gives the pod the stable DNS name
+# kafka-0.kafka-headless.data.svc.cluster.local.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  namespace: data
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: kafka
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: data
+spec:
+  serviceName: kafka-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka
+    spec:
+      # Not optional for this image: a Service named `kafka` makes
+      # Kubernetes inject KAFKA_PORT, KAFKA_SERVICE_HOST and friends, and
+      # the image's startup script reads every KAFKA_* variable as a broker
+      # setting - `port` is not one, and the broker refuses to start.
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # appuser, the uid the image is built around.
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kafka
+          image: docker.io/apache/kafka:4.3.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: kafka
+              containerPort: 9092
+          env:
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: broker,controller
+            # Fixed, not generated: the log directory is formatted with it on
+            # the first start, and a different id on a later start is a
+            # broker that refuses its own data. Not a secret.
+            - name: CLUSTER_ID
+              value: aRAlkpZOQwmYnICxvVxBbw
+            - name: KAFKA_LISTENERS
+              value: PLAINTEXT://:9092,CONTROLLER://:9093
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: PLAINTEXT://kafka.data.svc.cluster.local:9092
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: 1@localhost:9093
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: PLAINTEXT
+            - name: KAFKA_LOG_DIRS
+              value: /var/lib/kafka/data
+            # One broker, so every internal topic has one replica.
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+            - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+              value: "0"
+            # Topics are created explicitly by the schema job, so a typo in
+            # a producer's topic name fails loudly instead of quietly
+            # creating a topic nobody consumes.
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "false"
+            # A week. Long enough to ride out a ClickHouse outage; the data's
+            # home is ClickHouse.
+            - name: KAFKA_LOG_RETENTION_HOURS
+              value: "168"
+            - name: KAFKA_HEAP_OPTS
+              value: -Xms512m -Xmx512m
+          resources:
+            requests:
+              cpu: 100m
+              memory: 768Mi
+            limits:
+              memory: 1Gi
+          # The broker is up when it accepts connections on its listener.
+          startupProbe:
+            tcpSocket:
+              port: kafka
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: kafka
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: kafka
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: ceph-block
+        resources:
+          requests:
+            # A week of every source at the lab's rate, with room.
+            # Expandable in place.
+            storage: 20Gi
