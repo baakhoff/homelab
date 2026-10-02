@@ -289,7 +289,16 @@ data:
                     echo "FATAL: /data/$ns/$pvc holds no files - refusing to write an empty snapshot"
                     exit 1
                   fi
-                  exec restic backup \\
+                  # THROTTLED ON PURPOSE: the read sweep this job gives the Ceph
+                  # OSDs is what trips their slow-heartbeat checks on backup
+                  # nights. nice/ionice keep the pod deferential on its OWN node;
+                  # the CPU limit beside them caps the sweep rate itself. Both
+                  # applets are BusyBox (Alpine); the guard degrades to an
+                  # unthrottled backup if one is missing, never a failed one.
+                  WRAP=""
+                  if command -v nice >/dev/null 2>&1; then WRAP="nice -n 19"; fi
+                  if command -v ionice >/dev/null 2>&1; then WRAP="\${WRAP:+\$WRAP }ionice -c2 -n7"; fi
+                  exec \$WRAP restic backup \\
                     --host $RESTIC_HOST \\
                     --tag nightly \\
                     --tag $ns/$pvc \\
@@ -305,6 +314,9 @@ data:
                   cpu: 100m
                   memory: 256Mi
                 limits:
+                  # The brake: ~halves the read/hash sweep rate. The run is
+                  # upload-bound anyway, so the wall-clock cost is small.
+                  cpu: 500m
                   memory: 1Gi
           volumes:
             - name: data
