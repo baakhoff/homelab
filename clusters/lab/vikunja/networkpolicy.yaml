@@ -1,0 +1,59 @@
+# Who may talk to the board, and what it may talk to.
+#
+# In: the gate (the humans' door) and the hermes-slots namespace's slot-1 -
+# the entire agent fleet lives there as profiles, and every seat's API client
+# calls the Service directly at this port. A second slot given a seat needs
+# one podSelector added here, the same note the firefly-broker policy
+# carries. Nothing else: not the other lab pods, not the LAN.
+#
+# Out: cluster DNS, and nothing else - yet. When the OpenID Connect phase
+# lands, Vikunja will need the lab's HTTPS front door (Pocket ID's keys to
+# verify logins). Webhooks or email, when anyone wants them, each need a rule
+# here first - and webhooks aimed inside the lab trip Vikunja's own SSRF gate
+# (outgoingrequests.allownonroutableips) until it is flipped too. Until then,
+# no.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vikunja
+  namespace: vikunja
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vikunja
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3456
+    # The seats: every agent profile on slot-1 reaches the API through here.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes-slots
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: slot-1
+      ports:
+        - protocol: TCP
+          port: 3456
+  egress:
+    # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

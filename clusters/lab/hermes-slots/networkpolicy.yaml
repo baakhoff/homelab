@@ -2,7 +2,7 @@
 # this pod rather than in a sandbox container of their own. What it can
 # reach is therefore what anything it is talked into running can reach.
 # These policies make that the internet and nothing of the lab's, the same
-# as the agents namespace, with two doors back in.
+# as the agents namespace, with three doors back in.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
@@ -87,3 +87,18 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # The third door: the team's task board (clusters/lab/vikunja/), which
+    # every seat's tools call from this pod. One API token per seat, held by
+    # the seat - a task-board token is not the Firefly token, so no broker
+    # sits in front of this one. One namespace, one pod, one port - and the
+    # policy on that side admits slot-1 and nothing else in turn.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vikunja
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vikunja
+      ports:
+        - protocol: TCP
+          port: 3456

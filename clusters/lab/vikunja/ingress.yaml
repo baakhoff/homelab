@@ -1,0 +1,42 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Behind Pocket ID through oauth2-proxy, whole host gated, /api paths
+# included. This is the human door; the agents' door is the Service, which
+# the gate cannot see (networkpolicy.yaml). Upgrading to Vikunja's own
+# OpenID Connect is a later phase - until then accounts are local, behind
+# this gate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vikunja
+  namespace: vikunja
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Task attachments.
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    # The board holds a websocket open for live updates; nginx's 60-second
+    # default would drop it whenever a board sits quiet for a minute.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Vikunja
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: vikunja.png
+    gethomepage.dev/description: The team's task board
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://tasks.lab.baakhoff.com
+spec:
+  rules:
+    - host: tasks.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vikunja
+                port:
+                  number: 80
