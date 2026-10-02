@@ -4,6 +4,9 @@
 # arbitrary commands on behalf of a model; this boundary is what makes that
 # acceptable next to a password vault and the Flux decryption key.
 #
+# One exception, in networkpolicy-brand.yaml beside this: the brand pod also
+# reaches the Firefly API broker and Vikunja's API.
+#
 # k3s enforces NetworkPolicy with its embedded controller (kube-router's netpol
 # library) unless started with --disable-network-policy, which this cluster
 # was not. Verify rather than trust: the runbook has a two-command smoke test,
