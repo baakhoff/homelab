@@ -76,7 +76,9 @@ sops --encrypt --in-place clusters/lab/hermes-slots/oidc.sops.yaml
 ```
 
 Commit and push. Until it reconciles, the pods wait in
-`CreateContainerConfigError`, which is not a crash and does not alert.
+`CreateContainerConfigError` - not a crash, but not silent either: the
+not-ready warnings (KubePodNotReady, replicas mismatch, rollout stuck) fire
+after 15 minutes; they clear the moment the Secret lands.
 
 **3. Trust the front door**, once per slot, then restart it. ingress-nginx
 ends TLS and talks to Hermes over plain HTTP, saying `X-Forwarded-Proto:

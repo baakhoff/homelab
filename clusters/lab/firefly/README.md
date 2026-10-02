@@ -31,7 +31,9 @@ make that true, and neither may be removed:
 ## Setup, in this order
 
 The pod waits in `CreateContainerConfigError` until step 1 exists. That is not
-a crash and does not alert.
+a crash, but not silent either: the not-ready warnings (KubePodNotReady,
+replicas mismatch, rollout stuck) fire after 15 minutes; they clear the moment
+the Secret lands.
 
 **1. Create the Secret on the workstation**, in the repository. Both values are
 random and generated here, so nothing needs pasting:
