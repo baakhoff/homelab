@@ -21,7 +21,9 @@ lists. Members of the Pocket ID group `mealie-admins` are Mealie admins.
 ## Setup, in this order
 
 The pod waits in `CreateContainerConfigError` until step 2 exists. That is not
-a crash and does not alert. It starts by itself once the Secret reconciles.
+a crash, but not silent either: the not-ready warnings (KubePodNotReady,
+replicas mismatch, rollout stuck) fire after 15 minutes; they clear the moment
+the Secret lands, and the pod starts by itself once it reconciles.
 
 **1. Create the OIDC client in Pocket ID** at `https://id.lab.baakhoff.com`,
 Administration → OIDC Clients → Add:
