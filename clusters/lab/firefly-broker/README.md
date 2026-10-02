@@ -24,11 +24,11 @@ acceptance: do **not** send `Accept: text/csv` - Firefly's content
 negotiation answers 406 for anything outside its whitelist (JSON, JSON:API,
 form-urlencoded, octet-stream, `*/*`). On the default accept the export
 returns the CSV itself, as `application/octet-stream`; with no `Accept` at
-all, the broker sends JSON:API's `application/vnd.api+json`. `GET` only, for
-now: `limit_except` in the
-ConfigMap answers anything else with 403. The seat's mandate starts with
-reads (accounts, transactions, budgets, exports); enabling writes is a CEO
-call and a one-line change in `configmap.yaml`.
+all, the broker sends JSON:API's `application/vnd.api+json`.
+
+The door: `GET`, `POST` and `PUT` reach Firefly; `DELETE` and everything
+else answer 403 from `limit_except` in the ConfigMap - destructive methods
+are a deliberate hold, and widening later is the same one line.
 
 ## Why it cannot become a second login door
 
@@ -76,7 +76,11 @@ repeat step 2. Quarterly is the plan; any doubt, rotate now.
 BASE=http://firefly-broker.firefly-broker.svc.cluster.local
 curl -s "$BASE/v1/about"    | head -c 200   # Firefly version JSON
 curl -s "$BASE/v1/accounts" | head -c 200   # account list
-curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE/v1/accounts"   # 403
+
+# The door: an empty-body write reaches Firefly and gets Firefly's own
+# refusal (415 or 422 - not a 403); DELETE never leaves the broker.
+curl -s -o /dev/null -w '%{http_code}\n' -X POST   "$BASE/v1/accounts"    # 415/422
+curl -s -o /dev/null -w '%{http_code}\n' -X DELETE "$BASE/v1/accounts/1"  # 403
 ```
 
 From anywhere else in the cluster the first call goes unanswered - that is
@@ -91,4 +95,7 @@ the NetworkPolicy, not a listener, refusing it.
   needs, and why the credential lives here and nowhere else. A compromised
   broker would carry the same power: the pinned image and the rotation are
   the controls.
+- Config edits render at container start: after changing `configmap.yaml`,
+  restart - `kubectl -n firefly-broker rollout restart deployment/firefly-broker`.
+  Flux updates the ConfigMap object; nothing reloads a running nginx.
 - Nothing to back up: no volume, no state.
