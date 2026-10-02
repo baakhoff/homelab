@@ -21,17 +21,17 @@ downloads), nothing more.
    - **Speech-to-text**: `faster-whisper` (the entity the first integration
      adds)
    - **Text-to-speech**: the Piper entity, and pick a voice - every catalog
-     voice is selectable, `en_US-lessac-medium` and `da_DK-talesyntese-medium`
-     among them.
+     voice is selectable: high-fidelity English (`en_US-lessac-high` is the
+     default), `da_DK-talesyntese-medium`, Russian `ru_RU-*` and more.
    - Conversation stays on OpenRouter.
 3. Press the microphone in the Assist dialog (browser or companion app) and
    talk; typed chat is untouched.
 
 ## Things to know
 
-- **First boot downloads are real.** Whisper fetches the `small-int8` model
-  (~500 MB) before it starts listening at all; Piper fetches its default
-  voice (~60 MB) and downloads any other catalog voice the first time it is
+- **First boot downloads are real.** Whisper fetches the `medium-int8` model
+  (~750 MB) before it starts listening at all; Piper fetches its default
+  voice (~110 MB) and downloads any other catalog voice the first time it is
   requested. Until the download finishes the pods are honestly unready, not
   broken - `kubectl -n voice logs deploy/wyoming-whisper` shows the progress.
 - **The volumes are a cache, which is why they are not in the backup.**
@@ -39,11 +39,13 @@ downloads), nothing more.
   whisper add-on excludes its models from backups the same way
   (`backup_exclude`).
 - **Changing the whisper model** means editing `args` in whisper.yaml
-  (`base-int8` = lighter, `medium-int8` = more accurate and slower).
-  Changing Piper's *default* voice means editing its `--voice` arg; the other
-  voices need no change here at all.
-- **Sizing**: idle ~0 CPU, ~1-1.5 GB RAM standing between the two, a few
-  seconds of CPU burst per command. `kubectl -n voice top pods` after a week
+  (`small-int8` = lighter and faster, `large-v3` = a heavier step up again;
+  `medium-int8` is the current default). Changing Piper's *default* voice
+  means editing its `--voice` arg; the other voices need no change here at
+  all.
+- **Sizing**: idle ~0 CPU, ~1.5-2 GB RAM standing between the two (the
+  medium whisper model is most of it), a few seconds of CPU burst per
+  command. `kubectl -n voice top pods` after a week
   of real use - the manifest numbers are a starting point, not a measurement.
 - **Name biasing, for later**: the whisper server can read the names of
   conversation-exposed entities over the HA websocket (`--hass-token`) and
