@@ -1,0 +1,19 @@
+# The task board's whole storage, on one volume so the nightly snapshot is a
+# single consistent moment (the same reasoning the other data PVCs carry).
+# In it, two directories: `db` (the SQLite database, mounted at /db) and
+# `files` (task attachments, mounted at /app/vikunja/files).
+#
+# 2Gi: the database is kilobytes for a team's worth of tasks; the rest is
+# room for attachments. Expandable in place like every other PVC here.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vikunja-data
+  namespace: vikunja
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 2Gi

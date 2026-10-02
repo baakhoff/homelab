@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vikunja
+  namespace: vikunja
+spec:
+  # One replica on a ReadWriteOnce volume with SQLite on it. Recreate for the
+  # reasons the Vaultwarden Deployment spells out: never two processes on one
+  # database, and the RBD image maps to one node at a time.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vikunja
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vikunja
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        # The uid and gid the image is built around.
+        runAsUser: 1000
+        runAsGroup: 1000
+        # kubelet hands the fresh volume's root to this group, and the
+        # subdirectories the init container creates inherit it - which is
+        # what makes the two subPath mounts below writable by the container
+        # user.
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # The two directories the subPath mounts below expect. kubelet would
+        # create a missing subPath itself, but as root - and a root-owned
+        # directory on a volume handed to uid 1000 is a database that cannot
+        # be opened. Creating them as the container's own user settles both
+        # existence and ownership. Runs every start; on an existing volume
+        # it is a no-op.
+        - name: dirs
+          image: docker.io/library/busybox:1.38.0
+          command: ["mkdir", "-p", "/volume/db", "/volume/files"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /volume
+      containers:
+        - name: vikunja
+          image: docker.io/vikunja/vikunja:2.6.0
+          # A scratch image around the statically built server: what it
+          # writes at runtime is the two volume paths and /tmp (mounted
+          # below), nothing else - so the root is read-only.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            # The trailing slash matters: API responses build links from it.
+            - name: VIKUNJA_SERVICE_PUBLICURL
+              value: https://tasks.lab.baakhoff.com/
+            - name: VIKUNJA_SERVICE_TIMEZONE
+              value: Europe/Copenhagen
+            # No database server: SQLite, on the volume, at the path the
+            # image already presets (stated here so moving it is one line).
+            - name: VIKUNJA_DATABASE_TYPE
+              value: sqlite
+            - name: VIKUNJA_DATABASE_PATH
+              value: /db/vikunja.db
+            # On until the accounts exist: the first registration is the
+            # admin's, then this flips to "false" (README, step 4).
+            - name: VIKUNJA_SERVICE_ENABLEREGISTRATION
+              value: "true"
+          envFrom:
+            # VIKUNJA_SERVICE_SECRET (the docs' older name for it,
+            # VIKUNJA_SERVICE_JWTSECRET, maps to the same value), generated
+            # on the workstation into secret.sops.yaml beside this file.
+            # Until it exists the pod waits in CreateContainerConfigError -
+            # README, step 2; the not-ready warnings that arrive after 15
+            # minutes are the expected pre-state, and clear on reconcile.
+            - secretRef:
+                name: vikunja
+          ports:
+            - name: http
+              containerPort: 3456
+          # Migrations run before the server listens. Five minutes of grace
+          # before liveness gets a vote.
+          startupProbe:
+            httpGet:
+              path: /api/v1/info
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/info
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/v1/info
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              # Headroom, not a target: migrations and data exports spike
+              # briefly past the idle footprint.
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /db
+              subPath: db
+            - name: data
+              mountPath: /app/vikunja/files
+              subPath: files
+            # Data export builds its zip here. The image ships /tmp
+            # world-writable for exactly that; a read-only root would take
+            # it away, so it is remounted.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vikunja-data
+        - name: tmp
+          emptyDir: {}

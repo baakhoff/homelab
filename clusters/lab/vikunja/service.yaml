@@ -1,0 +1,15 @@
+# Two ways in, deliberately different: from outside, the gate and Vikunja's
+# own login (ingress.yaml); from inside, this Service with no gate at all -
+# the seats' API clients call it directly (README, "How it is reached").
+apiVersion: v1
+kind: Service
+metadata:
+  name: vikunja
+  namespace: vikunja
+spec:
+  selector:
+    app.kubernetes.io/name: vikunja
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -195,3 +195,21 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: backup-driver
+---
+# The team's task board: every task, its history and its attachments - the
+# record of what the team did, and the only copy of it. Bound ahead of the
+# BACKUP_TARGETS entry, in the order clusters/lab/vikunja/README.md gives -
+# staged last, behind the six already waiting.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-driver
+  namespace: vikunja
+subjects:
+  - kind: ServiceAccount
+    name: backup-driver
+    namespace: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-driver

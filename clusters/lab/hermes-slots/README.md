@@ -19,14 +19,17 @@ in a separate sandbox container. `networkpolicy.yaml` is the containment: the
 internet, and nothing of the lab's - no other pod, no Kubernetes API, no node,
 no house LAN, no Pi, no tailnet machine. The pods carry no Kubernetes token.
 
-Two exceptions. The lab's HTTPS front door, because the dashboard's login
+Three exceptions. The lab's HTTPS front door, because the dashboard's login
 has to fetch Pocket ID's keys from `id.lab.baakhoff.com` - through it a slot
 is an anonymous visitor, and every lab host either sits behind the gate or
-has its own login. And the Firefly API broker
+has its own login. The Firefly API broker
 (`clusters/lab/firefly-broker/`): the CFO seat's tools call it from slot-1,
 it holds the Firefly token server-side, and the slot drives the API without
 the credential ever being here. It is reachable from slot-1 and nothing
-else, and reaches nothing but Firefly in turn.
+else, and reaches nothing but Firefly in turn. And the team's task board,
+Vikunja (`clusters/lab/vikunja/`): every seat's tools call it from slot-1,
+with one API token per profile; it is reachable from slot-1 and nothing
+else in turn.
 
 ## How login works, and why there is no gate
 
