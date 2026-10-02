@@ -1,0 +1,52 @@
+# The broker's whole behaviour: one nginx server block, rendered from this
+# template into /etc/nginx/conf.d by the image's entrypoint on every start
+# (20-envsubst-on-templates.sh). ${FIREFLY_TOKEN} is the only substitution -
+# it comes from the Secret's environment, so the token lives in the pod and
+# never in git.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: firefly-broker-config
+  namespace: firefly-broker
+data:
+  default.conf.template: |
+    # A caller's own Accept header wins (the CSV export wants text/csv);
+    # with none, JSON:API's media type is what Firefly answers.
+    map $http_accept $firefly_accept {
+        default $http_accept;
+        ""      application/vnd.api+json;
+    }
+
+    server {
+        listen 8080;
+
+        # What the Service and both probes use: no upstream, no token.
+        location = /healthz {
+            access_log off;
+            return 200 "ok";
+        }
+
+        # The Firefly API, read-only for now: the CFO seat's mandate starts
+        # with reads, and enabling writes is a CEO call (README). This is
+        # also where the token is added and the login headers are stripped.
+        # limit_except answers anything that is not GET with 403.
+        location /v1/ {
+            limit_except GET {
+                deny all;
+            }
+            proxy_pass http://firefly.firefly.svc.cluster.local/api/v1/;
+            proxy_http_version 1.1;
+            proxy_set_header Host firefly.firefly.svc.cluster.local;
+            proxy_set_header Authorization "Bearer ${FIREFLY_TOKEN}";
+            proxy_set_header Accept $firefly_accept;
+            proxy_set_header X-Auth-Request-Email "";
+            proxy_set_header X-Auth-Request-User "";
+            proxy_set_header X-Forwarded-User "";
+            proxy_set_header Remote-User "";
+        }
+
+        # Nothing else exists here.
+        location / {
+            return 404;
+        }
+    }

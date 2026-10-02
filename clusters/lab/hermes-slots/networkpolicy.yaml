@@ -2,7 +2,7 @@
 # this pod rather than in a sandbox container of their own. What it can
 # reach is therefore what anything it is talked into running can reach.
 # These policies make that the internet and nothing of the lab's, the same
-# as the agents namespace, with one door back in.
+# as the agents namespace, with two doors back in.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
@@ -57,7 +57,7 @@ spec:
               - 192.168.0.0/16
               - 100.64.0.0/10
               - 169.254.0.0/16
-    # The one door: the lab's HTTPS front door, because the dashboard's own
+    # The first door: the lab's HTTPS front door, because the dashboard's own
     # login has to fetch Pocket ID's keys from id.lab.baakhoff.com, which
     # resolves to the nodes. That address is the ingress controller's
     # LoadBalancer, rewritten to the controller pod before policy is
@@ -71,3 +71,19 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    # The second door: the Firefly API broker (clusters/lab/firefly-broker/),
+    # which the CFO seat's tools call from this pod. It is the one thing a
+    # slot reaches with intent to authenticate: the broker holds the Firefly
+    # token server-side, so the slot drives the API without the credential
+    # being here at all. One namespace, one pod, one port - and the policy on
+    # that side admits slot-1 and nothing else in turn.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firefly-broker
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firefly-broker
+      ports:
+        - protocol: TCP
+          port: 8080
