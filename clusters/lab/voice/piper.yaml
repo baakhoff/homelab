@@ -17,9 +17,14 @@ spec:
   accessModes:
     - ReadWriteOnce
   storageClassName: ceph-block
+  # Voice models accumulate here as voices are picked in Home Assistant - one
+  # medium voice is ~63 MB, a high one ~110 MB - and the 1Gi start filled to
+  # 1.22% free within hours of first real use. 5Gi is room for a
+  # multi-language collection with headroom to try voices without pruning.
+  # (ceph-block expands online, and nothing on the volume is irreplaceable.)
   resources:
     requests:
-      storage: 1Gi
+      storage: 5Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
