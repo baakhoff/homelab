@@ -58,7 +58,9 @@ Created once, by hand, from Firefly's own UI:
    ```
 
    Commit and push. Until it reconciles, the broker waits in
-   `CreateContainerConfigError` - not a crash, does not alert.
+   `CreateContainerConfigError` - not a crash, but not silent either: the
+   Deployment's not-ready warnings (KubePodNotReady, replicas mismatch, rollout
+   stuck) fire after 15 minutes; they clear the moment the token lands.
 
 Rotation: revoke the old token on the same UI screen, create a new one and
 repeat step 2. Quarterly is the plan; any doubt, rotate now.

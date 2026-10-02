@@ -11,8 +11,10 @@
 #
 # Needs the firefly-broker Secret (token.sops.yaml, made by hand from the
 # Firefly UI - README, "The token"). Until it exists the pod waits in
-# CreateContainerConfigError: not a crash, does not alert, same as Firefly's
-# own env secret.
+# CreateContainerConfigError: not a crash, but not silent either - the
+# Deployment's not-ready warnings (KubePodNotReady, replicas mismatch, rollout
+# stuck) fire after 15 minutes and clear when the token lands. To skip the wait
+# window entirely, land the Secret before this Deployment.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
