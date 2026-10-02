@@ -1,0 +1,84 @@
+# The Codex agent: OpenAI's Codex CLI serving remote-control sessions to the
+# ChatGPT app, the way the other pods here serve Claude Code to the Claude app.
+#
+# Same namespace, same boundary: the NetworkPolicy in this directory admits
+# nothing in and lets it out to DNS and the internet only, and the pod carries
+# no Kubernetes token. Nothing listens on a port - the app-server calls out to
+# OpenAI and the app reaches it through them.
+#
+# The structure follows slot-4.yaml (homelab.yaml is the annotated template);
+# what differs is the image and the entrypoint behind it. Bootstrap - login and
+# pairing - is in docs/runbooks/agent-pods.md, under "The Codex pod".
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: codex
+  namespace: agents
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: codex
+  namespace: agents
+  labels:
+    app.kubernetes.io/name: codex
+    app.kubernetes.io/part-of: agents
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: codex
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: codex
+        app.kubernetes.io/part-of: agents
+    spec:
+      priorityClassName: agents
+      automountServiceAccountToken: false
+      hostUsers: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: codex
+          image: ghcr.io/baakhoff/codex-agent:0.160.0
+          # Always: the tag is the Codex version and is mutable, for the
+          # reason homelab.yaml spells out.
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: PROJECT
+              value: codex
+          resources:
+            # The per-pod shape of this namespace; resourcequota.yaml counts it.
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 3Gi
+          volumeMounts:
+            - name: home
+              mountPath: /home/node
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: codex
