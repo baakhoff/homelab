@@ -21,7 +21,7 @@ metadata:
   name: firefly-broker
   namespace: firefly-broker
 spec:
-  # Stateless - more replicas would work; one is enough for one seat's reads.
+  # Stateless - more replicas would work; one is enough for one seat's calls.
   replicas: 1
   selector:
     matchLabels:
