@@ -1,28 +1,43 @@
-# The schema job: creates the Kafka topics, and the ClickHouse tables that
-# consume them. Idempotent, so it runs every hour and whenever it is started
-# by hand (README) - a new topic is a one-line change to TOPICS below.
+# The schema job: creates the Kafka topics, the warehouse's databases, and
+# the raw tables that consume the topics. Idempotent, so it runs every hour
+# and whenever it is started by hand (README) - a new source is one entry
+# in SOURCES below.
 #
-# The data model is one raw table. Every message from every topic lands in
-# raw.events exactly as it was produced - the payload is the original JSON,
-# untouched - with the topic, the Kafka offset and the time beside it.
-# Shaping it into per-source tables is a view on top, written when a
-# question needs it; the raw rows stay the source of truth.
+# The warehouse has four layers, one ClickHouse database each:
+#
+#   raw  one table per source system, filled from its Kafka topic: every
+#        message exactly as the system produced it, the payload untouched.
+#        This job owns it.
+#   ods  operational data store - raw parsed into typed, cleaned,
+#        deduplicated tables, still one system at a time.
+#   ads  aggregated data storage - joins and aggregates across systems.
+#   dm   data marts - the tables a question or a dashboard reads.
+#
+# ods, ads and dm are created empty here. Every table in them is built
+# from the layer below by transformation models; nothing writes into them
+# by hand.
+#
+# The plumbing between Kafka and raw - one Kafka engine table and one
+# materialized view per source - lives in a fifth database, `kafka`, so
+# that raw holds data and nothing else.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: clickhouse-schema
   namespace: data
 data:
-  # One per source. Producers write here; nothing is auto-created
-  # (kafka.yaml), so a producer with a wrong name fails instead of
-  # disappearing into an unconsumed topic.
-  TOPICS: raw.homeassistant,raw.logs,raw.k8s-events,raw.firefly,raw.vikunja,raw.mealie,raw.paperless
+  # One per source system: its topic is raw.<name>, its table raw.<name>
+  # (a dash in the name becomes an underscore in the table). Producers
+  # write to the topic; nothing is auto-created (kafka.yaml), so a producer
+  # with a wrong name fails instead of disappearing into a topic nobody
+  # reads.
+  SOURCES: homeassistant logs k8s-events firefly vikunja mealie paperless
 
   topics.sh: |
     set -eu
-    for t in $(echo "$TOPICS" | tr ',' ' '); do
+    for s in $SOURCES; do
       /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka.data.svc.cluster.local:9092 \
-        --create --if-not-exists --topic "$t" --partitions 1 --replication-factor 1
+        --create --if-not-exists --topic "raw.$s" --partitions 1 --replication-factor 1
     done
 
   schema.sh: |
@@ -34,59 +49,58 @@ data:
 
     ch --query "
       CREATE DATABASE IF NOT EXISTS raw;
-
-      CREATE TABLE IF NOT EXISTS raw.events (
-        topic       LowCardinality(String),
-        partition   UInt64,
-        offset      UInt64,
-        key         String,
-        kafka_ts    DateTime64(3),
-        ingested_at DateTime64(3) DEFAULT now64(3),
-        payload     String CODEC(ZSTD(3))
-      )
-      ENGINE = MergeTree
-      PARTITION BY (topic, toYYYYMM(kafka_ts))
-      ORDER BY (topic, kafka_ts, offset)
-      -- Log lines are the one source kept for a limited time: 90 days.
-      -- Everything else is kept until deleted.
-      TTL toDateTime(kafka_ts) + INTERVAL 90 DAY DELETE WHERE topic = 'raw.logs';
+      CREATE DATABASE IF NOT EXISTS ods;
+      CREATE DATABASE IF NOT EXISTS ads;
+      CREATE DATABASE IF NOT EXISTS dm;
+      CREATE DATABASE IF NOT EXISTS kafka;
     "
 
-    # The consumer. A Kafka engine table cannot change its topic list in
-    # place, so when TOPICS no longer matches, it and its view are dropped
-    # and recreated. Nothing is lost: the consumer group's position lives in
-    # Kafka, and the new consumer resumes from it.
-    current=$(ch --format TSVRaw --query "
-      SELECT extract(create_table_query, 'kafka_topic_list = ''([^'']*)''')
-      FROM system.tables WHERE database = 'raw' AND name = 'kafka_queue'")
-    if [ -n "$current" ] && [ "$current" != "$TOPICS" ]; then
-      echo "topic list changed: recreating the consumer"
-      ch --query "DROP VIEW IF EXISTS raw.kafka_to_events; DROP TABLE IF EXISTS raw.kafka_queue;"
-    fi
+    for s in $SOURCES; do
+      t=$(printf '%s' "$s" | tr '-' '_')
 
-    ch --query "
-      CREATE TABLE IF NOT EXISTS raw.kafka_queue (payload String)
-      ENGINE = Kafka
-      SETTINGS
-        kafka_broker_list = 'kafka.data.svc.cluster.local:9092',
-        kafka_topic_list = '$TOPICS',
-        kafka_group_name = 'clickhouse-raw',
-        -- The whole message as one string: nothing is parsed, so nothing
-        -- a producer sends can be rejected for its shape.
-        kafka_format = 'RawBLOB',
-        kafka_num_consumers = 1;
+      # Log lines are the one source kept for a limited time; every other
+      # table keeps everything until deleted.
+      ttl=""
+      case "$s" in
+        logs) ttl="TTL toDateTime(kafka_ts) + INTERVAL 90 DAY" ;;
+      esac
 
-      CREATE MATERIALIZED VIEW IF NOT EXISTS raw.kafka_to_events TO raw.events AS
-      SELECT
-        _topic AS topic,
-        _partition AS partition,
-        _offset AS offset,
-        _key AS key,
-        coalesce(_timestamp_ms, now64(3)) AS kafka_ts,
-        payload
-      FROM raw.kafka_queue;
-    "
-    echo "schema in place for: $TOPICS"
+      ch --query "
+        CREATE TABLE IF NOT EXISTS raw.$t (
+          partition   UInt64,
+          offset      UInt64,
+          key         String,
+          kafka_ts    DateTime64(3),
+          ingested_at DateTime64(3) DEFAULT now64(3),
+          payload     String CODEC(ZSTD(3))
+        )
+        ENGINE = MergeTree
+        PARTITION BY toYYYYMM(kafka_ts)
+        ORDER BY (kafka_ts, offset)
+        $ttl;
+
+        CREATE TABLE IF NOT EXISTS kafka.${t}_queue (payload String)
+        ENGINE = Kafka
+        SETTINGS
+          kafka_broker_list = 'kafka.data.svc.cluster.local:9092',
+          kafka_topic_list = 'raw.$s',
+          kafka_group_name = 'clickhouse-$s',
+          -- The whole message as one string: nothing is parsed, so nothing
+          -- a producer sends can be rejected for its shape.
+          kafka_format = 'RawBLOB',
+          kafka_num_consumers = 1;
+
+        CREATE MATERIALIZED VIEW IF NOT EXISTS kafka.${t}_to_raw TO raw.$t AS
+        SELECT
+          _partition AS partition,
+          _offset AS offset,
+          _key AS key,
+          coalesce(_timestamp_ms, now64(3)) AS kafka_ts,
+          payload
+        FROM kafka.${t}_queue;
+      "
+    done
+    echo "schema in place for: $SOURCES"
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -122,11 +136,11 @@ spec:
               image: docker.io/apache/kafka:4.3.1
               command: ["sh", "/scripts/topics.sh"]
               env:
-                - name: TOPICS
+                - name: SOURCES
                   valueFrom:
                     configMapKeyRef:
                       name: clickhouse-schema
-                      key: TOPICS
+                      key: SOURCES
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
@@ -145,11 +159,11 @@ spec:
               image: docker.io/clickhouse/clickhouse-server:26.8.15.10
               command: ["bash", "/scripts/schema.sh"]
               env:
-                - name: TOPICS
+                - name: SOURCES
                   valueFrom:
                     configMapKeyRef:
                       name: clickhouse-schema
-                      key: TOPICS
+                      key: SOURCES
                 - name: CLICKHOUSE_PASSWORD
                   valueFrom:
                     secretKeyRef:

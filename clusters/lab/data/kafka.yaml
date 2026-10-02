@@ -1,7 +1,7 @@
 # Kafka: the lab's event bus. Every source - Home Assistant's state changes,
-# every pod's log lines, Kubernetes events, the services pulled by Airflow -
-# writes raw JSON to a topic here, and ClickHouse consumes the topics into
-# its tables (clickhouse-schema.yaml). Kafka is the buffer, not the archive:
+# every pod's log lines, Kubernetes events, the services' own data -
+# writes raw JSON to its own topic here, and ClickHouse consumes each topic
+# into that source's raw table (clickhouse-schema.yaml). Kafka is the buffer, not the archive:
 # a week of retention covers a ClickHouse outage, and ClickHouse keeps the
 # data.
 #
@@ -161,4 +161,4 @@ spec:
           requests:
             # A week of every source at the lab's rate, with room.
             # Expandable in place.
-            storage: 20Gi
+            storage: 10Gi
