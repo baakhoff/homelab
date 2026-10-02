@@ -372,59 +372,6 @@ The failure is mild in practice and worth naming anyway: an agent restarted
 mid-change during its own cluster's image update, which is exactly the shape of
 the problem in miniature.
 
-## The Codex pod
-
-`clusters/lab/agents/codex.yaml` runs OpenAI's Codex CLI instead of Claude
-Code, on its own image (`images/codex-agent/`). It serves remote-control
-sessions to the ChatGPT app the way the other pods serve the Claude app:
-outbound only, nothing listening, the same NetworkPolicy and the same quota.
-Its usage counts against the ChatGPT plan's Codex limits.
-
-Two things are different. The bootstrap is a login and a pairing, with no
-marker file. And remote control on a headless Linux host is the newest part
-of Codex: the CLI marks it `[experimental]`, and OpenAI's Remote Connections
-guide still says a host must run the desktop app on macOS or Windows. The CLI
-pairing below is the way in without one. If an upgrade breaks it, look there
-first.
-
-Right after the merge that adds the pod, the image does not exist yet. The
-workflow builds it, and until then the pod sits in `ImagePullBackOff`, which
-fixes itself on the next retry.
-
-**1. Log in**, with the ChatGPT account the sessions should run as:
-
-```bash
-kubectl -n agents exec -it deploy/codex -- codex login --device-auth
-```
-
-It prints a URL and a one-time code. Open the URL on any device, sign in and
-enter the code. If ChatGPT refuses device-code sign-in, it has a switch for
-it in its security settings. The login lands in `~/.codex` on the volume.
-The entrypoint checks for it once a minute, then starts the app-server:
-
-```bash
-kubectl -n agents logs deploy/codex --tail 5
-```
-
-The waiting line stops, and the app-server's start-up follows.
-
-**2. Pair it with the app:**
-
-```bash
-kubectl -n agents exec deploy/codex -- codex remote-control pair
-```
-
-It prints a short-lived code. In the ChatGPT app, add a Codex remote
-connection and enter it. The pod then shows up as a host you can start
-sessions on.
-
-**When something fails.** Codex runs its own commands in a Linux sandbox, and
-a pod is already a sandbox with fewer privileges than that one expects. If
-commands fail with sandbox errors, set `sandbox_mode = "danger-full-access"`
-in `~/.codex/config.toml` on the volume. The pod and its NetworkPolicy are
-the boundary then, as they are for the Claude pods. When the login expires,
-repeat step 1. A pairing stays on the account, so it survives restarts.
-
 ## Known limits
 
 - No Docker inside the pod. Projects whose tests need a Docker daemon are not
