@@ -3,6 +3,10 @@
 # (20-envsubst-on-templates.sh). ${FIREFLY_TOKEN} is the only substitution -
 # it comes from the Secret's environment, so the token lives in the pod and
 # never in git.
+#
+# Rendered at start, not watched: an edit here takes effect on the next pod
+# start. After merging a change:
+#   kubectl -n firefly-broker rollout restart deployment/firefly-broker
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,8 +14,9 @@ metadata:
   namespace: firefly-broker
 data:
   default.conf.template: |
-    # A caller's own Accept header wins (the CSV export wants text/csv);
-    # with none, JSON:API's media type is what Firefly answers.
+    # A caller's own Accept header wins; with none, JSON:API's media type is
+    # what Firefly answers. No text/csv - Firefly answers 406 for it, and
+    # the export returns its CSV on the default accept (README).
     map $http_accept $firefly_accept {
         default $http_accept;
         ""      application/vnd.api+json;
@@ -26,12 +31,14 @@ data:
             return 200 "ok";
         }
 
-        # The Firefly API, read-only for now: the CFO seat's mandate starts
-        # with reads, and enabling writes is a CEO call (README). This is
+        # The Firefly API. GET, POST and PUT pass - reads and the
+        # non-destructive writes, the CEO's call after the read-only run;
+        # DELETE and everything else stay 403, a deliberate hold on
+        # destructive methods (widening later is this one line). This is
         # also where the token is added and the login headers are stripped.
-        # limit_except answers anything that is not GET with 403.
+        # limit_except answers every method except GET/POST/PUT with 403.
         location /v1/ {
-            limit_except GET {
+            limit_except GET POST PUT {
                 deny all;
             }
             proxy_pass http://firefly.firefly.svc.cluster.local/api/v1/;
