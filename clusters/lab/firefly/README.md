@@ -127,7 +127,11 @@ PHP
 - **The mobile apps and the data importer** use Firefly's API with a personal
   access token, and the API is behind the gate like the rest of the host, so
   they cannot reach it. That would need `/api` exempted from the gate and left
-  to token auth, which is a separate decision.
+  to token auth, which is a separate decision. The one token client that
+  exists today does not go through the gate at all: the CFO seat's access
+  runs through `clusters/lab/firefly-broker/`, a lab-side broker that carries
+  the token without the agent host ever seeing it. This host's public surface
+  is unchanged by that.
 - **Email** is not configured. Firefly logs what it would have sent.
 
 ## Backup - not yet, and in this order

@@ -1,0 +1,93 @@
+# The CFO seat's way into Firefly III's API: a lab-side broker holding the
+# Personal Access Token, so the token never enters the agent host - not its
+# pods, not its volumes, not its logs. The agent calls this; this adds the
+# credential and forwards. The README beside this file carries the why, the
+# token setup and the limits.
+#
+# Nothing here writes request headers to any log, and the nginx config that
+# carries the token is rendered from the ConfigMap into an emptyDir on every
+# start - the token exists in this pod's environment and its container
+# filesystem, and nowhere else.
+#
+# Needs the firefly-broker Secret (token.sops.yaml, made by hand from the
+# Firefly UI - README, "The token"). Until it exists the pod waits in
+# CreateContainerConfigError: not a crash, does not alert, same as Firefly's
+# own env secret.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firefly-broker
+  namespace: firefly-broker
+spec:
+  # Stateless - more replicas would work; one is enough for one seat's reads.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: firefly-broker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: firefly-broker
+    spec:
+      enableServiceLinks: false
+      # Nothing here talks to the Kubernetes API.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The account the unprivileged image is built around (nginx, 101).
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: docker.io/nginxinc/nginx-unprivileged:1.30.5-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - secretRef:
+                name: firefly-broker
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            # The image renders /etc/nginx/templates/*.template into
+            # /etc/nginx/conf.d at every start; conf.d must be writable for
+            # that, and is an emptyDir so the rendered file - the only place
+            # the token is ever written - disappears with the pod.
+            - name: templates
+              mountPath: /etc/nginx/templates
+              readOnly: true
+            - name: confd
+              mountPath: /etc/nginx/conf.d
+            # With readOnlyRootFilesystem, the two paths this image writes
+            # at runtime land here: its pid and its request buffers, both
+            # under /tmp by the image's own design.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: templates
+          configMap:
+            name: firefly-broker-config
+        - name: confd
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

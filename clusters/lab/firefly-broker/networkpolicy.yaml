@@ -1,0 +1,54 @@
+# Who may talk to the broker, and what it may talk to.
+#
+# In: slot-1's agents, and nothing else. The broker holds a token with the
+# household owner's rights, so every pod outside slot-1 is refused even
+# though the name resolves cluster-wide. A second slot that is given an API
+# client needs one podSelector added here.
+#
+# Out: cluster DNS and Firefly's pod, nothing else - not the internet, not
+# another lab namespace. Policies are evaluated after Service DNAT, so the
+# Firefly destination below is the pod the Service points at.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firefly-broker
+  namespace: firefly-broker
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes-slots
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: slot-1
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Firefly, and nothing else.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firefly
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firefly
+      ports:
+        - protocol: TCP
+          port: 8080
