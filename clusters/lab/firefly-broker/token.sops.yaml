@@ -1,0 +1,22 @@
+apiVersion: v1
+data:
+    FIREFLY_TOKEN: ENC[AES256_GCM,data:oeJd/SwO/64Gxts5z/RTDHANYEsM3brjz2g4lRu/0isTwf0PWOq4a/ND2qEKrzYYY340bY4SqHXwpALErdpi4O/PQjFuSfwDaqof0she/D2YNtJdvMQ+m33b4mO5D2/TjR0qIlXFLRIo9nfF4/kzXBatQPSBys4a0Nxgm+b1uKDCd+fhMEuCT6cZMQKdoYA1xcyC8mrzEGwTgKGYgVJcTRLMKnDgdNNKHukwDqcaZeOGkwp54lUxcN8d2ivxeiMRZRX/qaBivqRw6k7+Kqgh/Oh20trbewsWXwVQEMN3TF0c1gFBIwcb12YymCJKbIy5EGEr1idyf18l08fj7l7ffBSnClQYKptGmtI8ASUkROWWE5Yn5KPObyCU7LygRARF0fq/wAYcQ7Iucg5+MnzpgQ5o51yYmTjcgLBkO3cW0D6tH8NnbKeQtFuz06AhzaROwsW5G8R64vZi1BTie6l5KAACWcrfGs7LX3itJCLxAGtwxqXgV42Ec3otNCexu+rsOf4jAX9YF/Zvwx1SFOUwoMtMAdKQN8GLspyh6kpNm8YLMzTAUUt/MAt7LkbzXTDYnt2z9p2h8WiWPkoG8WrLC1iQO0cRF4pa4pG/cBwY2a/0vzaL/Da6plVDALYxCrO/2ZEyv8clewwWwJZ+PtYbLG/2VZkiHZI9oPBTc8QtvJX/NV5VBx9z3CdlmKGKCrlOI+RbSjkrcXnjyRuRwrNTNxsOxOeRoy2H54cJ+GBfjfnwF1pl9m5bXCnX6r5pyEtLJdmn4F6z551zQGzJjlQRCR3Vuuo7eTeQExGjtMsBcVnOq8DgfP87yixOA+vo9+k+agnUjC/jYaAAMImodG+tX2drK2Gqr3c0aIxpr33UUt8YdwZK8ixL2zo6SvAYa1QYYjDJ39ylC3tdKn9nevajoRS+uYY7JKaCx6Ylu2Nu8JumhYnMQWWorxKvjSPiERU+ybtyXmMw1jxRhlza/ryKltI9kE9g0QVbxMYkPrz/g6X4gZ2lWAmmf56TGXYFiL7YX5QghfR3wXd4mjzls+uzaz1JuzG3Rvq8ZeU26AiwSQ45d4b5EKIiqL52iexO9/0FhTAeA2T9Is/5lG8ItltZDDRqC/aYb5rrGkCArmoeD0WP/E/72yBwVStmvsNbPCzRiL5Fsp/FreKnrJyfmJe9tSWcTuLiAT2iOsgPmPSwIV+z2cJ8X4oPYfLaoyBMH+kxXlkJV9FpbWMdJgvebh3TNRZo5YHKqEuAeeHwi8fczvMfLxu4jbSJoHrus4pw8jbtb3hnuk1QGX/mnldR/vOX9ZXH76jZR88HzcY3EvtFuljdzVc+8xOwJpD9gvoKqOq5gAt6dqnNqpu5zO2h6DNs5VA0lU1FJVblgJ5wIFkdB40oADBmFn9DEiSh1dGmp/aF7yPlADSEn120ZJcjgpfDQmcMkxtFgDNj/7SJsm2r8m57YKI3fOSEoMURGniA8QoqH9QFmMTmGhYqypRkDmR8iwkBBqS1bqGKp9quhklpTujDzed579TUIemQ8pg1SIM8S1kHO502i034NVoW8qoKd16L2QCfPR4cTY5BaZcd6tVL+65y8wA8FaEIyaa9/RXIpSNSkFeBr5qK9AwFccq2OEE90Wsqjd0t66cbEDPzHabxWnaa+MEJE7URUhZZncTSYFxoXveRFu4HN1saRdtsfxglPVjRV9HiJYH9ATkcD+qZI3hJFeYSK1luIJZ0wNu8B/oT8csmkQTs5YwuB1ezBnuyQnu9hlvSxw7ZmfwXW8w8Vc/jtlwxJS5cOSFUEmIYLaIWee/Z82bXDTBRuWIwLfZJ/5WPr1FQ,iv:ZyflQd8+uVQndfv0fw5Gc9DJTYMQZhsDREbnSscpX5o=,tag:ePtbg52Xhjfs58nNMHzhKg==,type:str]
+kind: Secret
+metadata:
+    name: firefly-broker
+    namespace: firefly-broker
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA2YUxjUnJISjhQdTBnVkts
+            REdhb2hUaU9Gb05CcGlwVDg0Z040R3pMbkZJCmVtYmdJZ3RYYnhVYXpqUENjOFRm
+            M1ZuVnZFeDZoYjUxWEdqMERzMjJUOEUKLS0tIEozSjNKU0pRYTFXUjdRbEhHWXRB
+            SXRJWlp2S09KeDhYUXBodmF3SGlUTFkKMlHPil/17ke9MHz7jW58nxI5egw5jAoT
+            Mk8fYvS9GDiV/Qlg/O6nxZIb117MpaYKhNU/lqRXrS5CzzIt8Gihgw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-02T09:22:42Z"
+    mac: ENC[AES256_GCM,data:1t3Xp4+91+XuFwkXfc9UCl880Bq5wad7bJIOY838DPn6jJidd5kCEJ1xIn8cwtHqq8KGbTVRDqyXp/PPAUIHYSH5fHNwzeqVMl8T9X3InumY+wnzTbHLUjgvcndMeL2Lgg3g/ZW3+/vAIhAWUx5RPN9obXQl2Vu/ze7nZ2+P6+0=,iv:V3zIcJE3ynY9AuriJCnjMq9aHa9oWXArmFD/lLvH6cU=,tag:KtI5It6SfNmZgmIeL1aGcA==,type:str]
+    version: 3.13.3
