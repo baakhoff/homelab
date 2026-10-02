@@ -31,14 +31,13 @@ data:
             return 200 "ok";
         }
 
-        # The Firefly API. GET, POST and PUT pass - reads and the
-        # non-destructive writes, the CEO's call after the read-only run;
-        # DELETE and everything else stay 403, a deliberate hold on
-        # destructive methods (widening later is this one line). This is
-        # also where the token is added and the login headers are stripped.
-        # limit_except answers every method except GET/POST/PUT with 403.
+        # The Firefly API. GET, POST, PUT and DELETE pass - the brand pod
+        # manages the books through here, deletions included. Anything else
+        # (PATCH, TRACE, ...) stays 403: Firefly's API does not use it. This
+        # is also where the token is added and the login headers are
+        # stripped. limit_except answers every method not listed with 403.
         location /v1/ {
-            limit_except GET POST PUT {
+            limit_except GET POST PUT DELETE {
                 deny all;
             }
             proxy_pass http://firefly.firefly.svc.cluster.local/api/v1/;

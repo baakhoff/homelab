@@ -28,9 +28,12 @@ form-urlencoded, octet-stream, `*/*`). On the default accept the export
 returns the CSV itself, as `application/octet-stream`; with no `Accept` at
 all, the broker sends JSON:API's `application/vnd.api+json`.
 
-The door: `GET`, `POST` and `PUT` reach Firefly; `DELETE` and everything
-else answer 403 from `limit_except` in the ConfigMap - destructive methods
-are a deliberate hold, and widening later is the same one line.
+The door: `GET`, `POST`, `PUT` and `DELETE` reach Firefly; everything else
+answers 403 from `limit_except` in the ConfigMap. Deletion is open on
+purpose - the brand pod manages the books, not just adds to them - so a
+delete through here is as final as one in Firefly's UI. Firefly has no
+recycle bin, and its volume is not in the nightly backup yet
+(`clusters/lab/firefly/README.md`, "Backup"), so for now nothing undoes one.
 
 ## Why it cannot become a second login door
 
@@ -79,10 +82,12 @@ BASE=http://firefly-broker.firefly-broker.svc.cluster.local
 curl -s "$BASE/v1/about"    | head -c 200   # Firefly version JSON
 curl -s "$BASE/v1/accounts" | head -c 200   # account list
 
-# The door: an empty-body write reaches Firefly and gets Firefly's own
-# refusal (415 or 422 - not a 403); DELETE never leaves the broker.
+# The door: an empty-body write and a delete of an id that cannot exist
+# both reach Firefly and get Firefly's own answer, not the broker's 403.
+# Never test DELETE on a real id - it deletes.
 curl -s -o /dev/null -w '%{http_code}\n' -X POST   "$BASE/v1/accounts"    # 415/422
-curl -s -o /dev/null -w '%{http_code}\n' -X DELETE "$BASE/v1/accounts/1"  # 403
+curl -s -o /dev/null -w '%{http_code}\n' -X DELETE "$BASE/v1/accounts/0"  # 404
+curl -s -o /dev/null -w '%{http_code}\n' -X PATCH  "$BASE/v1/accounts/0"  # 403
 ```
 
 From anywhere else in the cluster the first call goes unanswered - that is
