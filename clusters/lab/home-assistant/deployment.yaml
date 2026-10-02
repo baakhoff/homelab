@@ -62,7 +62,7 @@ spec:
             - name: http
               containerPort: 8123
           # The first start seeds /config and runs migrations; five minutes
-          # before liveness gets a vote (the same budget as the Hermes slots).
+          # before liveness gets a vote.
           startupProbe:
             httpGet:
               path: /
