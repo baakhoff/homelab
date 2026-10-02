@@ -5,7 +5,9 @@
 # `X-Auth-Request-Email: <owner's address>` to the Service and be the owner.
 #
 # The second rule is the daily cron call from this namespace (cronjob.yaml),
-# which carries no header and is authorised by its token alone.
+# which carries no header and is authorised by its token alone. The third is
+# the API broker (clusters/lab/firefly-broker/): token-authenticated API
+# traffic, with no login header anywhere on it.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
@@ -30,6 +32,15 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: firefly-cron
+      ports:
+        - protocol: TCP
+          port: 8080
+    # The CFO seat's API broker: see clusters/lab/firefly-broker/. It cannot
+    # become a user through the header above - its requests never carry one.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firefly-broker
       ports:
         - protocol: TCP
           port: 8080
