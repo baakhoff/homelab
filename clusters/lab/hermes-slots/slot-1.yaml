@@ -17,9 +17,12 @@ spec:
   accessModes:
     - ReadWriteOnce
   storageClassName: ceph-block
+  # 16Gi: clean baseline is ~3.7G and the ten profiles' caches regrow up to
+  # ~3.5G between cleanings - the 5Gi claim hit 100% on 2026-10-02
+  # (KubePersistentVolumeFillingUp, critical). RBD is thin; slack is cheap.
   resources:
     requests:
-      storage: 5Gi
+      storage: 16Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
