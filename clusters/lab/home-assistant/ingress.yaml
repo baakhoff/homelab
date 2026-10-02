@@ -4,8 +4,7 @@
 # Deliberately NOT behind the oauth2-proxy gate, unlike the other admin
 # tools: Home Assistant has its own login (the first-run owner account), and
 # the gate's cookie model would break the websocket API that the frontend and
-# the Companion app live on. Same reasoning as the Hermes slots' no-gate note,
-# different constraint.
+# the Companion app live on.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -16,8 +15,7 @@ metadata:
     # would 413 on anything real - 128m, like Vaultwarden's attachments.
     nginx.ingress.kubernetes.io/proxy-body-size: "128m"
     # The frontend holds a long-lived websocket to /api/websocket. The 60s
-    # defaults cut idle connections and the UI silently reconnects all day;
-    # 3600s follows the Hermes slots' precedent.
+    # defaults cut idle connections and the UI silently reconnects all day.
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     gethomepage.dev/enabled: "true"

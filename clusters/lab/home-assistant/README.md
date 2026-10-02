@@ -24,8 +24,7 @@ house and the tailnet only.
 The reverse proxy must be trusted before the ingress host answers with
 anything but `400`: **Settings -> System -> Network -> HTTP server**, turn on
 **Trust X-Forwarded-For** and set **Trusted proxies** to `10.42.0.0/16` (the
-k3s pod range - the same value the Hermes slots' README uses). While it is
-still untrusted, reach the UI once via
+k3s pod range). While it is still untrusted, reach the UI once via
 `kubectl -n home-assistant port-forward deploy/home-assistant 8123:8123`.
 
 ## Known limits

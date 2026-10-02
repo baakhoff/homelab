@@ -11,14 +11,14 @@ nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/st
 
 Behind it today, for anyone the client admits: Homepage, ConvertX,
 Stirling-PDF, cobalt, IT-Tools, Firefly III, n8n, Mealie. Behind it for
-`lab-admins` only: Prometheus, Alertmanager, Hermes (the admin gate, below).
+`lab-admins` only: Prometheus and Alertmanager (the admin gate, below).
 Firefly is the one host that also takes *who* from the gate, not just yes or
 no: its Ingress asks for `X-Auth-Request-Email`, which this answers with
 because of `OAUTH2_PROXY_SET_XAUTHREQUEST`, and Firefly signs that address in.
 `clusters/lab/firefly/` has why that is safe there. Not behind it: anything
 that speaks OIDC itself (Grafana, Headlamp) — native login gives the app an
-identity to attach roles to, this gives it a yes. Mealie and Hermes are the
-exceptions that have both, for the reasons their Ingresses give. And not
+identity to attach roles to, this gives it a yes. Mealie is the exception
+that has both, for the reasons its Ingress gives. And not
 Vaultwarden, which holds the passkeys; the Pocket ID README says why.
 
 ## The secret
@@ -61,8 +61,7 @@ one per service.
 ## The admin gate
 
 Some hosts are for the admin, not the household: Prometheus answers any
-question about the cluster, Alertmanager can silence alerts, Hermes holds an
-agent's keys. They use the same gate with one addition to the check URL:
+question about the cluster, Alertmanager can silence alerts. They use the same gate with one addition to the check URL:
 
 ```yaml
 nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins

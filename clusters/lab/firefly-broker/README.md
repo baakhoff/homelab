@@ -7,15 +7,17 @@ nginx that adds it to requests the agent host sends. The seat calls this
 broker; the broker calls Firefly; nothing in the agent host ever sees a
 credential.
 
-    [CFO tools in slot-1] --HTTP--> [firefly-broker] --HTTP--> [Firefly /api/v1]
+    [an agent's tools] --HTTP--> [firefly-broker] --HTTP--> [Firefly /api/v1]
+
+Its caller was the CFO seat on the Hermes slot-1, which is gone. The broker
+still runs, and admits nobody until an agent is given a door (below).
 
 ## How it is reached
 
 `http://firefly-broker.firefly-broker.svc.cluster.local/v1/...` - from
-slot-1, and from nowhere else: `networkpolicy.yaml` here admits only
-slot-1's pods, and the matching egress door in
-`clusters/lab/hermes-slots/networkpolicy.yaml` is the only way out of a
-slot towards it. `/v1/...` maps onto Firefly's `/api/v1/...`; the broker
+nowhere at the moment: `networkpolicy.yaml` here admits no pod. Giving an
+agent access takes an ingress rule there naming its pods, and an egress door
+in the agent's own policy if it has one. `/v1/...` maps onto Firefly's `/api/v1/...`; the broker
 replaces the caller's Authorization header with the token, strips the login
 headers Firefly trusts, and forwards Firefly's response unmodified.
 
@@ -70,7 +72,7 @@ Created once, by hand, from Firefly's own UI:
 Rotation: revoke the old token on the same page, create a new one and
 repeat step 2. Quarterly is the plan; any doubt, rotate now.
 
-## Verify, from slot-1
+## Verify, from an admitted agent
 
 ```bash
 BASE=http://firefly-broker.firefly-broker.svc.cluster.local
