@@ -1,0 +1,41 @@
+# The brand pod's two doors into the lab, on top of networkpolicy.yaml's
+# DNS-and-internet egress. Policies add up, so this widens that one pod and
+# no other: brand reaches the Firefly API broker and Vikunja's API, and
+# manages both through them.
+#
+# Each door has a matching ingress rule on the far side - in
+# clusters/lab/firefly-broker/networkpolicy.yaml and
+# clusters/lab/vikunja/networkpolicy.yaml - and both halves are needed.
+# Policies are evaluated after Service DNAT, so the destinations are the
+# pods and their container ports, not the Services' port 80.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: brand-lab-apis
+  namespace: agents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: brand
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firefly-broker
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firefly-broker
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vikunja
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vikunja
+      ports:
+        - protocol: TCP
+          port: 3456
