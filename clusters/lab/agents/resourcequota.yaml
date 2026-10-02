@@ -32,13 +32,6 @@ spec:
     # Requests are unchanged: the limit is for build spikes, and idle use is
     # under the per-pod request.
     #
-    # codex.yaml is a tenth pod at exactly the per-pod shape, so one more of
-    # each on top of everything above:
-    #   pods    9 + 1               = 10
-    #   cpu     2300m   + 250m      = 2550m
-    #   memory  4672Mi  + 512Mi     = 5184Mi
-    #   limits  30976Mi + 3072Mi    = 34048Mi
-    #
     # requests.cpu was previously "3" against a stated six times 250m, which is
     # 1.5 - the comment and the number disagreed. Corrected here rather than
     # scaled up, so the arithmetic above is the arithmetic in the file.
@@ -57,7 +50,7 @@ spec:
     # rejected at admission rather than scheduled unbounded. limits.cpu is
     # deliberately absent so containers need no CPU limit: throttling an
     # agent's build causes more mystery latency than it prevents.
-    requests.cpu: "2550m"
-    requests.memory: 5184Mi
-    limits.memory: 34048Mi
-    pods: "10"
+    requests.cpu: "2300m"
+    requests.memory: 4672Mi
+    limits.memory: 30976Mi
+    pods: "9"
