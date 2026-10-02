@@ -1,9 +1,10 @@
 # Who may talk to the broker, and what it may talk to.
 #
-# In: slot-1's agents, and nothing else. The broker holds a token with the
-# household owner's rights, so every pod outside slot-1 is refused even
-# though the name resolves cluster-wide. A second slot that is given an API
-# client needs one podSelector added here.
+# In: nobody, for now. The broker holds a token with the household owner's
+# rights, so every pod is refused even though the name resolves
+# cluster-wide. Its caller was the Hermes slot-1, which is gone; an agent
+# that is given an API client needs one ingress rule here, naming its pods,
+# on port 8080.
 #
 # Out: cluster DNS and Firefly's pod, nothing else - not the internet, not
 # another lab namespace. Policies are evaluated after Service DNAT, so the
@@ -16,17 +17,8 @@ metadata:
 spec:
   podSelector: {}
   policyTypes: [Ingress, Egress]
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: hermes-slots
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: slot-1
-      ports:
-        - protocol: TCP
-          port: 8080
+  # Empty, with Ingress in policyTypes: every inbound connection is refused.
+  ingress: []
   egress:
     # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
     - to:
