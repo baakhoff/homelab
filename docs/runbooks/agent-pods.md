@@ -380,7 +380,9 @@ the problem in miniature.
   its working directory to branch from. Two concurrent sessions in one slot
   share a directory and can edit the same files. Giving the slot a `REPO_URL`
   restores the isolation.
-- No cluster access, no LAN, no tailnet from inside, by policy.
+- No cluster access, no LAN, no tailnet from inside, by policy. One
+  exception: the `brand` pod reaches the Firefly API broker and Vikunja's
+  API (`clusters/lab/agents/networkpolicy-brand.yaml`).
 - Deleting a project's manifest prunes its volume: the checkout, the login and
   any uncommitted work go with it. Commit or push first.
 - Nothing backs the volumes up, and that is a choice rather than an absence: a

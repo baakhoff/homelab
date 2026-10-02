@@ -9,15 +9,15 @@ credential.
 
     [an agent's tools] --HTTP--> [firefly-broker] --HTTP--> [Firefly /api/v1]
 
-Its caller was the CFO seat on the Hermes slot-1, which is gone. The broker
-still runs, and admits nobody until an agent is given a door (below).
+Its caller is the `brand` agent pod (`clusters/lab/agents/brand.yaml`).
 
 ## How it is reached
 
 `http://firefly-broker.firefly-broker.svc.cluster.local/v1/...` - from
-nowhere at the moment: `networkpolicy.yaml` here admits no pod. Giving an
-agent access takes an ingress rule there naming its pods, and an egress door
-in the agent's own policy if it has one. `/v1/...` maps onto Firefly's `/api/v1/...`; the broker
+the brand pod, and from nowhere else: `networkpolicy.yaml` here admits only
+its pods, and `clusters/lab/agents/networkpolicy-brand.yaml` is the matching
+egress door out of the agents namespace, which otherwise reaches nothing in
+the lab. Another agent needs a rule in both. `/v1/...` maps onto Firefly's `/api/v1/...`; the broker
 replaces the caller's Authorization header with the token, strips the login
 headers Firefly trusts, and forwards Firefly's response unmodified.
 
@@ -72,7 +72,7 @@ Created once, by hand, from Firefly's own UI:
 Rotation: revoke the old token on the same page, create a new one and
 repeat step 2. Quarterly is the plan; any doubt, rotate now.
 
-## Verify, from an admitted agent
+## Verify, from the brand pod
 
 ```bash
 BASE=http://firefly-broker.firefly-broker.svc.cluster.local
