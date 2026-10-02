@@ -60,8 +60,10 @@ current name.)
 
 **3. First account.** Reconcile, wait for `Running`, then sign in at
 <https://tasks.lab.baakhoff.com> - the gate asks for the passkey, and
-Vikunja asks you to register. The first registered user is the instance
-admin. Then the seat accounts (one per agent profile).
+Vikunja asks you to register. Then the seat accounts (one per agent
+profile). (Note: since 2.4 the instance-admin flag is a Pro feature and
+there is no first-user bootstrap in community mode - user management is
+CLI-only here, see Things to know.)
 
 **4. Close registration.** Once every account exists, set
 `VIKUNJA_SERVICE_ENABLEREGISTRATION` to `"false"` in `deployment.yaml`,
@@ -80,8 +82,14 @@ curl -s -o /dev/null -w '%{http_code}\n' https://tasks.lab.baakhoff.com/
 - **Single replica, SQLite, 2Gi.** Sized for a team's tasks, not a
   company's; the volume grows in place if attachments ever need it.
 - **Registration is a one-time door.** It is only open between step 3 and
-  step 4, and even then only behind the gate. First registered user is
-  admin.
+  step 4, and even then only behind the gate.
+- **User management is CLI-only here.** The admin panel and
+  `/api/v1/admin/*` are Vikunja Pro features (paid) - this instance is
+  community mode, so `/admin` answers 404 by design, for everyone. Manage
+  users through the server CLI:
+  `kubectl -n vikunja exec deploy/vikunja -- /app/vikunja/vikunja user list`
+  (also `create`, `delete <id> --now --confirm`, `reset-password`,
+  `change-status`; `set-admin` is the one subcommand a licence gates).
 - **No email is configured** (no SMTP): no reminder mails, no password
   resets by mail. Accounts are made here, behind the gate.
 - **API tokens** live under each user's Settings -> API Tokens; each seat
