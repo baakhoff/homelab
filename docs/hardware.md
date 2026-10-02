@@ -60,4 +60,17 @@ Measured during bring-in, worth keeping as a baseline:
 
 ## Rack
 
-10-inch 3D-printed rack: [KWS Rack V2 (heavy duty)](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack) — printed, waiting on hardware, not assembled. The Pi gets a printed 10″ mount.
+A 10-inch 3D-printed rack. The frame is printed and assembled at 12U and still
+empty; the equipment goes in once the patch cords arrive.
+
+Every printed part comes from MakerWorld; each link opens the print profile used.
+
+| Part | For | Model |
+|---|---|---|
+| Frame | the rack itself, 10″ | [KWS Rack V2 (heavy duty)](https://makerworld.com/en/models/2139130-kws-rack-v-2-heavy-duty-10-inch-homelab-rack#profileId-2317125) |
+| Mini PC mount | the three HP Elite Mini 600 G9 | [HP Elite Mini G9 600, 10″ rack mount](https://makerworld.com/en/models/1645139-hp-elite-mini-g9-600-10-inch-rack-mount#profileId-1738764) |
+| Switch mount | the TP-Link TL-SG108E | [TP-Link TL-SG108 8-port switch, 10″ rack mount](https://makerworld.com/en/models/1765496-tp-link-8-port-switch-tl-sg108-10-in-rack-mount#profileId-1878782) |
+| Patch panel | keystone jacks between the switch and the machines | [Patch keystones panel, 2–3U, for the KWS rack](https://makerworld.com/en/models/2154991-patch-keystones-panel-2-3u-for-10-inch-kws-rack#profileId-2335937) |
+| Pi shelf | the snap-in base the Pi carrier slots into | [Rack snap-in system, 8-bay Raspberry Pi cluster](https://makerworld.com/en/models/2314737-rack-snap-in-system-8-bay-raspberry-pi-cluster#profileId-2527379) |
+| Pi carrier | the Raspberry Pi 3B+ | [Raspberry Pi 3B for the rack snap-in system](https://makerworld.com/en/models/3067754-raspberry-pi-3b-2017-for-rack-snap-in-system#profileId-3453178) |
+| Power shelf | the power adapters, 2U | [2U power supplies shelf for the KWS rack](https://makerworld.com/en/models/2383010-2u-power-supplies-shelf-for-kws-rack#profileId-2609751) |
