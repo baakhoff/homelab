@@ -73,10 +73,11 @@ spec:
               value: sqlite
             - name: VIKUNJA_DATABASE_PATH
               value: /db/vikunja.db
-            # On until the accounts exist: the first registration is the
-            # admin's, then this flips to "false" (README, step 4).
+            # Off: every account exists. Flip back to "true" only for a
+            # deliberate new account - it opens registration to anyone
+            # behind the gate (README, step 4).
             - name: VIKUNJA_SERVICE_ENABLEREGISTRATION
-              value: "true"
+              value: "false"
           envFrom:
             # VIKUNJA_SERVICE_SECRET (the docs' older name for it,
             # VIKUNJA_SERVICE_JWTSECRET, maps to the same value), generated
