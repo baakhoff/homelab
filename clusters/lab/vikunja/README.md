@@ -17,8 +17,10 @@ Two doors, deliberately different:
   OIDC phase replaces it).
 - **The Service, from inside only.**
   `http://vikunja.vikunja.svc.cluster.local` (port 80 -> 3456), reachable
-  from no pod at the moment: its one caller, the Hermes slot-1, is gone, and
-  an agent given a seat needs a rule in `networkpolicy.yaml`. No gate on this path
+  from the `brand` agent pod and nowhere else: `networkpolicy.yaml` here
+  admits it, and `clusters/lab/agents/networkpolicy-brand.yaml` is its
+  egress door out of the agents namespace. Another agent needs a rule in
+  both. No gate on this path
   by construction - callers skip the proxy by talking to the Service
   directly. API tokens are the authentication here, per seat.
 
