@@ -6,12 +6,16 @@ minute, so a merged change is live a minute later.
 
     dags/
       ingest.py      one DAG per service: snapshot its API into Kafka
+      google.py      the Google account, three DAGs (google.md)
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
+    tools/
+      google_auth.py the Google consent, run once on the workstation
     dbt/
       models/ods/    raw parsed into typed tables, one system at a time
       models/ads/    joins and aggregates across systems
       models/dm/     the tables questions and dashboards read
       macros/        the snapshot, timestamp and OTLP helpers the models share
+    google.md        Google: what is copied, setup, renewing
 
 ## The flow
 
@@ -28,16 +32,21 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `ha_states`, `logs`, `k8s_events` |
-| `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `google_gmail_messages`, `google_gmail_labels`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `ha_states`, `logs`, `k8s_events` |
+| `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `google_daily` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
-Two patterns cover the sources:
+Three patterns cover the sources:
 
 - **API snapshots** (Firefly, Vikunja, Mealie, Paperless, SparkyFitness) -
   `snapshot_records()` returns the newest run's records, so a record
   deleted at the source disappears from `ods` too. These models are tables,
   rebuilt every run.
+- **Changes** (Gmail, Google's activity exports) - the DAG sends only what
+  is new or changed, and a tombstone for what was deleted, because a full
+  snapshot would be far too large. `accumulated_records()` returns the newest
+  version of every record ever sent, minus the deleted ones. Tables, rebuilt
+  every run.
 - **Streams** (Home Assistant, logs, Kubernetes events) - incremental: each
   run appends what arrived since the last.
 

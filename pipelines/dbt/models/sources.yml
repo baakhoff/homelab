@@ -23,3 +23,5 @@ sources:
         description: Paperless-ngx API snapshots, one record per message in the ingest envelope.
       - name: sparkyfitness
         description: SparkyFitness API snapshots of one account's diary, one record per message in the ingest envelope.
+      - name: google
+        description: One Google account - Calendar, Contacts, Tasks, Drive and Gmail labels as snapshots, Gmail message metadata as changes, Data Portability exports - one record per message in the ingest envelope.
