@@ -124,6 +124,10 @@ spec:
             # home is ClickHouse.
             - name: KAFKA_LOG_RETENTION_HOURS
               value: "168"
+            # 8 MiB per message, up from 1: a Paperless document travels with
+            # its full OCR text (pipelines/dags/ingest.py sends the same limit).
+            - name: KAFKA_MESSAGE_MAX_BYTES
+              value: "8388608"
             - name: KAFKA_HEAP_OPTS
               value: -Xms512m -Xmx512m
           resources:

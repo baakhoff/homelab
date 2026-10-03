@@ -1,0 +1,52 @@
+# Builds images/airflow and publishes it to GHCR, tagged with the Airflow
+# version in the Dockerfile's FROM line. Runs when that directory changes on
+# main, or by hand from the Actions tab.
+#
+# The tag is the Airflow version so Renovate's docker datasource can offer a
+# new tag to the HelmRelease that pins it - the same two-PR flow as
+# claude-agent, described in images/claude-agent/README.md.
+name: airflow image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - images/airflow/**
+      - .github/workflows/airflow-image.yml
+  workflow_dispatch:
+
+# The default GITHUB_TOKEN, scoped down: read the checkout, write the package.
+# No repository write, no secrets beyond the token the runner already holds.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the pinned Airflow version
+        id: version
+        run: |
+          version=$(sed -n 's/^FROM apache\/airflow:\([0-9.]*\)-python.*/\1/p' images/airflow/Dockerfile)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: images/airflow
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/airflow:${{ steps.version.outputs.version }}
+          # The source label is what links the package to this repository on
+          # GitHub, so it shows up on the repo page and inherits its access.
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
