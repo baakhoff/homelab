@@ -69,10 +69,12 @@ whose loss would hurt most are written first:
 | 6 | `n8n/n8n-data` | workflows and the credentials they hold |
 | 7 | `vikunja/vikunja-data` | the task board |
 | 8 | `mealie/mealie-data` | recipes and meal plans |
-| 9-10 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
-| 11 | `minecraft/minecraft-data` | the world |
-| 12 | `data/data-clickhouse-0` | the warehouse's history |
-| 13-21 | the nine `agents/*` volumes | session transcripts and unpushed work |
+| 9 | `sparkyfitness/data-sparkyfitness-postgres-0` | the food diary, workouts and measurements |
+| 10 | `sparkyfitness/sparkyfitness-data` | meal and progress photos |
+| 11-12 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
+| 13 | `minecraft/minecraft-data` | the world |
+| 14 | `data/data-clickhouse-0` | the warehouse's history |
+| 15-23 | the nine `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly

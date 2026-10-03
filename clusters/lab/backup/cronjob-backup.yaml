@@ -96,6 +96,8 @@ spec:
                     n8n/n8n-data
                     vikunja/vikunja-data
                     mealie/mealie-data
+                    sparkyfitness/data-sparkyfitness-postgres-0
+                    sparkyfitness/sparkyfitness-data
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     minecraft/minecraft-data
