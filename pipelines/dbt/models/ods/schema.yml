@@ -43,3 +43,15 @@ models:
     columns:
       - name: entry_date
         tests: [not_null, unique]
+  - name: dawarich_points
+    columns:
+      - name: point_id
+        tests: [not_null, unique]
+  - name: dawarich_visits
+    columns:
+      - name: visit_id
+        tests: [not_null, unique]
+  - name: dawarich_places
+    columns:
+      - name: place_id
+        tests: [not_null, unique]

@@ -12,7 +12,8 @@ small envelope that says where and when it came from:
 Full snapshots rather than "what changed since": the household's data is
 small, every API here can list everything, and a snapshot also records
 deletions - a record that stops appearing was deleted. The ods layer keeps
-the latest version of each record (pipelines/dbt/).
+the latest version of each record (pipelines/dbt/). The one exception is
+Dawarich's location points, read by time window - see _dawarich_pages.
 
 Credentials come from the airflow-sources Secret as environment variables;
 nothing here holds one. Firefly needs none: the broker adds its token
@@ -137,6 +138,44 @@ def _sparkyfitness_pages(session: requests.Session, url: str):
         yield from _json(session.get(full, timeout=TIMEOUT), None, full)
 
 
+# Dawarich's points are the one endpoint here not taken whole: years of
+# location history is millions of points. Each run reads the points recorded
+# in the last DAWARICH_POINTS_DAYS days instead - long enough for a phone
+# that was offline for most of a week to have uploaded - and the ods model
+# keeps each point once. A Google Timeline import fills in years at once, all older than
+# that: trigger the DAG with {"points_since": "2000-01-01"} afterwards to
+# send everything (README in clusters/lab/dawarich/).
+DAWARICH_POINTS_DAYS = 7
+DAWARICH_POINTS_PAGE = 5000
+
+
+def _dawarich_pages(session: requests.Session, url: str, params: dict):
+    """Page numbers, X-Total-Pages; points by time window, the rest whole."""
+    now = datetime.now(timezone.utc)
+    if url.endswith("/points"):
+        since = params.get("points_since") or (now - timedelta(days=DAWARICH_POINTS_DAYS)).date().isoformat()
+        # Oldest first, so points arriving during the run land on the last
+        # page instead of shifting every page under the reader.
+        query = {"start_at": since, "end_at": (now + timedelta(days=1)).date().isoformat(),
+                 "order": "asc", "per_page": DAWARICH_POINTS_PAGE}
+    elif url.endswith("/visits"):
+        query = {"start_at": "2000-01-01", "end_at": (now + timedelta(days=1)).date().isoformat(),
+                 "per_page": 500}
+    elif url.endswith("/places"):
+        query = {"filter": "all", "per_page": 500}
+    else:
+        yield from _json(session.get(url, timeout=TIMEOUT), None, url)
+        return
+    page = 1
+    while True:
+        r = session.get(url, params={**query, "page": page}, timeout=TIMEOUT)
+        yield from _json(r, None, url)
+        total = int(r.headers.get("x-total-pages", "1") or 1)
+        if page >= total:
+            return
+        page += 1
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -196,12 +235,26 @@ SOURCES = {
         "ids": {"measurements/water-intake-range": "entry_date"},
         "schedule": "35 */6 * * *",
     },
+    # Once a day: points come in by time window, and a day's lag is nothing
+    # for history.
+    "dawarich": {
+        "base": "http://dawarich.dawarich.svc.cluster.local/api/v1",
+        "auth": ("Bearer", "DAWARICH_API_KEY"),
+        # Dawarich forces HTTPS and redirects anything that does not say it
+        # arrived that way; inside the cluster nothing is in between.
+        "headers": {"X-Forwarded-Proto": "https"},
+        "pages": _dawarich_pages,
+        "params": {"points_since": ""},
+        "endpoints": ["points", "visits", "places"],
+        "schedule": "40 3 * * *",
+    },
 }
 
 
-def _session(auth) -> requests.Session:
+def _session(auth, headers: dict | None = None) -> requests.Session:
     s = requests.Session()
     s.headers["Accept"] = "application/json"
+    s.headers.update(headers or {})
     if auth:
         scheme, env = auth
         token = os.environ.get(env)
@@ -220,6 +273,8 @@ def _make_dag(source: str, cfg: dict):
         catchup=False,
         max_active_runs=1,
         tags=["ingest", source],
+        # Settings a run can be triggered with, for the sources that take any.
+        params=cfg.get("params", {}),
         default_args={"retries": 2, "retry_delay": pendulum.duration(minutes=2)},
     )
     def ingest():
@@ -252,12 +307,15 @@ def _make_dag(source: str, cfg: dict):
 
             extracted_at = datetime.now(timezone.utc).isoformat()
             run_id = context["run_id"]
-            session = _session(cfg["auth"])
+            session = _session(cfg["auth"], cfg.get("headers"))
+            # A source with params gets the run's values; the rest page
+            # the same way every run.
+            extra = {"params": context["params"]} if "params" in cfg else {}
             # The ods layer keeps one row per id, so a record without an
             # "id" names the field that identifies it instead.
             id_field = cfg.get("ids", {}).get(endpoint, "id")
             count = 0
-            for record in cfg["pages"](session, f"{cfg['base']}/{endpoint}"):
+            for record in cfg["pages"](session, f"{cfg['base']}/{endpoint}", **extra):
                 rid = str(record.get(id_field, "")) if isinstance(record, dict) else ""
                 envelope = {
                     "source": source,

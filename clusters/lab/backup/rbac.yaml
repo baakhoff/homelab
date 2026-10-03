@@ -280,3 +280,19 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: backup-driver
+---
+# Dawarich: the location history in its PostGIS database, and the original
+# import files on the app's volume - two targets, one namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-driver
+  namespace: dawarich
+subjects:
+  - kind: ServiceAccount
+    name: backup-driver
+    namespace: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-driver
