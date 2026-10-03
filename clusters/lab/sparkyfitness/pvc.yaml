@@ -1,0 +1,17 @@
+# The server's files: food and exercise photos, avatars, and the exports its
+# own scheduled backup writes if one is switched on in the admin settings.
+# The diary itself is in Postgres, on postgres.yaml's volume.
+#
+# 5Gi: photos are resized on upload. Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sparkyfitness-data
+  namespace: sparkyfitness
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 5Gi

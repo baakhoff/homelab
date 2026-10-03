@@ -1,0 +1,78 @@
+# One way in at each layer: ingress-nginx to the frontend, the frontend to
+# the server, the server to Postgres. Nothing else in the cluster reaches the
+# API around the frontend's nginx, which is where its login rate limit lives.
+#
+# One exception: Airflow's scheduler reaches the server directly, for the
+# ingest_sparkyfitness DAG (pipelines/dags/ingest.py). It signs in with an
+# API key, not a login, so the sign-in rate limit has nothing to protect.
+#
+# No egress rules: the server goes out to food databases, the AI provider
+# chosen in its settings, and Pocket ID.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sparkyfitness-frontend
+  namespace: sparkyfitness
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sparkyfitness-frontend
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sparkyfitness-server
+  namespace: sparkyfitness
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sparkyfitness-server
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: sparkyfitness-frontend
+      ports:
+        - protocol: TCP
+          port: 3010
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 3010
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sparkyfitness-postgres
+  namespace: sparkyfitness
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sparkyfitness-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: sparkyfitness-server
+      ports:
+        - protocol: TCP
+          port: 5432
