@@ -41,6 +41,11 @@ spec:
     spec:
       priorityClassName: agents
       automountServiceAccountToken: false
+      # The pause container becomes PID 1 and reaps orphans. Otherwise
+      # PID 1 is `claude remote-control`, which does not: every headless
+      # browser a session's tests start leaves its exited helpers behind as
+      # zombies until the pod restarts - slot-4 held 5979 after six days.
+      shareProcessNamespace: true
       hostUsers: false
       securityContext:
         runAsNonRoot: true
