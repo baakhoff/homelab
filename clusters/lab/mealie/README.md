@@ -5,7 +5,7 @@ Mealie imports it: ingredients, steps, photo. Plan the week's meals on a
 calendar, and turn a plan or a handful of recipes into a shopping list the
 whole household sees and ticks off.
 
-At <https://recipes.lab.baakhoff.com>, and on Homepage under Lab.
+At <https://recipes.lab.baakhoff.com>, and on Homepage under Home.
 
 ## How login works
 

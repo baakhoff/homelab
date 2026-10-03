@@ -20,7 +20,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "32m"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: Mealie
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Home
     gethomepage.dev/icon: mealie.png
     gethomepage.dev/description: Recipes, meal plans and shopping lists
     # Explicit because there is no tls block for Homepage to infer https from.

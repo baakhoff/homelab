@@ -258,9 +258,9 @@ spec:
         # block here, so it would otherwise be inferred as http:// and redirect.
         gethomepage.dev/enabled: "true"
         gethomepage.dev/name: epicurus
-        gethomepage.dev/group: Services
+        gethomepage.dev/group: Tools
         gethomepage.dev/icon: mdi-robot
-        gethomepage.dev/description: Assistant - core, web shell and modules
+        gethomepage.dev/description: The household assistant
         gethomepage.dev/href: https://epicurus.lab.baakhoff.com
 
     # ── NetworkPolicy ────────────────────────────────────────────────────────

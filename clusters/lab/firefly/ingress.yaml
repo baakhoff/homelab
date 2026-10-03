@@ -19,7 +19,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "64m"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: Firefly III
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Home
     gethomepage.dev/icon: firefly-iii.png
     gethomepage.dev/description: Household finances, in every currency
     # Explicit because there is no tls block for Homepage to infer https from.

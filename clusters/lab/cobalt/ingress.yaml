@@ -17,7 +17,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: cobalt
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Tools
     gethomepage.dev/icon: cobalt.png
     gethomepage.dev/description: Save videos and audio from a link
     # Explicit because there is no tls block for Homepage to infer https from.

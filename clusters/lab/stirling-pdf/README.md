@@ -5,7 +5,7 @@ watermark PDFs, convert them to and from images and Office files, and build one
 PDF from a stack of images. Every operation runs in the pod; no file leaves the
 cluster.
 
-At <https://pdf.lab.baakhoff.com>, and on Homepage under Lab.
+At <https://pdf.lab.baakhoff.com>, and on Homepage under Tools.
 
 ## Several images into one PDF
 
