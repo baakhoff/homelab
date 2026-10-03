@@ -23,7 +23,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: Vikunja
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Home
     gethomepage.dev/icon: vikunja.png
     gethomepage.dev/description: The team's task board
     # Explicit because there is no tls block for Homepage to infer https from.

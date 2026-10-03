@@ -134,9 +134,9 @@ metadata:
     nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: Kafka
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Data
     gethomepage.dev/icon: kafka.png
-    gethomepage.dev/description: The event bus - topics, messages, consumer lag
+    gethomepage.dev/description: Topics, messages, consumer lag
     gethomepage.dev/href: https://kafka.lab.baakhoff.com
 spec:
   rules:

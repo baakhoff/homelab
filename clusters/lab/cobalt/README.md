@@ -7,7 +7,7 @@ cluster: the file streams from the site, through the API, straight to the
 browser. When a site serves video and audio separately, as YouTube does,
 they are merged on the way through.
 
-At <https://cobalt.lab.baakhoff.com>, and on Homepage under Lab.
+At <https://cobalt.lab.baakhoff.com>, and on Homepage under Tools.
 
 ## How it is put together
 

@@ -18,9 +18,9 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: ClickHouse
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Data
     gethomepage.dev/icon: clickhouse.png
-    gethomepage.dev/description: Every source's raw data, in SQL
+    gethomepage.dev/description: The warehouse, in SQL
     gethomepage.dev/href: https://clickhouse.lab.baakhoff.com/play
 spec:
   rules:
