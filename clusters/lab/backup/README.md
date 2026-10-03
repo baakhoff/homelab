@@ -139,12 +139,17 @@ screen:
 
 ```
 sops -d clusters/lab/backup/restic-repo-vaultwarden.sops.yaml \
-  | sed 's/^  namespace: vaultwarden$/  namespace: <namespace>/' \
+  | sed -E 's/^( +)namespace: vaultwarden$/\1namespace: <namespace>/' \
   > clusters/lab/backup/restic-repo-<namespace>.sops.yaml
+grep -E '^ +namespace:' clusters/lab/backup/restic-repo-<namespace>.sops.yaml
 sops --encrypt --in-place clusters/lab/backup/restic-repo-<namespace>.sops.yaml
-``` The files are the same secret differing
-only in `metadata.namespace`, which is the same pattern the cert-manager
-Cloudflare token follows.
+```
+
+The `grep` must show the new namespace before encrypting: sops writes these
+files with four-space indentation, so a `sed` that expects two changes
+nothing, silently. The files are the same secret differing only in
+`metadata.namespace`, which is the same pattern the cert-manager Cloudflare
+token follows.
 
 The driver checks for this Secret — and for two of its keys — in every target's
 namespace before it takes a single snapshot, and fails that target in seconds
