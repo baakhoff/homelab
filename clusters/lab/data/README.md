@@ -30,6 +30,14 @@ Kafka engine table (`<source>_queue`) and one materialized view
 The schema job creates `ods`, `ads` and `dm` empty; nothing writes into
 them by hand.
 
+## Who writes
+
+| Source | Producer | Topic |
+|---|---|---|
+| Every pod's log lines | the Alloy collectors, `clusters/lab/logging/alloy.yaml` - OTLP JSON, the line plus its namespace, pod, container and node | `raw.logs` |
+| Kubernetes events | the same collectors, one of them at a time - OTLP JSON, the event as JSON in the body | `raw.k8s-events` |
+| Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
+
 ## What is here
 
 | File | What |
