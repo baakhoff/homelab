@@ -1,0 +1,217 @@
+# How the index is built: the OpenStreetMap dumps GraphHopper publishes for
+# Photon, one per country or region, streamed one after another straight
+# into Photon's importer - decompressed on the way, nothing written to disk
+# but the index itself. Photon skips the second and later files' headers
+# with a warning, and -country-codes keeps only the countries asked for,
+# which trims the Central Asia dump to Kazakhstan.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: photon-import
+  namespace: photon
+data:
+  stream.py: |
+    """Each dump in turn to stdout, decompressed; fails on a bad checksum."""
+    import hashlib
+    import sys
+    import urllib.request
+
+    import zstandard
+
+    BASE = "https://download1.graphhopper.com/public"
+    out = sys.stdout.buffer
+
+    for path in sys.argv[1:]:
+        name = path.rsplit("/", 1)[-1]
+        url = f"{BASE}/{path}/photon-dump-{name}-1.0-latest.jsonl.zst"
+        with urllib.request.urlopen(url + ".md5", timeout=60) as r:
+            want = r.read().split()[0].decode()
+        md5 = hashlib.md5()
+
+        class Hashed:
+            def __init__(self, raw):
+                self.raw = raw
+
+            def read(self, size=-1):
+                chunk = self.raw.read(size)
+                md5.update(chunk)
+                return chunk
+
+        with urllib.request.urlopen(url, timeout=300) as r:
+            for chunk in zstandard.ZstdDecompressor().read_to_iter(Hashed(r), read_size=1 << 20):
+                out.write(chunk)
+        if md5.hexdigest() != want:
+            sys.exit(f"{name}: checksum mismatch - GraphHopper may have been mid-upload; restart the pod")
+        print(f"{name}: streamed", file=sys.stderr, flush=True)
+    out.flush()
+
+  import.sh: |
+    #!/bin/bash
+    # Builds the index unless the one on the volume was built from exactly
+    # these settings. Any change to them - a country, a language, or
+    # IMPORT_STAMP - builds it again, into next/, and swaps it in only once
+    # the import has succeeded.
+    set -euo pipefail
+    cd /photon/data
+    want="$IMPORT_STAMP | $DUMPS | $COUNTRIES | $LANGUAGES"
+    if [ -d photon_data ] && [ "$(cat import-settings 2>/dev/null)" = "$want" ]; then
+      echo "The index was built from these settings; nothing to import."
+      exit 0
+    fi
+    echo "Building the index: $want"
+    rm -rf next
+    mkdir next
+    # shellcheck disable=SC2086 # DUMPS is a list
+    python /scripts/stream.py $DUMPS \
+      | java $JAVA_OPTS -jar /photon/photon.jar import \
+          -import-file - \
+          -data-dir /photon/data/next \
+          -country-codes "$COUNTRIES" \
+          -languages "$LANGUAGES"
+    rm -rf photon_data
+    mv next/photon_data photon_data
+    rmdir next
+    printf '%s' "$want" > import-settings
+    echo "Index built."
+---
+# One pod: the import, when there is something to import, then the server.
+# Photon keeps its index in an OpenSearch it runs inside its own process,
+# on the volume, so one replica and Recreate: two would open the same
+# index.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photon
+  namespace: photon
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: photon
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: photon
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's photon user. Its entrypoint would start as root to
+        # chown; starting as the user skips that.
+        runAsUser: 9011
+        runAsGroup: 9011
+        fsGroup: 9011
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # The first start downloads about 3.2GB and indexes it, some 40
+        # million places at about 9000 a second - an hour or two, longer on
+        # a busy node; the pod stays in Init until then. Later starts
+        # find the index already built and are through in a second.
+        - name: import
+          image: docker.io/rtuszik/photon-docker:2.4.0
+          command: ["/bin/bash", "/scripts/import.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Change to rebuild from GraphHopper's latest dumps - README,
+            # "Changing the countries, or fresher maps".
+            - name: IMPORT_STAMP
+              value: "2026-10"
+            # Paths under download1.graphhopper.com/public/. Russia's is
+            # the whole country, the Asian part included.
+            - name: DUMPS
+              value: >-
+                europe/denmark
+                europe/serbia europe/bosnia-herzegovina europe/montenegro
+                europe/croatia europe/kosovo europe/macedonia europe/albania
+                europe/slovenia europe/bulgaria europe/greece europe/romania
+                europe/turkey europe/georgia europe/russia
+                asia/china asia/central-asia
+            # What the index keeps. Central Asia comes as one dump; this
+            # keeps Kazakhstan from it.
+            - name: COUNTRIES
+              value: DK,RS,BA,ME,HR,XK,MK,AL,SI,BG,GR,RO,TR,GE,RU,CN,KZ
+            # Names are always kept in the local language; these are the
+            # translations kept besides, the household's languages.
+            # Serbian covers both scripts where OpenStreetMap has them.
+            - name: LANGUAGES
+              value: en,ru,sr,kk
+            # Russia is one country, so the importer's cache of its
+            # addresses is the largest it holds at once.
+            - name: JAVA_OPTS
+              value: -Xmx4g
+          resources:
+            requests:
+              cpu: 500m
+              memory: 5Gi
+            limits:
+              memory: 6Gi
+          volumeMounts:
+            - name: data
+              mountPath: /photon/data
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: photon
+          image: docker.io/rtuszik/photon-docker:2.4.0
+          command:
+            - java
+            - -Xmx2g
+            - -jar
+            - /photon/photon.jar
+            - serve
+            - -data-dir
+            - /photon/data
+            - -listen-ip
+            - 0.0.0.0
+            - -listen-port
+            - "2322"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 2322
+          # OpenSearch opens the index before Photon listens.
+          startupProbe:
+            httpGet:
+              path: /status
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: http
+            periodSeconds: 30
+          # The heap above, plus OpenSearch's memory outside it; the index
+          # itself is read through the page cache, which is not counted
+          # here.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 3Gi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: data
+              mountPath: /photon/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: photon-data
+        - name: scripts
+          configMap:
+            name: photon-import
