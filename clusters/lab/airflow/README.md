@@ -17,8 +17,10 @@ the only login - Airflow treats everyone who reaches it as an admin.
 ## How it runs
 
 - **LocalExecutor**: tasks are processes inside the scheduler pod. No
-  Redis, no Celery workers, no pod per task. The scheduler's 2Gi limit is
-  the tasks' limit.
+  Redis, no Celery workers, no pod per task. The scheduler's 2560Mi limit
+  is the tasks' limit, which is why at most three tasks run at once
+  (`parallelism`). The warehouse DAG's models queue behind each other; a
+  full run takes a few minutes longer and never takes the scheduler down.
 - **Its own image** (`images/airflow/`): the official one plus Cosmos, the
   Kafka client, and dbt in a separate virtualenv at `/opt/dbt` so that
   dbt's and Airflow's dependencies never meet.
