@@ -50,3 +50,36 @@
 {% macro num(json, path) -%}
   toDecimal64OrNull(JSONExtractString({{ json }}, {{ path }}), 4)
 {%- endmacro %}
+
+
+{#
+  Every record an endpoint has ever sent, the newest version of each, from
+  a source whose DAG sends only what changed (pipelines/dags/google.py) -
+  so the newest run alone is not the current state, as it is for
+  snapshot_records(). A record whose newest version is a tombstone
+  ("deleted": true in the envelope) has been deleted and is left out.
+
+  `endpoints` is a list; the endpoint comes back as a column.
+
+  Columns: id, endpoint, record, file, extracted_at.
+#}
+{% macro accumulated_records(source_table, endpoints) -%}
+  select id, endpoint, record, file, extracted_at
+  from (
+    select
+      JSONExtractString(payload, 'id') as id,
+      JSONExtractString(payload, 'endpoint') as endpoint,
+      JSONExtractRaw(payload, 'record') as record,
+      JSONExtractString(payload, 'file') as file,
+      JSONExtractBool(payload, 'deleted') as deleted,
+      parseDateTime64BestEffortOrNull(JSONExtractString(payload, 'extracted_at'), 3, 'UTC') as extracted_at,
+      kafka_ts
+    from {{ source('raw', source_table) }}
+    where JSONExtractString(payload, 'endpoint') in (
+      {%- for e in endpoints %}'{{ e }}'{{ ", " if not loop.last }}{% endfor -%}
+    )
+    order by kafka_ts desc
+    limit 1 by endpoint, id
+  )
+  where not deleted
+{%- endmacro %}

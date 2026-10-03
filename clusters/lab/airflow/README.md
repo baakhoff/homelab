@@ -9,6 +9,7 @@ model is live a minute later, with no restart.
 | DAG | What it does | When |
 |---|---|---|
 | `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint | Vikunja hourly, the rest every 6 hours |
+| `ingest_google`, `ingest_google_gmail`, `ingest_google_portability` | The Google account into `raw.google`: Calendar, Contacts, Tasks and Drive as snapshots; Gmail metadata as changes; My Activity, Chrome and the rest as Data Portability exports ([`pipelines/google.md`](../../../pipelines/google.md)) | 6-hourly, hourly, daily |
 | `warehouse` | The dbt project: `raw` -> `ods` -> `ads` -> `dm`, one task per model and per model's tests, rendered by [Cosmos](https://github.com/astronomer/astronomer-cosmos) | hourly, at :45 |
 
 UI: <https://airflow.lab.baakhoff.com>, behind the admin gate. That gate is
@@ -32,7 +33,8 @@ the only login - Airflow treats everyone who reaches it as an admin.
 
 ## What it can reach
 
-`networkpolicy.yaml` lets Airflow out to GitHub (git-sync) and to exactly
+`networkpolicy.yaml` lets Airflow out to the internet on 443 - GitHub for
+git-sync, Google's APIs for the Google DAGs - and inside the lab to exactly
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
 Vikunja, Mealie, Paperless, SparkyFitness. Each of those admits the
 scheduler pod by name in its own policy. A new source needs a door on both
@@ -104,7 +106,8 @@ sops --encrypt --in-place clusters/lab/airflow/sources.sops.yaml
 
 Firefly needs no token here: the broker holds it. SparkyFitness's key is
 added later, into the same Secret - `clusters/lab/sparkyfitness/README.md`,
-step 5.
+step 5 - and so are Google's client and tokens, by a script
+(`pipelines/google.md`).
 
 **4. Create the dbt user** once the Secrets have reconciled, rather than
 waiting for the hourly schema job:
@@ -114,7 +117,7 @@ kubectl -n data create job --from=cronjob/clickhouse-schema schema-dbt
 kubectl -n data logs -f job/schema-dbt --all-containers
 ```
 
-**5. Check.** In the UI, all five DAGs are listed with no import errors.
+**5. Check.** In the UI, every DAG is listed with no import errors.
 Trigger `ingest_vikunja` by hand; when it is green,
 `SELECT count() FROM raw.vikunja` in ClickHouse is above zero. Then trigger
 `warehouse` and look at `ods.vikunja_tasks`.

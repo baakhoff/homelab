@@ -43,3 +43,43 @@ models:
     columns:
       - name: entry_date
         tests: [not_null, unique]
+  - name: google_gmail_messages
+    columns:
+      - name: message_id
+        tests: [not_null, unique]
+  - name: google_gmail_labels
+    columns:
+      - name: label_id
+        tests: [not_null, unique]
+  - name: google_calendars
+    columns:
+      - name: calendar_id
+        tests: [not_null, unique]
+  - name: google_calendar_events
+    columns:
+      - name: event_key
+        tests: [not_null, unique]
+  - name: google_contacts
+    columns:
+      - name: contact_id
+        tests: [not_null, unique]
+  - name: google_contact_groups
+    columns:
+      - name: group_id
+        tests: [not_null, unique]
+  - name: google_tasks
+    columns:
+      - name: task_key
+        tests: [not_null, unique]
+  - name: google_drive_files
+    columns:
+      - name: file_id
+        tests: [not_null, unique]
+  - name: google_activity
+    columns:
+      - name: activity_id
+        tests: [not_null, unique]
+  - name: google_chrome_history
+    columns:
+      - name: visit_id
+        tests: [not_null, unique]
