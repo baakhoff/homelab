@@ -58,8 +58,9 @@ What is *not* in git, and therefore what the backup and the kit exist for:
   reconstructible — see [`clusters/lab/backup/`](../../clusters/lab/backup/README.md).
 - **The age key**, which is in the kit.
 
-Agent volumes are excluded from backup on purpose: a git clone, a login and
-caches. Nothing on one is an original.
+Agent volumes are backed up like the rest: they hold every Claude Code
+session's transcript and unpushed work. Restore one the way any volume is
+restored, into the `agents` namespace.
 
 ---
 
