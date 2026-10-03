@@ -29,6 +29,32 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
+    # Producers: everything allowed to write to Kafka, one rule each.
+    #
+    # The log collectors - every pod's log lines (raw.logs) and the
+    # cluster's events (raw.k8s-events). clusters/lab/logging/alloy.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: logging
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alloy
+      ports:
+        - protocol: TCP
+          port: 9092
+    # Home Assistant's apache_kafka integration - every state change
+    # (raw.homeassistant). clusters/lab/home-assistant/README.md.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: home-assistant
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: home-assistant
+      ports:
+        - protocol: TCP
+          port: 9092
   egress:
     # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
     - to:
