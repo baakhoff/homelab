@@ -33,6 +33,15 @@ The models are in [`pipelines/dbt/`](../../../pipelines/README.md), run
 hourly by Airflow (`clusters/lab/airflow/`). Nothing writes into those
 layers by hand.
 
+## Who writes
+
+| Source | Producer | Topic |
+|---|---|---|
+| Every pod's log lines | the Alloy collectors, `clusters/lab/logging/alloy.yaml` - OTLP JSON, the line plus its namespace, pod, container and node | `raw.logs` |
+| Kubernetes events | the same collectors, one of them at a time - OTLP JSON, the event as JSON in the body | `raw.k8s-events` |
+| Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
+| Firefly, Vikunja, Mealie, Paperless | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots, one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless` |
+
 ## What is here
 
 | File | What |
