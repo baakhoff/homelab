@@ -382,7 +382,7 @@ touch existing files: re-wrap them, on a machine that holds a key already in
 the list, from the repo root.
 
 ```bash
-for f in $(git ls-files '*.sops.yaml'); do sops updatekeys -y "$f"; done
+for f in $(git ls-files '*.sops.yaml' ':!.sops.yaml'); do sops updatekeys -y "$f"; done
 ```
 
 The values inside are unchanged, so the commit changes only the files'
