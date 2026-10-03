@@ -129,6 +129,17 @@ spec:
             # home is ClickHouse.
             - name: KAFKA_LOG_RETENTION_HOURS
               value: "168"
+            # And never more than 1 GiB per topic, whatever the week holds.
+            # Without a size cap a runaway producer fills the volume - one
+            # did on the first day (a log feedback loop) - and a broker with
+            # a full disk stops taking writes from everyone. Old data goes
+            # first; ClickHouse already has it. Segments of 256 MiB so the
+            # cap is enforced in small steps: a partition holds at most the
+            # cap plus one segment, so seven topics fit in the 10Gi volume.
+            - name: KAFKA_LOG_RETENTION_BYTES
+              value: "1073741824"
+            - name: KAFKA_LOG_SEGMENT_BYTES
+              value: "268435456"
             # 8 MiB per message, up from 1: a Paperless document travels with
             # its full OCR text (pipelines/dags/ingest.py sends the same limit).
             - name: KAFKA_MESSAGE_MAX_BYTES
