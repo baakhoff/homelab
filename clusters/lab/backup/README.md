@@ -58,7 +58,8 @@ own namespace. Only the orchestration is central.
 
 `vaultwarden/vaultwarden-data` first, then `firefly/firefly-data`, then
 `monitoring/kube-prometheus-stack-grafana` and the Alertmanager claim, and
-`data/data-clickhouse-0` last.
+`data/data-clickhouse-0`, and the nine agent volumes (`agents/homelab`,
+`brand`, `bid`, `epicurus`, `scratch`, `slot-1` to `slot-4`) last.
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly
@@ -68,6 +69,15 @@ services' own data is in their own volumes, and what only ClickHouse holds
 is history - every snapshot ever taken, Home Assistant's state changes, the
 logs. Its snapshot is crash-consistent, which MergeTree survives the way it
 survives a power cut: parts are written whole and renamed into place.
+
+The agent volumes were an exclusion at first - "a git clone, a login and
+caches". What that missed is that each one holds every Claude Code session's
+full transcript, and whatever work is not pushed yet. They go last because
+they are the largest set, and their restic pod is different: `agents`
+enforces the `restricted` Pod Security profile, which refuses a root pod, so
+the driver runs restic there as uid 1000 under that profile
+(`RESTIC_NONROOT_NAMESPACES`) - enough to read every file, since the agents
+write everything as that uid. The agents quota keeps one pod's room for it.
 
 The `data` namespace allows no internet by default, so the restic pod gets
 its way to the bucket from a policy of its own there
@@ -86,7 +96,6 @@ applied to this cluster:
 |---|---|
 | Prometheus | 15d retention and an 8GB cap, so it already deletes itself; its blocks churn constantly and losing it costs history, not capability |
 | Loki | same argument at 7d, and its logs only start when Alloy was deployed |
-| `agents/*` | a git clone, a login and caches. Nothing on it is an original |
 
 Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its
 namespace, and a copy of the Secret below. Three things have to line up rather
@@ -133,7 +142,7 @@ sops --encrypt --in-place clusters/lab/backup/restic-repo.sops.yaml
 ```
 
 Repeat for every namespace holding a backed-up volume — currently `monitoring`,
-`vaultwarden`, `firefly` and `data` — into `restic-repo-<namespace>.sops.yaml`.
+`vaultwarden`, `firefly`, `data` and `agents` — into `restic-repo-<namespace>.sops.yaml`.
 The quickest way from an existing copy, without the values ever touching the
 screen:
 

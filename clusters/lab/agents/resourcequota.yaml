@@ -32,6 +32,18 @@ spec:
     # Requests are unchanged: the limit is for build spikes, and idle use is
     # under the per-pod request.
     #
+    # The nightly backup came here last. Its restic pod runs in this namespace
+    # (beside the volume it reads, clusters/lab/backup/) one volume at a time,
+    # and with nine agent pods using every slot above it was rejected at
+    # admission. One pod's room for it, at the restic Job's own shape - 100m
+    # and 256Mi requested, 1Gi limit:
+    #   pods    9 + 1               = 10
+    #   cpu     2300m   + 100m      = 2400m
+    #   memory  4672Mi  + 256Mi     = 4928Mi
+    #   limits  30976Mi + 1024Mi    = 32000Mi
+    # It is a slot for the backup, not a tenth agent: a tenth agent pod would
+    # take it, and that night's backup of the agents would fail at admission.
+    #
     # requests.cpu was previously "3" against a stated six times 250m, which is
     # 1.5 - the comment and the number disagreed. Corrected here rather than
     # scaled up, so the arithmetic above is the arithmetic in the file.
@@ -50,7 +62,7 @@ spec:
     # rejected at admission rather than scheduled unbounded. limits.cpu is
     # deliberately absent so containers need no CPU limit: throttling an
     # agent's build causes more mystery latency than it prevents.
-    requests.cpu: "2300m"
-    requests.memory: 4672Mi
-    limits.memory: 30976Mi
-    pods: "9"
+    requests.cpu: "2400m"
+    requests.memory: 4928Mi
+    limits.memory: 32000Mi
+    pods: "10"

@@ -364,9 +364,9 @@ remembering that the agent is a convenience and not a dependency:
 - Recovery work is done from the **workstation**, which holds a checkout and can
   run Claude Code locally. [Disaster recovery](disaster-recovery.md) assumes
   nothing in the cluster is available.
-- Nothing an agent pod holds is an original. The repo is on GitHub, the age key
-  is in the emergency kit, and the volumes are excluded from backup precisely
-  because everything on them is a clone, a login or a cache.
+- The repo is on GitHub and the age key is in the emergency kit, so nothing
+  the cluster needs to come back lives only on an agent volume. What does live
+  only there - session transcripts, unpushed work - is in the nightly backup.
 
 The failure is mild in practice and worth naming anyway: an agent restarted
 mid-change during its own cluster's image update, which is exactly the shape of
@@ -385,8 +385,10 @@ the problem in miniature.
   API (`clusters/lab/agents/networkpolicy-brand.yaml`).
 - Deleting a project's manifest prunes its volume: the checkout, the login and
   any uncommitted work go with it. Commit or push first.
-- Nothing backs the volumes up, and that is a choice rather than an absence: a
-  nightly backup exists and the agent volumes are simply not among its targets,
-  see [`clusters/lab/backup/`](../../clusters/lab/backup/README.md). Everything
-  on them is a clone, a login, or a cache — replication is not a backup, and
-  three copies of a deleted volume is still no copies.
+- The volumes are in the nightly backup
+  ([`clusters/lab/backup/`](../../clusters/lab/backup/README.md)), every one,
+  last in the run. They were left out at first as "a clone, a login, or a
+  cache", which overlooked what only they hold: every Claude Code session's
+  full transcript, and work not yet pushed. The restic pod there runs as uid
+  1000 under the `restricted` profile this namespace enforces, and the
+  quota keeps one pod's room for it (`resourcequota.yaml`).

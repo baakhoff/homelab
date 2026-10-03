@@ -93,6 +93,23 @@ spec:
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     data/data-clickhouse-0
+                    agents/homelab
+                    agents/brand
+                    agents/bid
+                    agents/epicurus
+                    agents/scratch
+                    agents/slot-1
+                    agents/slot-2
+                    agents/slot-3
+                    agents/slot-4
+                # Namespaces whose restic pod runs as this uid under the
+                # `restricted` Pod Security profile instead of as root - see
+                # the driver. agents enforces `restricted` and refuses root
+                # pods; every file on an agent volume is uid 1000's.
+                - name: RESTIC_NONROOT_NAMESPACES
+                  value: agents
+                - name: RESTIC_NONROOT_UID
+                  value: "1000"
                 - name: SNAPSHOT_CLASS
                   value: ceph-block
                 - name: STORAGE_CLASS
