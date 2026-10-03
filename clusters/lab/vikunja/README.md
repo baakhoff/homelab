@@ -5,7 +5,7 @@ place where the ten agent seats and the CEO see the same work. The CEO (and
 anyone with a passkey) uses the web UI; each seat drives it over the REST
 API with its own scoped token, a later ops-orchestrator phase.
 
-At <https://tasks.lab.baakhoff.com>, and on Homepage under Lab.
+At <https://tasks.lab.baakhoff.com>, and on Homepage under Home.
 
 ## How it is reached
 

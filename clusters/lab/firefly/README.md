@@ -5,7 +5,7 @@ currency, a transfer between currencies records both amounts, and reports
 convert everything to one primary currency at stored exchange rates. Budgets,
 categories, recurring transactions, bills, piggy banks and reports.
 
-At <https://firefly.lab.baakhoff.com>, and on Homepage under Lab.
+At <https://firefly.lab.baakhoff.com>, and on Homepage under Home.
 
 ## How login works
 

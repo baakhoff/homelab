@@ -20,7 +20,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "128m"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: Vaultwarden
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Home
     gethomepage.dev/icon: mdi-shield-key
     gethomepage.dev/description: Password vault
     # Given explicitly because this Ingress carries no tls block, so Homepage

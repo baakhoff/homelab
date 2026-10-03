@@ -141,7 +141,7 @@ spec:
           nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
           gethomepage.dev/enabled: "true"
           gethomepage.dev/name: Prometheus
-          gethomepage.dev/group: Cluster
+          gethomepage.dev/group: Platform
           gethomepage.dev/icon: prometheus.png
           gethomepage.dev/description: Metrics and alert rules
           gethomepage.dev/href: https://prometheus.lab.baakhoff.com
@@ -164,7 +164,7 @@ spec:
           nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
           gethomepage.dev/enabled: "true"
           gethomepage.dev/name: Alertmanager
-          gethomepage.dev/group: Cluster
+          gethomepage.dev/group: Platform
           gethomepage.dev/icon: mdi-bell-alert
           gethomepage.dev/description: Firing alerts and silences
           gethomepage.dev/href: https://alertmanager.lab.baakhoff.com

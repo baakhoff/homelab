@@ -20,7 +20,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: Home Assistant
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Home
     gethomepage.dev/icon: mdi-home-assistant
     gethomepage.dev/description: Home automation
     gethomepage.dev/href: https://hass.lab.baakhoff.com
