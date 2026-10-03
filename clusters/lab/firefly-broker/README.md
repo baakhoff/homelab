@@ -32,8 +32,9 @@ The door: `GET`, `POST`, `PUT` and `DELETE` reach Firefly; everything else
 answers 403 from `limit_except` in the ConfigMap. Deletion is open on
 purpose - the brand pod manages the books, not just adds to them - so a
 delete through here is as final as one in Firefly's UI. Firefly has no
-recycle bin, and its volume is not in the nightly backup yet
-(`clusters/lab/firefly/README.md`, "Backup"), so for now nothing undoes one.
+recycle bin; the undo is the nightly backup of its volume
+(`clusters/lab/firefly/README.md`, "Backup"), so a delete loses at most a
+day's changes to what it touched.
 
 ## Why it cannot become a second login door
 

@@ -98,3 +98,33 @@ spec:
     # Each other, and nothing else: not the internet, not another namespace.
     - to:
         - podSelector: {}
+---
+# The nightly backup's restic pod, and only it, out to the object-storage
+# bucket. The backup driver starts that pod here, beside the volume it reads
+# (clusters/lab/backup/), and labels it; nothing else in this namespace
+# reaches the internet. A policy of its own because the one above covers
+# every pod, and egress added there would open the internet to Kafka and
+# ClickHouse too. Policies add up: DNS comes from the one above.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restic-backup-egress
+  namespace: data
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restic-backup
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
