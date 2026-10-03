@@ -119,7 +119,12 @@ metadata:
   name: photon
   namespace: photon
 spec:
-  replicas: 1
+  # Paused. Building the index starved the node it ran on: on Ceph the
+  # import stalled past its 30-second timeout, and on the node's own NVMe -
+  # the disk etcd and the Ceph OSD share - it pushed the load past 50 and
+  # took the control plane down for a moment. Back to 1 once the index can
+  # be built somewhere that is not a cluster node's system disk.
+  replicas: 0
   strategy:
     type: Recreate
   selector:
