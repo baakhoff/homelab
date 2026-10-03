@@ -1,0 +1,69 @@
+# Alerts on the data platform's intake: is anything still arriving?
+#
+# Written after the first day, when Kafka's disk filled at 09:14 and nothing
+# reached ClickHouse for hours - noticed only by its side effects (failing
+# schema jobs, stuck ingest DAGs). The pod-level alerts saw Kafka crash; none
+# said "the warehouse has stopped receiving data", which is the thing that
+# matters.
+#
+# Both read ClickHouse's own counters (clickhouse.yaml serves them on 9363),
+# scraped through the ServiceMonitor below.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: clickhouse
+  namespace: data
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clickhouse
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 60s
+  namespaceSelector:
+    matchNames: [data]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: data-ingestion
+  namespace: data
+spec:
+  groups:
+    - name: data-ingestion
+      rules:
+        # Nothing read from Kafka for 30 minutes. The pod log stream alone
+        # runs at about two thousand lines a minute, so a quiet half hour is
+        # never quiet - it is a broken broker, a broken collector, or a
+        # consumer that has stopped. The counter resets when ClickHouse
+        # restarts; increase() handles that, and a ClickHouse that is down
+        # altogether is the stack's TargetDown alert, not this one.
+        - alert: DataIngestionStalled
+          expr: increase(ClickHouseProfileEvents_KafkaMessagesRead{namespace="data"}[30m]) == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Nothing has reached the data warehouse for 30 minutes
+            description: >-
+              ClickHouse has read no Kafka messages for 30 minutes. Check
+              kafka-0 (logs, disk), then the consumers:
+              SELECT table, last_poll_time, exceptions.text[-1] FROM
+              system.kafka_consumers. clusters/lab/data/README.md.
+        # Consumers hitting errors for a sustained 15 minutes. A broker
+        # restart costs a few seconds of errors, which this ignores; the
+        # first day's missing topics ("Unknown topic or partition") would
+        # have fired it within the quarter hour.
+        - alert: DataKafkaConsumerErrors
+          expr: increase(ClickHouseProfileEvents_KafkaConsumerErrors{namespace="data"}[15m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: ClickHouse's Kafka consumers keep failing
+            description: >-
+              ClickHouse's Kafka consumers have logged errors for 15
+              minutes. The latest error per consumer:
+              SELECT table, exceptions.time[-1], exceptions.text[-1] FROM
+              system.kafka_consumers.

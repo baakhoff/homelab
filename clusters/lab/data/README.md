@@ -52,6 +52,7 @@ layers by hand.
 | `networkpolicy.yaml` | Kafka has no login, so this is its access control: the list of everything allowed to write |
 | `ingress.yaml` | `https://clickhouse.lab.baakhoff.com/play`, behind the admin gate |
 | `kafka-ui.yaml` | [Kafbat UI](https://github.com/kafbat/kafka-ui) at `https://kafka.lab.baakhoff.com`, behind the admin gate: topics, messages and consumer lag. Read-only - it cannot delete, reset or produce |
+| `alerts.yaml` | `DataIngestionStalled` (nothing read from Kafka for 30 minutes) and `DataKafkaConsumerErrors` (consumers failing for 15), from ClickHouse's own counters on port 9363 |
 
 ## A raw table
 
@@ -144,11 +145,17 @@ under Consumers - one group per source, `clickhouse-<source>`, with its
 lag. Or from the workstation:
 
 ```bash
-kubectl -n data exec kafka-0 -- /opt/kafka/bin/kafka-consumer-groups.sh \
+kubectl -n data exec kafka-0 -- env KAFKA_HEAP_OPTS=-Xmx128m \
+  /opt/kafka/bin/kafka-consumer-groups.sh \
   --bootstrap-server localhost:9092 --describe --all-groups
 ```
 
 One group per source, `clickhouse-<source>`. `LAG` near 0 is right.
+
+Every Kafka tool run inside `kafka-0` needs that `KAFKA_HEAP_OPTS`: the
+pod's own variable gives each Java process the broker's 512m heap, and a
+second one beside the broker can push the pod past its 1Gi limit - and the
+kernel then kills the broker, not the tool.
 
 ## Things to know
 
