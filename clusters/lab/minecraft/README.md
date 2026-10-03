@@ -85,28 +85,14 @@ rewrites `server.properties` from its environment at every start, so editing
 the file on the volume does not stick. The full list is the image's
 documentation, under *Server properties*.
 
-## Backup — not yet, and in this order
+## Backup
 
-The world is the only thing here that is not reconstructible. It is not in the
-nightly backup yet because that takes three things, and one of them cannot come
-from this repository:
+`minecraft/minecraft-data` is in the nightly backup (`clusters/lab/backup/`).
+The world is the only thing here that is not reconstructible.
 
-1. **The `restic-repo` Secret in the `minecraft` namespace.** Same values as the
-   other copies, differing only in `metadata.namespace`; the backup README has
-   the exact commands. Encrypt it into
-   `clusters/lab/backup/restic-repo-minecraft.sops.yaml`.
-2. **The `RoleBinding`** — already in `clusters/lab/backup/rbac.yaml`, landed
-   with the server. Harmless ahead of time: it grants the driver rights in a
-   namespace it has no target in yet.
-3. **`minecraft/minecraft-data` in `BACKUP_TARGETS`** in
-   `clusters/lab/backup/cronjob-backup.yaml`. **Last**, and in a commit after
-   the Secret has reconciled. The driver checks for the Secret before it
-   snapshots anything and fails the run — the whole run, heartbeat included —
-   on a target whose Secret is missing.
-
-What that backup will be: an RBD snapshot of the volume, taken while the server
-runs, so it is a crash-consistent copy — the same as every other target, as the
-backup README says plainly. Minecraft is written to survive exactly that, and
-saves every chunk on its own every few minutes. If a restore ever comes back
-with a region file the server refuses, the fix worth building is an RCON
+What the backup is: an RBD snapshot of the volume, taken while the server
+runs, so it is a crash-consistent copy - the same as every other target, as
+the backup README says plainly. Minecraft is written to survive exactly that,
+and saves every chunk on its own every few minutes. If a restore ever comes
+back with a region file the server refuses, the fix worth building is an RCON
 `save-all` immediately before the snapshot; nothing here does that today.

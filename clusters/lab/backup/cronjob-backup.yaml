@@ -89,9 +89,16 @@ spec:
                 - name: BACKUP_TARGETS
                   value: >-
                     vaultwarden/vaultwarden-data
+                    paperless/paperless-data
+                    pocket-id/pocket-id-data
                     firefly/firefly-data
+                    home-assistant/home-assistant-config
+                    n8n/n8n-data
+                    vikunja/vikunja-data
+                    mealie/mealie-data
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
+                    minecraft/minecraft-data
                     data/data-clickhouse-0
                     agents/homelab
                     agents/brand

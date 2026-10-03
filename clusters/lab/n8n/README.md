@@ -56,13 +56,8 @@ so the newest minor can be a beta for a week before it is promoted. Check the
 [release notes](https://github.com/n8n-io/n8n/releases) before merging a
 minor bump, and read the migration guide before any major.
 
-## Backup - not yet, and in this order
+## Backup
 
-The same three pieces as Paperless, whose README has the reasoning:
-
-1. **The `restic-repo` Secret in the `n8n` namespace**, encrypted into
-   `clusters/lab/backup/restic-repo-n8n.sops.yaml`. It uses the same values
-   as the other copies and differs only in `metadata.namespace`.
-2. **The `RoleBinding`**, already in `clusters/lab/backup/rbac.yaml`.
-3. **`n8n/n8n-data` in `BACKUP_TARGETS`**, last, after the Secret has
-   reconciled.
+`n8n/n8n-data` is in the nightly backup (`clusters/lab/backup/`): the
+workflows, the credentials they use and the key those credentials are
+encrypted with - one volume, so a restore brings back all three together.
