@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sparkyfitness-frontend
+  namespace: sparkyfitness
+spec:
+  selector:
+    app.kubernetes.io/name: sparkyfitness-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sparkyfitness-server
+  namespace: sparkyfitness
+spec:
+  selector:
+    app.kubernetes.io/name: sparkyfitness-server
+  ports:
+    - name: http
+      port: 3010
+      targetPort: http

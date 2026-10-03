@@ -12,6 +12,7 @@
 #   vikunja         3456
 #   mealie          9000
 #   paperless       8000 (Paperless has no policy of its own to match)
+#   sparkyfitness   3010, the server itself rather than its frontend
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
@@ -122,3 +123,13 @@ spec:
       ports:
         - protocol: TCP
           port: 8000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sparkyfitness
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: sparkyfitness-server
+      ports:
+        - protocol: TCP
+          port: 3010
