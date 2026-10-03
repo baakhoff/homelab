@@ -49,6 +49,7 @@ exception: it keeps its own master password.
 | [Firefly III](https://github.com/firefly-iii/firefly-iii) | Household finances: accounts in any currency, budgets, recurring bills and reports. |
 | [n8n](https://n8n.io) | Visual automations: schedules, emails and webhooks wired to any service in or outside the lab. |
 | [Apache Kafka](https://kafka.apache.org) | The event bus every source writes its raw data to. |
+| [Kafbat UI](https://github.com/kafbat/kafka-ui) | A read-only browser view of Kafka: topics, messages and consumer lag. |
 | [ClickHouse](https://clickhouse.com) | The column store those events land in, queried in SQL. |
 | [Apache Airflow](https://airflow.apache.org) | Runs the data pipelines: API snapshots into Kafka, and the dbt models. |
 | [dbt](https://www.getdbt.com) | The SQL models that build the warehouse's layers from the raw data. |

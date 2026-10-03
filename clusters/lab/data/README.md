@@ -51,6 +51,7 @@ layers by hand.
 | `clickhouse-schema.yaml` | An hourly job that creates the topics, the databases and the raw tables. Idempotent |
 | `networkpolicy.yaml` | Kafka has no login, so this is its access control: the list of everything allowed to write |
 | `ingress.yaml` | `https://clickhouse.lab.baakhoff.com/play`, behind the admin gate |
+| `kafka-ui.yaml` | [Kafbat UI](https://github.com/kafbat/kafka-ui) at `https://kafka.lab.baakhoff.com`, behind the admin gate: topics, messages and consumer lag. Read-only - it cannot delete, reset or produce |
 
 ## A raw table
 
@@ -115,8 +116,11 @@ In the browser: <https://clickhouse.lab.baakhoff.com/play>, user `admin`.
 From the workstation:
 
 ```bash
-kubectl -n data exec -it clickhouse-0 -- clickhouse-client --user admin --ask-password
+kubectl -n data exec -it clickhouse-0 -- clickhouse-client --user admin
 ```
+
+No password prompt: inside the pod, the client reads it from the pod's
+own `CLICKHOUSE_PASSWORD`, and `--ask-password` on top of that is an error.
 
 What has arrived, per source:
 
@@ -135,7 +139,9 @@ WHERE kafka_ts > now() - INTERVAL 1 DAY
 LIMIT 10;
 ```
 
-Are the consumers keeping up? Their lag, from Kafka's side:
+Are the consumers keeping up? <https://kafka.lab.baakhoff.com> shows it
+under Consumers - one group per source, `clickhouse-<source>`, with its
+lag. Or from the workstation:
 
 ```bash
 kubectl -n data exec kafka-0 -- /opt/kafka/bin/kafka-consumer-groups.sh \
