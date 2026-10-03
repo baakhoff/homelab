@@ -142,7 +142,22 @@ spec:
 
           loki.source.kubernetes "pod_logs" {
             targets    = discovery.relabel.pod_logs.output
-            forward_to = [loki.write.default.receiver, otelcol.receiver.loki.logs.receiver]
+            forward_to = [loki.write.default.receiver, loki.process.to_kafka.receiver]
+          }
+
+          // Everything but the collectors' own logs goes on to Kafka. Their
+          // own lines must not: when an export to Kafka fails, Alloy logs
+          // the failure - one line per rejected item - and that line is
+          // collected and exported too, and fails, and is logged again. On
+          // the first day that loop put 13 million lines into raw.logs in
+          // two hours and filled Kafka's disk. Loki still gets them (above);
+          // Kafka never does.
+          loki.process "to_kafka" {
+            stage.match {
+              selector = "{namespace=\"logging\"}"
+              action   = "drop"
+            }
+            forward_to = [otelcol.receiver.loki.logs.receiver]
           }
 
           // The same lines, and the cluster's events, to Kafka for the data
