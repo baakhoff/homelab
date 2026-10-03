@@ -35,6 +35,14 @@ data:
 
   topics.sh: |
     set -eu
+    # One quick check first, so an unreachable broker fails this run in
+    # half a minute with one clear line - not once per topic, each after
+    # the admin client's own long timeout.
+    if ! timeout 30 /opt/kafka/bin/kafka-broker-api-versions.sh \
+        --bootstrap-server kafka.data.svc.cluster.local:9092 >/dev/null 2>&1; then
+      echo "Kafka is not answering at kafka.data.svc.cluster.local:9092 - check kafka-0" >&2
+      exit 1
+    fi
     for s in $SOURCES; do
       /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka.data.svc.cluster.local:9092 \
         --create --if-not-exists --topic "raw.$s" --partitions 1 --replication-factor 1
@@ -111,10 +119,17 @@ spec:
   schedule: "17 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
+  # One failed run kept to read, not three: each kept run is a KubeJobFailed
+  # alert, and an hourly job that is failing for a reason that needs a person
+  # would otherwise page once an hour, all night - which it did, while Kafka
+  # was crash-looping.
+  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
-      backoffLimit: 3
+      # No retries within a run: the next run is an hour away anyway, and
+      # every retry is one more failed pod left behind (and one more
+      # KubeContainerWaiting alert an hour later).
+      backoffLimit: 0
       activeDeadlineSeconds: 600
       ttlSecondsAfterFinished: 86400
       template:
