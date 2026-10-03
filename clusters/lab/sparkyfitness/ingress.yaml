@@ -1,0 +1,41 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Not behind the oauth2-proxy gate, like Paperless and Vaultwarden: the phone
+# app, which reads Apple Health or Health Connect, cannot get through it. It
+# signs in to Pocket ID in the system browser and then sends a session token,
+# which the gate does not know. SparkyFitness's own login is Pocket ID and
+# nothing else (deployment.yaml), and the lab is reachable from the house and
+# the tailnet only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sparkyfitness
+  namespace: sparkyfitness
+  annotations:
+    # Food photos from a phone camera. The frontend's nginx caps at 10m, so
+    # past this the 413 would come from it instead.
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: SparkyFitness
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: sparky-fitness.png
+    gethomepage.dev/description: Calories, meals, exercise and weight
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://fitness.lab.baakhoff.com
+    # Homepage's health badge finds pods by the Ingress name by default;
+    # the server is the half that does the work.
+    gethomepage.dev/pod-selector: app.kubernetes.io/name=sparkyfitness-server
+spec:
+  rules:
+    - host: fitness.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sparkyfitness-frontend
+                port:
+                  number: 80

@@ -54,6 +54,7 @@ exception: it keeps its own master password.
 | [Apache Airflow](https://airflow.apache.org) | Runs the data pipelines: API snapshots into Kafka, and the dbt models. |
 | [dbt](https://www.getdbt.com) | The SQL models that build the warehouse's layers from the raw data. |
 | [Mealie](https://mealie.io) | Recipes imported from any site by link, meal plans and shared shopping lists. |
+| [SparkyFitness](https://github.com/CodeWithCJ/SparkyFitness) | Calorie and macro tracking with an AI that logs meals from a photo, plus exercise and weight, with a phone app. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
 | [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
@@ -91,7 +92,8 @@ exception: it keeps its own master password.
   browser-side utilities ([how](clusters/lab/it-tools/README.md)), and
   Firefly III for the household's finances in every currency
   ([how](clusters/lab/firefly/README.md)), and Mealie for recipes, meal plans
-  and shopping lists ([how](clusters/lab/mealie/README.md)), and n8n for
+  and shopping lists ([how](clusters/lab/mealie/README.md)), and SparkyFitness
+  for calories, meals and exercise ([how](clusters/lab/sparkyfitness/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
   feeding ClickHouse, where every source's raw data is kept for querying
   ([how](clusters/lab/data/README.md)), and Airflow running the pipelines
