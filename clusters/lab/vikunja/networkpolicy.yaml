@@ -2,8 +2,9 @@
 #
 # In: the gate (the humans' door), the brand agent pod, which calls the
 # Service directly at this port with an API token, and Airflow's scheduler,
-# which snapshots the API with its own token. Nothing else: not the
-# other lab pods, not the LAN. brand's egress half of its door is
+# which snapshots the API with its own token, and n8n, whose workflows call
+# the API with theirs. Nothing else: not the other lab pods, not the LAN.
+# n8n has no NetworkPolicy of its own, so this rule is its whole door. brand's egress half of its door is
 # clusters/lab/agents/networkpolicy-brand.yaml; another agent given access
 # needs a rule in both places - the same note the firefly-broker policy
 # carries.
@@ -54,6 +55,18 @@ spec:
           podSelector:
             matchLabels:
               component: scheduler
+      ports:
+        - protocol: TCP
+          port: 3456
+    # n8n: automations that read and write tasks, with their own API token
+    # in an n8n credential.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: n8n
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: n8n
       ports:
         - protocol: TCP
           port: 3456
