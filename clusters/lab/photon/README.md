@@ -34,8 +34,12 @@ On the pod's first start, the `import` init container streams
 GraphHopper's [Photon dumps](https://download1.graphhopper.com/public/)
 for those countries, about 3.2GB, straight into Photon's importer, and
 checks each against its published checksum. Nothing but the index is
-written: about 16GB of index, on a 40GB volume so that a rebuild fits
-beside it. That takes an hour or two, during which the pod shows `Init:0/1`
+written: about 16GB of it, built on the node's own disk and then copied to
+the 40GB volume in one go, so that a rebuild fits beside the old index.
+Building it straight on the Ceph volume failed: the index's constant
+rewriting during the import, over the network, stalled the database past
+the importer's fixed 30-second timeout. The import takes an hour or two,
+during which the pod shows `Init:0/1`
 and Dawarich's lookups fail; its nightly job looks the points up again
 once Photon answers. Afterwards, every start finds
 the index built from the same settings and goes straight to serving.
