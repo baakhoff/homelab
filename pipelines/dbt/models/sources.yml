@@ -25,3 +25,5 @@ sources:
         description: SparkyFitness API snapshots of one account's diary, one record per message in the ingest envelope.
       - name: dawarich
         description: Dawarich API reads of one account's location history - visits and places as snapshots, points as the last week's, one record per message in the ingest envelope.
+      - name: telegram
+        description: One Telegram account's private chats - the chats as snapshots, the messages as sent once and again when edited, one record per message in the ingest envelope.

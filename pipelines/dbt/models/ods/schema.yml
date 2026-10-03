@@ -55,3 +55,11 @@ models:
     columns:
       - name: place_id
         tests: [not_null, unique]
+  - name: telegram_chats
+    columns:
+      - name: chat_id
+        tests: [not_null, unique]
+  - name: telegram_messages
+    columns:
+      - name: message_key
+        tests: [not_null, unique]
