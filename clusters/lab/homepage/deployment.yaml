@@ -15,6 +15,12 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: homepage
+      annotations:
+        # Bump with every edit to configmap.yaml. The subPath mounts below
+        # never see a ConfigMap change, so a new pod is the only way one
+        # lands, and a changed pod template is how Flux makes a new pod
+        # without anyone running `rollout restart` by hand.
+        homepage.lab/config-revision: "2"
     spec:
       serviceAccountName: homepage
       automountServiceAccountToken: true
@@ -109,9 +115,10 @@ spec:
           # inside the emptyDir rather than being hidden by it.
           #
           # THE TRADE-OFF that stays: subPath mounts do NOT pick up later
-          # ConfigMap changes. Editing configmap.yaml needs
-          #   kubectl -n homepage rollout restart deployment/homepage
-          # This matters less than it looks. Adding a service does not touch
+          # ConfigMap changes. Editing configmap.yaml needs a new pod, which
+          # is what the config-revision annotation at the top of the pod
+          # template is for: bump it in the same commit. This matters less
+          # than it looks. Adding a service does not touch
           # this ConfigMap at all - it is an annotation on that service's own
           # Ingress, and discovery is read live from the API on each request.
           volumeMounts:

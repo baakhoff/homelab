@@ -15,7 +15,7 @@ metadata:
     nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: IT-Tools
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Tools
     gethomepage.dev/icon: it-tools.png
     gethomepage.dev/description: Small everyday tools for developers
     # Explicit because there is no tls block for Homepage to infer https from.

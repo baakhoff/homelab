@@ -4,6 +4,9 @@
 # back to a default, it fails the MOUNT - the pod sticks in ContainerCreating
 # with the reason buried in `kubectl describe`. So every key mounted there must
 # exist here, including the ones deliberately left empty.
+#
+# Every edit here also bumps homepage.lab/config-revision in deployment.yaml,
+# or the running pod keeps the old files.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,27 +19,56 @@ data:
     mode: cluster
     ingress: true
 
-  # Groups are declared here so their ORDER is fixed. A group that appears only
-  # on an Ingress annotation still renders, just wherever Homepage decides -
-  # which changes as services come and go.
+  # Two tabs, so the page you open every day is not the page you operate the
+  # lab from. Everyday is what the household uses; Ops is dashboards, data
+  # plumbing and the sign-in service. A group belongs to a tab only through
+  # this file: an Ingress names its group, and the group's entry here places
+  # it. A group missing from this list still renders, on every tab, in no
+  # fixed place - so a new group needs a line here as well as its annotation.
+  #
+  # Groups are columns side by side, each a short list, rather than one wide
+  # grid. One group of fifteen tiles in two columns is what this replaced,
+  # and it is what made the page hard to scan.
+  #
+  # Display choices, all from Homepage's own settings:
+  #   statusStyle: dot   the pod-health badge becomes a coloured dot instead
+  #                      of a word on every tile
+  #   useEqualHeights    tiles line up across columns
+  #   boxedWidgets       the cluster and search widgets sit in boxes in the
+  #                      header rather than as loose text
+  #   quicklaunch        start typing anywhere on the page to jump to a tile;
+  #                      searchDescriptions matches "pdf" to Stirling-PDF
+  #   hideVersion        no Homepage version in the footer
   settings.yaml: |
     title: lab
-    headerStyle: clean
     theme: dark
     color: slate
+    headerStyle: boxedWidgets
+    statusStyle: dot
+    useEqualHeights: true
+    hideVersion: true
+    quicklaunch:
+      searchDescriptions: true
+      hideVisitURL: true
     layout:
+      Home:
+        tab: Everyday
+        icon: mdi-home
+      Tools:
+        tab: Everyday
+        icon: mdi-toolbox
+      Play:
+        tab: Everyday
+        icon: mdi-gamepad-variant
       Platform:
-        style: row
-        columns: 2
-      Services:
-        style: row
-        columns: 2
-      Cluster:
-        style: row
-        columns: 2
-      Lab:
-        style: row
-        columns: 2
+        tab: Ops
+        icon: mdi-server
+      Data:
+        tab: Ops
+        icon: mdi-database
+      Elsewhere:
+        tab: Ops
+        icon: mdi-link-variant
 
   # Everything with an Ingress discovers itself from annotations - see the
   # gethomepage.dev/* keys on each Ingress. What is left here is the things
@@ -62,7 +94,7 @@ data:
     # `udp://` is only what Homepage's URL parser expects for this widget
     # type; the ping itself is TCP to the game port, so the in-cluster Service
     # name is the right target and no NetworkPolicy stands in the way.
-    - Lab:
+    - Play:
         - Minecraft:
             icon: minecraft.png
             description: mc.lab · Java Edition

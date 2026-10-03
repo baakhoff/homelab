@@ -6,7 +6,7 @@ and libvips, LibreOffice, Pandoc, Calibre, Inkscape, Ghostscript and more - so
 HEIC to JPG, DOCX to PDF, MKV to MP4 and EPUB to MOBI are all one page.
 Everything runs in the pod; no file leaves the cluster.
 
-At <https://convert.lab.baakhoff.com>, and on Homepage under Lab.
+At <https://convert.lab.baakhoff.com>, and on Homepage under Tools.
 
 ## Login
 

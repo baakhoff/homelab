@@ -6,7 +6,7 @@ expressions, time zones, colour pickers, and more. Everything runs in the
 browser. The pod only serves the page, and nothing typed into a tool is sent
 anywhere.
 
-At <https://tools.lab.baakhoff.com>, and on Homepage under Lab. Behind Pocket ID
+At <https://tools.lab.baakhoff.com>, and on Homepage under Tools. Behind Pocket ID
 through oauth2-proxy, like ConvertX.
 
 ## How it runs
