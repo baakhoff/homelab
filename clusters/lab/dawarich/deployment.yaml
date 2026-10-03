@@ -1,0 +1,212 @@
+# Settings both halves read. A ConfigMap rather than env on each container,
+# so the web server and Sidekiq cannot drift apart.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dawarich-env
+  namespace: dawarich
+data:
+  RAILS_ENV: production
+  RAILS_LOG_TO_STDOUT: "true"
+  # Self-hosted mode: no plans, no limits, and OpenID Connect as the only
+  # outside login.
+  SELF_HOSTED: "true"
+  # The default for days and stats until each user sets their own.
+  TIME_ZONE: Europe/Copenhagen
+  # Rails answers only these Host headers. The second is the Service, for
+  # Airflow's ingest DAG; the health check is exempt upstream.
+  APPLICATION_HOSTS: location.lab.baakhoff.com,dawarich.dawarich.svc.cluster.local
+  # https turns on Rails' force_ssl: secure cookies and HSTS, and a redirect
+  # for any request that does not say it arrived over HTTPS. ingress-nginx
+  # says so in X-Forwarded-Proto; the probes below and the ingest DAG say
+  # it themselves.
+  APPLICATION_PROTOCOL: https
+  # The login callback is built from this:
+  # /users/auth/openid_connect/callback.
+  APPLICATION_URL: https://location.lab.baakhoff.com
+  # --- Database: postgres.yaml ----------------------------------------------
+  DATABASE_HOST: dawarich-postgres
+  DATABASE_PORT: "5432"
+  DATABASE_USERNAME: dawarich
+  DATABASE_NAME: dawarich
+  # --- Redis: the third container in the pod -------------------------------
+  REDIS_URL: redis://127.0.0.1:6379
+  # Upstream's household defaults: one Puma worker, three job threads.
+  WEB_CONCURRENCY: "1"
+  BACKGROUND_PROCESSING_CONCURRENCY: "3"
+  # Keep the reverse-geocoded address on each point, once a geocoding
+  # provider is set - README, "Things to know".
+  STORE_GEODATA: "true"
+  PROMETHEUS_EXPORTER_ENABLED: "false"
+  # The pod runs as a uid with no home directory; Bundler and the CLI tools
+  # want one.
+  HOME: /tmp
+  # --- Login: Pocket ID only ---------------------------------------------------
+  # No password form and no sign-up form, and both refused at the API as
+  # well, not only hidden. An account is created at its first Pocket ID
+  # login. Who may log in at all is the client's
+  # Allowed User Groups in Pocket ID.
+  ALLOW_EMAIL_PASSWORD_LOGIN: "false"
+  ALLOW_EMAIL_PASSWORD_REGISTRATION: "false"
+  OIDC_AUTO_REGISTER: "true"
+  OIDC_ISSUER: https://id.lab.baakhoff.com
+  OIDC_PROVIDER_NAME: Pocket ID
+  OIDC_PKCE_ENABLED: "true"
+---
+# One pod, three containers: the web server, Sidekiq, and Redis between
+# them. Upstream runs the first two as separate containers sharing volumes;
+# here they share the storage volume, which is ReadWriteOnce, so they share
+# a pod. Imports are uploaded through the web server and processed by
+# Sidekiq, so both need the same files.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dawarich
+  namespace: dawarich
+spec:
+  # One replica on a ReadWriteOnce volume. Recreate for the reasons the
+  # Vaultwarden Deployment spells out; and with more than one, every Sidekiq
+  # would run the scheduled jobs.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dawarich
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dawarich
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # Upstream's own suggested uid. The image would start as root and
+        # drop to it with gosu after a chown; starting as it skips both.
+        runAsUser: 1000
+        runAsGroup: 1000
+        # kubelet hands the fresh volume's root to this group.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: docker.io/freikin/dawarich:1.15.3
+          # Waits for Postgres, runs the migrations and the seeds, copies the
+          # web assets into public/, then starts Puma.
+          command: ["web-entrypoint.sh"]
+          args: ["bin/rails", "server", "-p", "3000", "-b", "0.0.0.0"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - configMapRef:
+                name: dawarich-env
+            # DATABASE_PASSWORD, SECRET_KEY_BASE and the Pocket ID client.
+            # Created by hand into secret.sops.yaml beside this file. Until it
+            # exists the pod waits in CreateContainerConfigError - README,
+            # step 2.
+            - secretRef:
+                name: dawarich
+          ports:
+            - name: http
+              containerPort: 3000
+          # The first start loads every country's border and every region
+          # into PostGIS before Puma listens. Ten minutes before liveness gets
+          # a vote.
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+              # Otherwise force_ssl answers the probe with a redirect to
+              # https on the pod's own address.
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: storage
+              mountPath: /var/app/storage
+            - name: public
+              mountPath: /var/app/public
+        - name: sidekiq
+          image: docker.io/freikin/dawarich:1.15.3
+          # Imports, stats, visit detection, tracks, exports. On the very
+          # first start it may come up before the web container has migrated
+          # the database, fail, and be restarted - harmless.
+          command: ["sidekiq-entrypoint.sh"]
+          args: ["sidekiq"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - configMapRef:
+                name: dawarich-env
+            - secretRef:
+                name: dawarich
+          # An import of years of Google history is parsed here, and that is
+          # what the limit is for; idle it is a few hundred megabytes.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: storage
+              mountPath: /var/app/storage
+            - name: public
+              mountPath: /var/app/public
+        # The job queue, the cache and the live map updates. No persistence
+        # and no volume, as in Paperless: a restart loses only jobs still
+        # queued - an import in progress has to be started again. Listening
+        # on loopback, so nothing outside the pod can reach it whatever the
+        # NetworkPolicy says.
+        - name: redis
+          image: docker.io/library/redis:8.10.2-alpine
+          args: ["redis-server", "--bind", "127.0.0.1", "--save", "", "--appendonly", "no"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: dawarich-storage
+        # The image's public/ is root's, and the entrypoint copies the web
+        # assets into it at every start, so it has to be writable. Nothing
+        # in it needs to outlive the pod.
+        - name: public
+          emptyDir:
+            sizeLimit: 1Gi
