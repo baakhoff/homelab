@@ -1,4 +1,4 @@
-{{ config(materialized='incremental', incremental_strategy='append', order_by='(point_id)', partition_by='toYYYYMM(ts)') }}
+{{ config(materialized='incremental', incremental_strategy='append', order_by='(point_id)', partition_by='toYear(ts)') }}
 
 -- Where the phone was: one row per location point. Not a snapshot like the
 -- other API sources - the ingest DAG sends the last week of points each day
@@ -7,6 +7,10 @@
 -- first seen: one edited or deleted in Dawarich afterwards stays as it was.
 --
 -- Anomalies (points Dawarich flagged as GPS jumps) are not sent.
+--
+-- Partitioned by year, not month: the run after an import of old history
+-- inserts every point at once, and ClickHouse refuses an insert that spans
+-- more than 100 partitions - nine years of months.
 with rows as (
   select
     toUInt64OrZero(JSONExtractString(payload, 'id')) as point_id,
