@@ -73,8 +73,15 @@ data:
     #!/bin/bash
     # Builds the index unless the one on the volume was built from exactly
     # these settings. Any change to them - a country, a language, or
-    # IMPORT_STAMP - builds it again, into next/, and swaps it in only once
-    # the import has succeeded.
+    # IMPORT_STAMP - builds it again and swaps it in only once the import
+    # has succeeded.
+    #
+    # The build happens on the node's own disk (/build), not on the Ceph
+    # volume: indexing tens of millions of places merges the index over and
+    # over, and over the network those writes stalled OpenSearch past the
+    # importer's fixed 30-second timeout, which ends the import. The finished
+    # index is then copied to the volume once, sequentially, and the build
+    # copy deleted.
     set -euo pipefail
     cd /photon/data
     want="$IMPORT_STAMP | $DUMPS | $COUNTRIES | $LANGUAGES"
@@ -83,15 +90,19 @@ data:
       exit 0
     fi
     echo "Building the index: $want"
-    rm -rf next
-    mkdir next
+    rm -rf /build/next next
+    mkdir /build/next
     # shellcheck disable=SC2086 # DUMPS is a list
     python /scripts/stream.py $DUMPS \
       | java $JAVA_OPTS -jar /photon/photon.jar import \
           -import-file - \
-          -data-dir /photon/data/next \
+          -data-dir /build/next \
           -country-codes "$COUNTRIES" \
           -languages "$LANGUAGES"
+    echo "Copying the index to the volume: $(du -sh /build/next/photon_data | cut -f1)"
+    mkdir next
+    cp -a /build/next/photon_data next/
+    rm -rf /build/next
     rm -rf photon_data
     mv next/photon_data photon_data
     rmdir next
@@ -175,6 +186,9 @@ spec:
             requests:
               cpu: 500m
               memory: 5Gi
+              # The build's room on the node's disk, so the scheduler picks
+              # a node that has it.
+              ephemeral-storage: 25Gi
             limits:
               memory: 6Gi
           volumeMounts:
@@ -182,6 +196,8 @@ spec:
               mountPath: /photon/data
             - name: scripts
               mountPath: /scripts
+            - name: build
+              mountPath: /build
       containers:
         - name: photon
           image: docker.io/rtuszik/photon-docker:2.4.0
@@ -239,3 +255,10 @@ spec:
         - name: scripts
           configMap:
             name: photon-import
+        # Where the index is built, on the node's NVMe rather than Ceph -
+        # import.sh says why. Empty again once the index is copied; gone
+        # with the pod. The limit is the index for these countries (about
+        # 16GB) with room to spare; past it the kubelet evicts the pod.
+        - name: build
+          emptyDir:
+            sizeLimit: 30Gi
