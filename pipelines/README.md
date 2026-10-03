@@ -64,6 +64,11 @@ Against the lab's ClickHouse, port-forward it first
 (`kubectl -n data port-forward svc/clickhouse 8123`) and use the `dbt`
 user's password.
 
+The rendered documentation - lineage, SQL, columns - is at
+<https://dbt.lab.baakhoff.com>, regenerated from `main` hourly
+(`clusters/lab/airflow/dbt-docs.yaml`). A model's `description` and its
+columns' descriptions in a `schema.yml` are what fill it in.
+
 ## Adding things
 
 - **A model**: a `.sql` file in the right layer. It is a task in the

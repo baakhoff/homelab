@@ -81,6 +81,19 @@ spec:
           port: 9092
         - protocol: TCP
           port: 8123
+    # The dbt docs page (clusters/lab/airflow/dbt-docs.yaml): `dbt docs
+    # generate`, as the same `dbt` user, reading the warehouse's column types
+    # for the catalog. ClickHouse only.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: dbt-docs
+      ports:
+        - protocol: TCP
+          port: 8123
   egress:
     # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
     - to:
