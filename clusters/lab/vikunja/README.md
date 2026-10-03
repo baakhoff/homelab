@@ -99,20 +99,11 @@ curl -s -o /dev/null -w '%{http_code}\n' https://tasks.lab.baakhoff.com/
 - **Later phases, each naming its own networkpolicy rule:** OIDC login
   (needs the lab front door), webhooks (needs their targets), SMTP.
 
-## Not backed up yet
+## Backup
 
-As of 2026-10-02 this volume is staged on the parking list - last in line,
-behind the six services already waiting. To back it up later, the same
-three pieces as Paperless, in this order:
-
-1. the `restic-repo` Secret in the `vikunja` namespace (hand-made, same
-   values as elsewhere),
-2. the RoleBinding - already in `clusters/lab/backup/rbac.yaml`, landed
-   with this component,
-3. and last, the `vikunja/vikunja-data` entry in `BACKUP_TARGETS`.
-
-Order is load-bearing: a target whose Secret is missing fails the whole
-nightly run, heartbeat included.
+`vikunja/vikunja-data` is in the nightly backup (`clusters/lab/backup/`): the
+SQLite database and the attachments, one volume, so each snapshot is one
+consistent moment.
 
 ## Rollback
 

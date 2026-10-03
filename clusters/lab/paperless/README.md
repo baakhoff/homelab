@@ -140,27 +140,13 @@ sign in with a token or a password instead:
 The regular login form is left enabled for exactly this, and for the day Pocket
 ID is down.
 
-## Backup - not yet, and in this order
+## Backup
 
-The volume is the only thing here that is not reconstructible, and it is the
-whole point of the service. Same three pieces as Minecraft and Pocket ID, and
-the first cannot come from this repository:
+`paperless/paperless-data` is in the nightly backup (`clusters/lab/backup/`),
+second after Vaultwarden: the volume is the only thing here that is not
+reconstructible, and the originals are the whole point of the service.
 
-1. **The `restic-repo` Secret in the `paperless` namespace.** Same values as
-   the other copies, differing only in `metadata.namespace`; the backup README
-   has the commands. Encrypt it into
-   `clusters/lab/backup/restic-repo-paperless.sops.yaml`. It has to point at
-   the SAME repository as the others: the weekly prune job reads only the copy
-   in the `backup` namespace, so a second repository would be written nightly
-   and never pruned or checked.
-2. **The `RoleBinding`** - already in `clusters/lab/backup/rbac.yaml`, landed
-   with this. Harmless ahead of time.
-3. **`paperless/paperless-data` in `BACKUP_TARGETS`** in
-   `clusters/lab/backup/cronjob-backup.yaml`. **Last**, in a commit after the
-   Secret has reconciled: the driver fails the whole run, heartbeat included,
-   on a target whose Secret is missing.
-
-What that backup is: a crash-consistent RBD snapshot of the one volume, taken
+What the backup is: a crash-consistent RBD snapshot of the one volume, taken
 while the server runs. SQLite in WAL mode is built to survive exactly that, and
 the originals are plain files. `PAPERLESS_FILENAME_FORMAT` on the Deployment
 is chosen so the restored tree is readable by a human even if the database is
