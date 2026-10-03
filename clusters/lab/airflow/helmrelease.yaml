@@ -168,7 +168,16 @@ spec:
           limits:
             memory: 128Mi
 
+    # The migration job as an ordinary resource, not a Helm hook. As a
+    # post-install hook it runs only after the install has succeeded - and
+    # Flux counts the install as succeeded only once the pods are ready,
+    # which they never are, because each one waits for the migration first.
+    # The first install deadlocked on exactly that; the chart's values file
+    # gives the same advice for GitOps tools. As a plain Job it runs at once,
+    # beside the pods, and the chart's 5-minute TTL removes it afterwards so
+    # the next upgrade creates it fresh.
     migrateDatabaseJob:
+      useHelmHooks: false
       resources:
         requests:
           cpu: 100m
