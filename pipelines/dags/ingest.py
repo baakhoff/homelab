@@ -34,14 +34,37 @@ PAGE_SIZE = 100
 TIMEOUT = 60
 
 
+def _json(r: requests.Response, key: str | None, url: str):
+    """The response's JSON, after checking it is the list this pager expects.
+
+    A wrong path or a lost login does not always fail loudly: Paperless
+    answered a path without its trailing slash with a redirect to the login
+    page, requests followed it, and the pager read "no records" out of the
+    login page - a green task with nothing in it, every run, on the first
+    day. Anything that is not the expected shape is an error here instead.
+    """
+    r.raise_for_status()
+    if r.history:
+        raise RuntimeError(f"{url} redirected to {r.url} - wrong path, or the login was lost")
+    try:
+        body = r.json()
+    except ValueError:
+        raise RuntimeError(f"{url} did not answer JSON (content-type {r.headers.get('content-type')})")
+    if key is None:
+        if not isinstance(body, list):
+            raise RuntimeError(f"{url} answered {type(body).__name__}, expected a list")
+    elif not isinstance(body, dict) or not isinstance(body.get(key), list):
+        raise RuntimeError(f"{url} answered without a '{key}' list")
+    return body
+
+
 def _firefly_pages(session: requests.Session, url: str):
     """JSON:API, page numbers, meta.pagination.total_pages."""
     page = 1
     while True:
         r = session.get(url, params={"page": page, "limit": PAGE_SIZE}, timeout=TIMEOUT)
-        r.raise_for_status()
-        body = r.json()
-        yield from body.get("data", [])
+        body = _json(r, "data", url)
+        yield from body["data"]
         total = body.get("meta", {}).get("pagination", {}).get("total_pages", 1)
         if page >= total:
             return
@@ -53,8 +76,7 @@ def _vikunja_pages(session: requests.Session, url: str):
     page = 1
     while True:
         r = session.get(url, params={"page": page, "per_page": PAGE_SIZE}, timeout=TIMEOUT)
-        r.raise_for_status()
-        yield from r.json() or []
+        yield from _json(r, None, url)
         total = int(r.headers.get("x-pagination-total-pages", "1") or 1)
         if page >= total:
             return
@@ -66,22 +88,24 @@ def _mealie_pages(session: requests.Session, url: str):
     page = 1
     while True:
         r = session.get(url, params={"page": page, "perPage": PAGE_SIZE}, timeout=TIMEOUT)
-        r.raise_for_status()
-        body = r.json()
-        yield from body.get("items", [])
+        body = _json(r, "items", url)
+        yield from body["items"]
         if page >= body.get("total_pages", 1):
             return
         page += 1
 
 
 def _paperless_pages(session: requests.Session, url: str):
-    """Django REST framework: {"results": [...], "next": url-or-null}."""
-    next_url, params = url, {"page_size": PAGE_SIZE}
+    """Django REST framework: {"results": [...], "next": url-or-null}.
+
+    Django wants the trailing slash: without it the answer is a redirect to
+    the login page, not to the slashed path.
+    """
+    next_url, params = url.rstrip("/") + "/", {"page_size": PAGE_SIZE}
     while next_url:
         r = session.get(next_url, params=params, timeout=TIMEOUT)
-        r.raise_for_status()
-        body = r.json()
-        yield from body.get("results", [])
+        body = _json(r, "results", next_url)
+        yield from body["results"]
         next_url, params = body.get("next"), None
 
 
