@@ -6,7 +6,11 @@ minute, so a merged change is live a minute later.
 
     dags/
       ingest.py      one DAG per service: snapshot its API into Kafka
+      telegram.py    one Telegram account's private chats, logged in as it
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
+    tools/
+      telegram_login.py  the one-time Telegram login, into the Secret
+    telegram.md      what Telegram sends, its setup and renewal
     dbt/
       models/ods/    raw parsed into typed tables, one system at a time
       models/ads/    joins and aggregates across systems
@@ -28,11 +32,11 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `ha_states`, `logs`, `k8s_events` |
-| `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `telegram_chats`, `telegram_messages`, `ha_states`, `logs`, `k8s_events` |
+| `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
-Three patterns cover the sources:
+Four patterns cover the sources:
 
 - **API snapshots** (Firefly, Vikunja, Mealie, Paperless, SparkyFitness,
   Dawarich's visits and places) - `snapshot_records()` returns the newest
@@ -42,6 +46,10 @@ Three patterns cover the sources:
   because the whole history is millions of points. `ods.dawarich_points` is
   incremental and keeps each point as first seen, so a point deleted at
   the source stays.
+- **Messages sent once** (Telegram) - each message is sent when it is new
+  and again when edited, and `ods.telegram_messages` keeps every message's
+  newest copy across all runs. Rebuilt every run; a message deleted at the
+  source stays.
 - **Streams** (Home Assistant, logs, Kubernetes events) - incremental: each
   run appends what arrived since the last.
 
