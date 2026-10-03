@@ -31,7 +31,7 @@ data:
   # write to the topic; nothing is auto-created (kafka.yaml), so a producer
   # with a wrong name fails instead of disappearing into a topic nobody
   # reads.
-  SOURCES: homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich
+  SOURCES: homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich telegram
 
   topics.sh: |
     set -eu
