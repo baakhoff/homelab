@@ -55,6 +55,21 @@ spec:
       ports:
         - protocol: TCP
           port: 9092
+    # Airflow's scheduler, where its tasks run (clusters/lab/airflow/): the
+    # ingest DAGs write to Kafka, and dbt reads and writes ClickHouse over
+    # HTTP as the `dbt` user.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 8123
   egress:
     # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
     - to:

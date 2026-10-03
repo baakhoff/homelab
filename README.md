@@ -48,6 +48,8 @@ exception: it keeps its own master password.
 | [n8n](https://n8n.io) | Visual automations: schedules, emails and webhooks wired to any service in or outside the lab. |
 | [Apache Kafka](https://kafka.apache.org) | The event bus every source writes its raw data to. |
 | [ClickHouse](https://clickhouse.com) | The column store those events land in, queried in SQL. |
+| [Apache Airflow](https://airflow.apache.org) | Runs the data pipelines: API snapshots into Kafka, and the dbt models. |
+| [dbt](https://www.getdbt.com) | The SQL models that build the warehouse's layers from the raw data. |
 | [Mealie](https://mealie.io) | Recipes imported from any site by link, meal plans and shared shopping lists. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
@@ -89,7 +91,9 @@ exception: it keeps its own master password.
   and shopping lists ([how](clusters/lab/mealie/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
   feeding ClickHouse, where every source's raw data is kept for querying
-  ([how](clusters/lab/data/README.md)). Nightly restic backup of its volumes
+  ([how](clusters/lab/data/README.md)), and Airflow running the pipelines
+  that pull the services' data in and the dbt models that shape it
+  ([how](clusters/lab/airflow/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)
@@ -115,6 +119,8 @@ images/
   claude-agent/     # container image for the Claude Code agent pods, built by GitHub Actions
   paperless-ngx/    # upstream Paperless-ngx plus extra OCR languages, built the same way
   cobalt-web/       # cobalt's web page, which upstream does not publish, built the same way
+  airflow/          # Airflow plus Cosmos, the Kafka client and dbt, built the same way
+pipelines/          # the data warehouse's Airflow DAGs and dbt project, pulled by Airflow
 docs/
   hardware.md       # hardware inventory and specs
   network.md        # addressing, the switch, how the lab is reached from outside

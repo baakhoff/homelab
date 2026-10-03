@@ -1,0 +1,18 @@
+# How dbt reaches ClickHouse. Every value that varies comes from the
+# environment: the password from the clickhouse-dbt Secret (empty when
+# unset, so that `dbt ls` can read the project without it), the host
+# defaulting to the in-cluster Service. Nothing secret is in this file.
+warehouse:
+  target: lab
+  outputs:
+    lab:
+      type: clickhouse
+      host: "{{ env_var('CLICKHOUSE_HOST', 'clickhouse.data.svc.cluster.local') }}"
+      port: "{{ env_var('CLICKHOUSE_HTTP_PORT', '8123') | int }}"
+      user: "{{ env_var('CLICKHOUSE_USER', 'dbt') }}"
+      password: "{{ env_var('CLICKHOUSE_PASSWORD', '') }}"
+      schema: ods
+      secure: false
+      threads: 2
+      connect_timeout: 30
+      send_receive_timeout: 600

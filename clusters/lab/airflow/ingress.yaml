@@ -1,0 +1,35 @@
+# Airflow's UI. Behind the admin gate (lab-admins only), which is its only
+# lock: helmrelease.yaml tells Airflow to treat everyone who reaches it as
+# an admin rather than ask for a second login.
+#
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: airflow
+  namespace: airflow
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Airflow
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: apache-airflow.png
+    gethomepage.dev/description: The data pipelines' runs
+    gethomepage.dev/href: https://airflow.lab.baakhoff.com
+    # Homepage's health badge finds pods by the Ingress name by default;
+    # the chart labels them by component instead.
+    gethomepage.dev/pod-selector: component=api-server
+spec:
+  rules:
+    - host: airflow.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airflow-api-server
+                port:
+                  number: 8080

@@ -1,6 +1,6 @@
 # Who may talk to the broker, and what it may talk to.
 #
-# In: the brand agent pod, and nothing else. The broker holds a token with
+# In: the brand agent pod and Airflow's scheduler, and nothing else. The broker holds a token with
 # the household owner's rights, so every other pod is refused even though
 # the name resolves cluster-wide. brand's egress half of this door is
 # clusters/lab/agents/networkpolicy-brand.yaml; another agent given access
@@ -25,6 +25,19 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: brand
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Airflow's scheduler: the ingest_firefly DAG snapshots the API into the
+    # data warehouse (pipelines/dags/ingest.py). It only reads, but the
+    # broker's door is per caller, not per method.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
       ports:
         - protocol: TCP
           port: 8080

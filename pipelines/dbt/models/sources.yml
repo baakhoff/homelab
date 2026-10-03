@@ -1,0 +1,23 @@
+version: 2
+
+# The raw layer: one table per source system, filled from Kafka by
+# ClickHouse itself (clusters/lab/data/clickhouse-schema.yaml). Every table
+# has the same columns; `payload` is the message exactly as produced.
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: homeassistant
+        description: Home Assistant state changes, one JSON state object per message.
+      - name: logs
+        description: Pod log lines, OTLP JSON from the Alloy collectors. Kept 90 days.
+      - name: k8s_events
+        description: Kubernetes events, OTLP JSON with the event as JSON in the body.
+      - name: firefly
+        description: Firefly III API snapshots, one record per message in the ingest envelope.
+      - name: vikunja
+        description: Vikunja API snapshots, one record per message in the ingest envelope.
+      - name: mealie
+        description: Mealie API snapshots, one record per message in the ingest envelope.
+      - name: paperless
+        description: Paperless-ngx API snapshots, one record per message in the ingest envelope.

@@ -1,0 +1,26 @@
+# The warehouse's transformations: raw -> ods -> ads -> dm, one ClickHouse
+# database per layer (clusters/lab/data/README.md). Airflow runs it as the
+# `warehouse` DAG, one task per model (pipelines/dags/warehouse.py).
+name: warehouse
+version: "1.0.0"
+profile: warehouse
+config-version: 2
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+target-path: target
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  warehouse:
+    # Each folder builds into the database of the same name - exactly that
+    # name, see macros/generate_schema_name.sql.
+    ods:
+      +schema: ods
+      +materialized: table
+    ads:
+      +schema: ads
+      +materialized: table
+    dm:
+      +schema: dm
+      +materialized: table

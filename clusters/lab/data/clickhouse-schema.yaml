@@ -13,9 +13,9 @@
 #   ads  aggregated data storage - joins and aggregates across systems.
 #   dm   data marts - the tables a question or a dashboard reads.
 #
-# ods, ads and dm are created empty here. Every table in them is built
-# from the layer below by transformation models; nothing writes into them
-# by hand.
+# ods, ads and dm are created empty here, with the `dbt` user that builds
+# every table in them from the layer below (pipelines/dbt/, run by
+# Airflow). Nothing writes into them by hand.
 #
 # The plumbing between Kafka and raw - one Kafka engine table and one
 # materialized view per source - lives in a fifth database, `kafka`, so
@@ -108,6 +108,22 @@ data:
         FROM kafka.${t}_queue;
       "
     done
+
+    # The user dbt runs as (pipelines/dbt/, run by Airflow): reads raw,
+    # owns the three layers above it, nothing else - it cannot change raw
+    # or create users. The password is set on every run, so rotating it is
+    # a change to both copies of the Secret (clusters/lab/airflow/README.md)
+    # and the next run of this job. Hex only, so it needs no quoting here.
+    ch --query "
+      CREATE USER IF NOT EXISTS dbt IDENTIFIED WITH sha256_password BY '$DBT_PASSWORD';
+      ALTER USER dbt IDENTIFIED WITH sha256_password BY '$DBT_PASSWORD';
+      GRANT SELECT ON raw.* TO dbt;
+      GRANT ALL ON ods.* TO dbt;
+      GRANT ALL ON ads.* TO dbt;
+      GRANT ALL ON dm.* TO dbt;
+      GRANT TABLE ENGINE ON MergeTree TO dbt;
+      GRANT CREATE TEMPORARY TABLE ON *.* TO dbt;
+    "
     echo "schema in place for: $SOURCES"
 ---
 apiVersion: batch/v1
@@ -184,6 +200,11 @@ spec:
                     secretKeyRef:
                       name: clickhouse-admin
                       key: CLICKHOUSE_PASSWORD
+                - name: DBT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-dbt
+                      key: DBT_PASSWORD
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
