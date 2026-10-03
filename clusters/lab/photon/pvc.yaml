@@ -1,0 +1,21 @@
+# The search index: OpenStreetMap's places, streets and addresses for the
+# countries in deployment.yaml, as an embedded OpenSearch database. Nothing
+# here that cannot be downloaded and built again, so it is not backed up
+# (README).
+#
+# 40Gi: the index comes to about five times the dumps it is built from -
+# measured on Montenegro and Kosovo - so about 16Gi for these countries, and
+# a rebuild writes the new one beside the old before swapping them, so for
+# a few hours there are two. Expandable in place if a country is added.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: photon-data
+  namespace: photon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 40Gi

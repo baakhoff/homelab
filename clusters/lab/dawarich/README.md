@@ -189,12 +189,18 @@ the web server directly on 3000, not through the Ingress, past a door in
 
 ## Things to know
 
-- **Nothing leaves the lab by default.** Reverse geocoding, which turns
-  points into street and city names, is off until an admin sets a provider
-  in the instance settings, and every provider is a service outside the lab
-  that then receives the coordinates. Countries are worked out locally,
-  from the borders loaded at the first start. Immich, below, stays inside
-  the lab.
+- **Nothing leaves the lab.** Reverse geocoding, which turns points into
+  street, city and place names, is the lab's own Photon
+  (`clusters/lab/photon/`), set in `deployment.yaml`. It holds Denmark,
+  the Balkans, Greece, Romania, Turkey, Georgia, Russia, China and
+  Kazakhstan; a point elsewhere keeps its country and gets no street.
+  Countries are worked out locally, from the borders loaded at the first
+  start. The instance settings page shows Photon as pinned by a variable:
+  a provider entered there does not replace it. Immich, below, stays
+  inside the lab too.
+- **Old points are geocoded overnight.** A nightly job looks up every point
+  that has no address yet, so an imported history gets its streets and
+  cities over the following nights, with no step to run.
 - **Immich**, once it is in the lab: each user enters its URL and an Immich
   API key in their own Dawarich settings, and their photos appear on the map
   at the places they were taken. Immich's side will need a door for this

@@ -1,0 +1,30 @@
+# In: Dawarich's pod, and nothing else - no Ingress, no other namespace.
+# Every lookup is a coordinate from someone's location history, so the
+# geocoder answers only the one service that has them.
+#
+# Out: not restricted. The import downloads the OpenStreetMap dumps from
+# GraphHopper's server (deployment.yaml); serving needs nothing outside the
+# pod.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: photon
+  namespace: photon
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: photon
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dawarich
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: dawarich
+      ports:
+        - protocol: TCP
+          port: 2322
