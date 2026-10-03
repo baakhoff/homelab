@@ -14,17 +14,41 @@ data:
     """Each dump in turn to stdout, decompressed; fails on a bad checksum."""
     import hashlib
     import sys
+    import time
+    import urllib.error
     import urllib.request
 
     import zstandard
 
     BASE = "https://download1.graphhopper.com/public"
+    HEADERS = {"User-Agent": "photon-import (homelab; github.com/baakhoff/homelab)"}
     out = sys.stdout.buffer
+
+
+    def fetch(url, timeout):
+        """The response, after up to six tries: a name lookup that fails
+        once, or a server that answers 5xx, is no reason to throw the
+        import away. A 4xx is - the file is not there."""
+        for attempt in range(6):
+            try:
+                return urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=timeout)
+            except urllib.error.HTTPError as e:
+                if e.code < 500 or attempt == 5:
+                    raise
+                error = e
+            except OSError as e:
+                if attempt == 5:
+                    raise
+                error = e
+            wait = 15 * 2 ** attempt
+            print(f"{url}: {error}; trying again in {wait}s", file=sys.stderr, flush=True)
+            time.sleep(wait)
+
 
     for path in sys.argv[1:]:
         name = path.rsplit("/", 1)[-1]
         url = f"{BASE}/{path}/photon-dump-{name}-1.0-latest.jsonl.zst"
-        with urllib.request.urlopen(url + ".md5", timeout=60) as r:
+        with fetch(url + ".md5", timeout=60) as r:
             want = r.read().split()[0].decode()
         md5 = hashlib.md5()
 
@@ -37,7 +61,7 @@ data:
                 md5.update(chunk)
                 return chunk
 
-        with urllib.request.urlopen(url, timeout=300) as r:
+        with fetch(url, timeout=300) as r:
             for chunk in zstandard.ZstdDecompressor().read_to_iter(Hashed(r), read_size=1 << 20):
                 out.write(chunk)
         if md5.hexdigest() != want:
