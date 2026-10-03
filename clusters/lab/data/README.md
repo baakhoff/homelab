@@ -167,8 +167,10 @@ kernel then kills the broker, not the tool.
 - **One broker, one replica per topic.** The volume is Ceph's three copies,
   so a lost node costs a restart, not data. A broker that is down for longer
   than a producer buffers loses that producer's messages for the gap.
-- **Not backed up.** Neither volume is in the nightly backup. Kafka's
-  should never need to be; ClickHouse's can be added like any other
-  (`clusters/lab/backup/README.md`).
+- **Backed up: ClickHouse, nightly** (`data/data-clickhouse-0`, last in
+  `clusters/lab/backup/`). Kafka's volume is not and should never need to
+  be: a week's buffer of what ClickHouse already holds. The backup's restic
+  pod reaches the bucket through `restic-backup-egress` in
+  `networkpolicy.yaml`; nothing else here has the internet.
 - **Memory:** Kafka is capped at 1Gi (512m heap), ClickHouse at 3Gi, and
   ClickHouse holds itself to 80% of that.
