@@ -56,8 +56,23 @@ own namespace. Only the orchestration is central.
 
 ## What is backed up
 
-`vaultwarden/vaultwarden-data` first, then
-`monitoring/kube-prometheus-stack-grafana` and the Alertmanager claim.
+`vaultwarden/vaultwarden-data` first, then `firefly/firefly-data`, then
+`monitoring/kube-prometheus-stack-grafana` and the Alertmanager claim, and
+`data/data-clickhouse-0` last.
+
+Firefly is second because the household's books are the next thing that
+cannot be rebuilt, and because an agent can now delete through the Firefly
+broker (`clusters/lab/firefly-broker/`) - the backup is the only undo.
+ClickHouse is last because it is the largest and the least urgent: the
+services' own data is in their own volumes, and what only ClickHouse holds
+is history - every snapshot ever taken, Home Assistant's state changes, the
+logs. Its snapshot is crash-consistent, which MergeTree survives the way it
+survives a power cut: parts are written whole and renamed into place.
+
+The `data` namespace allows no internet by default, so the restic pod gets
+its way to the bucket from a policy of its own there
+(`clusters/lab/data/networkpolicy.yaml`), matched by the label this driver
+puts on every restic pod.
 
 Vaultwarden is the reason this exists and is listed first on purpose: the
 driver works through targets in order, so the one volume whose loss is
@@ -117,9 +132,17 @@ kubectl create secret generic restic-repo \
 sops --encrypt --in-place clusters/lab/backup/restic-repo.sops.yaml
 ```
 
-Repeat for every namespace holding a backed-up volume — currently `monitoring`
-and `vaultwarden` — into `restic-repo-monitoring.sops.yaml` and
-`restic-repo-vaultwarden.sops.yaml`. The files are the same secret differing
+Repeat for every namespace holding a backed-up volume — currently `monitoring`,
+`vaultwarden`, `firefly` and `data` — into `restic-repo-<namespace>.sops.yaml`.
+The quickest way from an existing copy, without the values ever touching the
+screen:
+
+```
+sops -d clusters/lab/backup/restic-repo-vaultwarden.sops.yaml \
+  | sed 's/^  namespace: vaultwarden$/  namespace: <namespace>/' \
+  > clusters/lab/backup/restic-repo-<namespace>.sops.yaml
+sops --encrypt --in-place clusters/lab/backup/restic-repo-<namespace>.sops.yaml
+``` The files are the same secret differing
 only in `metadata.namespace`, which is the same pattern the cert-manager
 Cloudflare token follows.
 

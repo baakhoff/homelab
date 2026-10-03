@@ -255,6 +255,12 @@ data:
       # never lands - none of which mark a Job failed on their own.
       activeDeadlineSeconds: $JOB_TIMEOUT_SECONDS
       template:
+        metadata:
+          # What a namespace's NetworkPolicy names to let this pod reach the
+          # bucket - the data namespace's, which allows no internet otherwise.
+          labels:
+            app.kubernetes.io/name: restic-backup
+            app.kubernetes.io/part-of: backup
         spec:
           restartPolicy: Never
           securityContext:
