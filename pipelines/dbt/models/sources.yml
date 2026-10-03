@@ -21,3 +21,5 @@ sources:
         description: Mealie API snapshots, one record per message in the ingest envelope.
       - name: paperless
         description: Paperless-ngx API snapshots, one record per message in the ingest envelope.
+      - name: sparkyfitness
+        description: SparkyFitness API snapshots of one account's diary, one record per message in the ingest envelope.

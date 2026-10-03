@@ -6,7 +6,7 @@ plus exercise, water, weight and body measurements, with goals and reports.
 Food comes from Open Food Facts, USDA and others, with barcode scanning. Its AI
 assistant logs a meal from a sentence or a photo.
 
-At <https://fitness.lab.baakhoff.com>, and on Homepage under Lab.
+At <https://fitness.lab.baakhoff.com>, and on Homepage under Everyday → Home.
 
 ## How login works
 
@@ -87,6 +87,50 @@ the Google Play beta or the APK from the GitHub releases page; upstream's
 [mobile app page](https://codewithcj.github.io/SparkyFitness/mobile-app/mobile-app)
 has the links. Set the server to `https://fitness.lab.baakhoff.com` and sign
 in with Pocket ID. Then let the app read Apple Health or Health Connect.
+
+**5. Feed the data warehouse.** Airflow's `ingest_sparkyfitness` DAG
+copies the diary into ClickHouse's `raw.sparkyfitness` every 6 hours
+(`pipelines/dags/ingest.py`), with an API key. Until the key exists, that
+DAG's runs fail and nothing else is affected.
+
+Signed in as the person whose diary should be copied, open Settings → API
+Key Management and generate a key. Then, on the workstation from the repo
+root, add it to Airflow's Secret, one line at a time:
+
+```bash
+read -rsp 'sparkyfitness api key: ' SK; echo
+sops set clusters/lab/airflow/sources.sops.yaml '["data"]["SPARKYFITNESS_API_KEY"]' "\"$(printf %s "$SK" | base64 | tr -d '\n')\""
+unset SK
+```
+
+On the Mac's zsh, the first line is `read -rs "SK?sparkyfitness api key: "; echo`.
+The Secret's values are base64, hence the `base64` in the middle. Commit
+and push. Once Flux has applied it, restart the scheduler, because a pod
+reads its environment only when it starts:
+
+```bash
+kubectl -n airflow rollout restart deployment/airflow-scheduler
+```
+
+Then trigger `ingest_sparkyfitness` in the Airflow UI, and after it the
+`warehouse` DAG. The day-by-day view is `ads.nutrition_daily`.
+
+## What reaches the warehouse
+
+The API key belongs to one account, and SparkyFitness's API answers for
+that account only. So the warehouse holds **one person's diary**, the key
+owner's, not the whole household's. Everything that account can see, the
+DAG can read: the key has the account's full rights, read and write, like
+the Mealie and Vikunja tokens. It reaches the server directly on 3010, not
+through the frontend, past a door in `networkpolicy.yaml`.
+
+The DAG takes a full snapshot each run: every food entry, check-in, daily
+water total, night of sleep and workout from 2000 to tomorrow. The ods
+layer keeps the newest copy of each (`ods.sparkyfitness_*`), so a deleted
+entry drops out at the next run.
+
+Not copied yet: custom measurements, mood, fasting and the raw health
+samples the phone app syncs. Each is one more endpoint in the DAG.
 
 ## Garmin
 
