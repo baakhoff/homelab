@@ -56,10 +56,23 @@ own namespace. Only the orchestration is central.
 
 ## What is backed up
 
-`vaultwarden/vaultwarden-data` first, then `firefly/firefly-data`, then
-`monitoring/kube-prometheus-stack-grafana` and the Alertmanager claim, and
-`data/data-clickhouse-0`, and the nine agent volumes (`agents/homelab`,
-`brand`, `bid`, `epicurus`, `scratch`, `slot-1` to `slot-4`) last.
+In this order - the driver works through them one at a time, so the volumes
+whose loss would hurt most are written first:
+
+| # | Volume | Why there |
+|---|---|---|
+| 1 | `vaultwarden/vaultwarden-data` | the passwords; unrecoverable |
+| 2 | `paperless/paperless-data` | the original documents; the whole point of the service |
+| 3 | `pocket-id/pocket-id-data` | every passkey, user and OIDC client - every login in the lab |
+| 4 | `firefly/firefly-data` | the household's books |
+| 5 | `home-assistant/home-assistant-config` | devices, automations, history |
+| 6 | `n8n/n8n-data` | workflows and the credentials they hold |
+| 7 | `vikunja/vikunja-data` | the task board |
+| 8 | `mealie/mealie-data` | recipes and meal plans |
+| 9-10 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
+| 11 | `minecraft/minecraft-data` | the world |
+| 12 | `data/data-clickhouse-0` | the warehouse's history |
+| 13-21 | the nine `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly
@@ -141,8 +154,8 @@ kubectl create secret generic restic-repo \
 sops --encrypt --in-place clusters/lab/backup/restic-repo.sops.yaml
 ```
 
-Repeat for every namespace holding a backed-up volume — currently `monitoring`,
-`vaultwarden`, `firefly`, `data` and `agents` — into `restic-repo-<namespace>.sops.yaml`.
+Repeat for every namespace holding a backed-up volume — one per namespace in
+the table above — into `restic-repo-<namespace>.sops.yaml`.
 The quickest way from an existing copy, without the values ever touching the
 screen:
 

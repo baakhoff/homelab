@@ -59,6 +59,5 @@ only because `clusters/lab/data/networkpolicy.yaml` names it.
   cloud work; add local devices by IP.
 - **No USB radios.** Zigbee / Z-Wave / Matter dongles need node-level device
   passthrough - a different architecture, deliberately not this one.
-- **Not backed up yet.** When that changes it is the usual three pieces
-  (Secret, RoleBinding, `BACKUP_TARGETS` entry) in the order
-  `../backup/README.md` gives.
+- **Backed up nightly** (`clusters/lab/backup/`): the whole config volume,
+  recorder database included, from a crash-consistent snapshot.

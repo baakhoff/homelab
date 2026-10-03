@@ -82,13 +82,8 @@ the gate and networkpolicy.yaml are what keep it out of reach.
 - **The mobile apps and API tokens** cannot get through the gate. The web app
   works well on a phone, and can be added to the home screen.
 
-## Backup - not yet, and in this order
+## Backup
 
-The same three pieces as Paperless, whose README has the reasoning:
-
-1. **The `restic-repo` Secret in the `mealie` namespace**, encrypted into
-   `clusters/lab/backup/restic-repo-mealie.sops.yaml`. It uses the same values
-   as the other copies and differs only in `metadata.namespace`.
-2. **The `RoleBinding`**, already in `clusters/lab/backup/rbac.yaml`.
-3. **`mealie/mealie-data` in `BACKUP_TARGETS`**, last, after the Secret has
-   reconciled.
+`mealie/mealie-data` is in the nightly backup (`clusters/lab/backup/`):
+recipes, meal plans, shopping lists and their images, from a crash-consistent
+snapshot, as Paperless's README explains.
