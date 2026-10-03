@@ -5,6 +5,10 @@
 # (README, step 4). Until that account is deleted, the gate is what stands in
 # front of it.
 #
+# One more way in: Airflow's scheduler, for the ingest_mealie DAG, which
+# authenticates with an API token. It reaches the API ungated, so it is
+# only safe once that default admin is gone.
+#
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -21,6 +25,18 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 9000
+    # Airflow's scheduler: the ingest_mealie DAG snapshots the API into the
+    # data warehouse, with its own API token (pipelines/dags/ingest.py).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
       ports:
         - protocol: TCP
           port: 9000

@@ -1,0 +1,177 @@
+# Apache Airflow, the orchestrator for the data warehouse
+# (clusters/lab/data/). It runs two kinds of DAG, both from this repository
+# (pipelines/, pulled by git-sync):
+#
+#   ingest_<source>  snapshot a service's API into its Kafka topic
+#   warehouse        the dbt project - raw -> ods -> ads -> dm - one task
+#                    per model, rendered by Cosmos
+#
+# LocalExecutor: tasks run as processes inside the scheduler pod. The work
+# is small and steady - a few API pulls and a few dozen SQL models an hour -
+# and this way there is no Redis, no Celery worker and no pod per task. The
+# scheduler's memory limit is therefore the tasks' limit too.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: airflow
+  namespace: airflow
+spec:
+  interval: 1h
+  # The chart's migration job runs as a Helm hook and can take minutes on
+  # the first install.
+  timeout: 15m
+  chart:
+    spec:
+      chart: airflow
+      version: "1.22.0"
+      sourceRef:
+        kind: HelmRepository
+        name: apache-airflow
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # The official image plus Cosmos, the Kafka client and dbt
+    # (images/airflow/). Always, because the tag is the Airflow version and
+    # is rebuilt in place when the image's other pins move - the same trade
+    # as the agent image, explained in images/claude-agent/README.md.
+    images:
+      airflow:
+        repository: ghcr.io/baakhoff/airflow
+        tag: "3.2.2"
+        pullPolicy: Always
+
+    executor: LocalExecutor
+
+    # Off: the scheduler would otherwise become a StatefulSet with a 100Gi
+    # volume for task logs. Logs live in the pod (an emptyDir) and go with
+    # it; Loki has the pod's output anyway.
+    workers:
+      celery:
+        persistence:
+          enabled: false
+
+    # Everything this setup does not use.
+    triggerer:
+      enabled: false
+    statsd:
+      enabled: false
+    redis:
+      enabled: false
+    pgbouncer:
+      enabled: false
+    # Bitnami's subchart; postgres.yaml beside this is the database instead.
+    postgresql:
+      enabled: false
+    # The default user job creates admin/admin for the FAB login, which is
+    # not used here (config below).
+    createUserJob:
+      enabled: false
+
+    # The four keys Airflow needs, all from one Secret (README, "Setup"):
+    #   connection      the metadata database URL, matching postgres-password
+    #   fernet-key      encrypts connections and variables in that database
+    #   api-secret-key  signs the API server's sessions
+    #   jwt-secret      signs the tokens tasks use to talk to the API server
+    # Given as existing Secrets so a chart upgrade never regenerates them.
+    data:
+      metadataSecretName: airflow-core
+    fernetKeySecretName: airflow-core
+    apiSecretKeySecretName: airflow-core
+    jwtSecretName: airflow-core
+
+    # The sources' API tokens and dbt's ClickHouse password, into every
+    # Airflow container as environment variables (README, "Setup").
+    extraEnvFrom: |
+      - secretRef:
+          name: airflow-sources
+
+    config:
+      core:
+        load_examples: "False"
+        # One login, not two: the admin gate (ingress.yaml) is the lock, so
+        # the simple auth manager treats everyone who reaches the UI as an
+        # admin, instead of asking for a second password.
+        auth_manager: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+        simple_auth_manager_all_admins: "True"
+      scheduler:
+        # Few DAGs, changed by git push: no need to look every 30 seconds.
+        min_file_process_interval: "60"
+      # Cosmos reports anonymous usage to its maker by default. Nothing in
+      # the lab reports outward unless it has to.
+      cosmos:
+        enable_telemetry: "False"
+
+    # The DAGs and the dbt project, from this repository's main branch.
+    # subPath `pipelines` makes that directory the DAG folder: dags/ holds
+    # the DAG files, dbt/ the project they run (no .py files, so Airflow
+    # ignores it when looking for DAGs).
+    dags:
+      gitSync:
+        enabled: true
+        repo: https://github.com/baakhoff/homelab.git
+        branch: main
+        ref: main
+        depth: 1
+        subPath: pipelines
+        period: 60s
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+
+    scheduler:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 768Mi
+        # Tasks run in here, dbt included.
+        limits:
+          memory: 2Gi
+      logGroomerSidecar:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+
+    apiServer:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 384Mi
+        limits:
+          memory: 1Gi
+
+    # Parses the DAG files. The warehouse DAG's parse runs `dbt ls`, which
+    # is where most of this memory goes (Cosmos caches the result).
+    dagProcessor:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 384Mi
+        limits:
+          memory: 1Gi
+      logGroomerSidecar:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+
+    migrateDatabaseJob:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
