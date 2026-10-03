@@ -1,0 +1,172 @@
+# ClickHouse: the warehouse. Every source's raw data lands here, and the
+# layers above it (ods, ads, dm - clickhouse-schema.yaml) are built from
+# it. It consumes the Kafka topics itself (the Kafka table engine), so
+# there is no connector in between.
+#
+# One server on one Ceph volume. Its own login is the lock on the data: the
+# `admin` user, password from the clickhouse-admin Secret. The built-in
+# `default` user is replaced by it (CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+# gives admin the right to create further users, e.g. a read-only one for
+# Grafana).
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: data
+spec:
+  selector:
+    app.kubernetes.io/name: clickhouse
+  ports:
+    # The HTTP interface: queries, the built-in /play SQL page, Grafana.
+    - name: http
+      port: 8123
+      targetPort: http
+    # The native protocol: clickhouse-client and the schema job.
+    - name: native
+      port: 9000
+      targetPort: native
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse-headless
+  namespace: data
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: clickhouse
+  ports:
+    - name: http
+      port: 8123
+      targetPort: http
+---
+# Server settings for a small node. ClickHouse sizes its caches for a
+# dedicated machine; here it shares 16 GB with Ceph and two dozen services.
+# It reads the container's memory limit, and these keep it well inside it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-config
+  namespace: data
+data:
+  small-node.xml: |
+    <clickhouse>
+      <!-- Never take more than 80% of the container limit. -->
+      <max_server_memory_usage_to_ram_ratio>0.8</max_server_memory_usage_to_ram_ratio>
+      <mark_cache_size>268435456</mark_cache_size>
+      <uncompressed_cache_size>0</uncompressed_cache_size>
+      <!-- Its own query and trace logs grow without bound by default. -->
+      <query_log replace="1">
+        <database>system</database>
+        <table>query_log</table>
+        <engine>ENGINE = MergeTree PARTITION BY event_date ORDER BY event_time TTL event_date + INTERVAL 14 DAY</engine>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+      </query_log>
+      <trace_log remove="1"/>
+      <metric_log remove="1"/>
+      <asynchronous_metric_log remove="1"/>
+      <text_log remove="1"/>
+      <processors_profile_log remove="1"/>
+      <logger>
+        <level>warning</level>
+        <console>1</console>
+      </logger>
+    </clickhouse>
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse
+  namespace: data
+spec:
+  serviceName: clickhouse-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clickhouse
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: clickhouse
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's clickhouse user. The image is built to run rootless
+        # and makes its config directories writable for any uid.
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: clickhouse
+          # An LTS line (x.3 and x.8 are ClickHouse's long-term releases).
+          image: docker.io/clickhouse/clickhouse-server:26.8.15.10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 8123
+            - name: native
+              containerPort: 9000
+          env:
+            - name: CLICKHOUSE_USER
+              value: admin
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-admin
+                  key: CLICKHOUSE_PASSWORD
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: "1"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 3Gi
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/small-node.xml
+              subPath: small-node.xml
+      volumes:
+        - name: config
+          configMap:
+            name: clickhouse-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: ceph-block
+        resources:
+          requests:
+            # ClickHouse compresses JSON roughly 5-10x. Ceph keeps three
+            # copies, so this is 90 GB of the pool's raw space. Started
+            # small on purpose: it expands in place when it fills.
+            storage: 30Gi

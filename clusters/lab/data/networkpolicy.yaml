@@ -1,0 +1,48 @@
+# Who may talk to the data namespace, and what it may talk to.
+#
+# Kafka has no login on its listener, so these rules are its access control:
+# port 9092 answers only pods named here. Each producer that is added gets
+# its own rule, naming its namespace and pods - this file is the list of
+# everything allowed to write to the bus.
+#
+# ClickHouse has its own login (the admin user) on top of the rules below.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data
+  namespace: data
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Inside the namespace, freely: ClickHouse consumes Kafka, the schema job
+    # reaches both.
+    - from:
+        - podSelector: {}
+    # The ClickHouse web interface, through the admin gate (ingress.yaml).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8123
+  egress:
+    # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Each other, and nothing else: not the internet, not another namespace.
+    - to:
+        - podSelector: {}
