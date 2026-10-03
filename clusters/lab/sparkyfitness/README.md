@@ -166,17 +166,13 @@ It is not deployed here, for three reasons:
   `sparkyfitness-admins`. Without it, admin rights are removed at the next
   login.
 
-## Not backed up yet
+## Backup
 
-Neither volume is in the nightly backup, so for now losing them loses the
-diary. Two volumes need adding: `sparkyfitness/data-sparkyfitness-postgres-0`
-(the database) and `sparkyfitness/sparkyfitness-data` (photos). Use the same
-three pieces as for Mealie:
+Both volumes are in the nightly backup (`clusters/lab/backup/`), after
+Mealie: `sparkyfitness/data-sparkyfitness-postgres-0`, the database with
+the whole diary, and `sparkyfitness/sparkyfitness-data`, the photos.
 
-- the `restic-repo` Secret copied into this namespace, as
-  `clusters/lab/backup/README.md` shows;
-- a `RoleBinding` for `backup-driver` in `clusters/lab/backup/rbac.yaml`;
-- the two targets in `BACKUP_TARGETS`.
-
-A snapshot of a running Postgres is crash-consistent. That is the state
-Postgres recovers from after a power cut, so it restores cleanly.
+Each is a crash-consistent snapshot, taken while the app runs. That is the
+state Postgres recovers from after a power cut, so it restores cleanly. The
+two are snapshotted a few minutes apart, so a photo uploaded in between can
+be in one and not referenced by the other - harmless either way.

@@ -264,3 +264,19 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: backup-driver
+---
+# SparkyFitness: the food diary, workouts and measurements in its Postgres,
+# and the photos on the server's volume - two targets, one namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-driver
+  namespace: sparkyfitness
+subjects:
+  - kind: ServiceAccount
+    name: backup-driver
+    namespace: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-driver
