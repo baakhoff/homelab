@@ -98,6 +98,8 @@ spec:
                     mealie/mealie-data
                     sparkyfitness/data-sparkyfitness-postgres-0
                     sparkyfitness/sparkyfitness-data
+                    dawarich/data-dawarich-postgres-0
+                    dawarich/dawarich-storage
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     minecraft/minecraft-data

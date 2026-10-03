@@ -1,0 +1,19 @@
+# Dawarich's files (Active Storage): the import files as uploaded - Google
+# Timeline exports, GPX, OwnTracks recordings - and the exports and videos it
+# renders. The location history itself is in Postgres, on postgres.yaml's
+# volume.
+#
+# 10Gi: a Google Takeout of many years runs to hundreds of megabytes, and
+# the original is kept after the import. Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dawarich-storage
+  namespace: dawarich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 10Gi
