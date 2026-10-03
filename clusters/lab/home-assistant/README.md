@@ -27,6 +27,31 @@ anything but `400`: **Settings -> System -> Network -> HTTP server**, turn on
 k3s pod range). While it is still untrusted, reach the UI once via
 `kubectl -n home-assistant port-forward deploy/home-assistant 8123:8123`.
 
+## Every state change to the data warehouse
+
+Home Assistant's [Apache Kafka](https://www.home-assistant.io/integrations/apache_kafka/)
+integration sends each state change, as JSON, to the `raw.homeassistant`
+topic, and ClickHouse keeps them in `raw.homeassistant`
+(`clusters/lab/data/README.md`). It is configured in YAML only, so it
+lives in `configuration.yaml` on the volume. Once, from the workstation:
+
+```bash
+kubectl -n home-assistant exec -i deploy/home-assistant -- sh -c 'cat >> /config/configuration.yaml' <<'EOF'
+
+apache_kafka:
+  ip_address: kafka.data.svc.cluster.local
+  port: 9092
+  topic: raw.homeassistant
+EOF
+kubectl -n home-assistant rollout restart deploy/home-assistant
+```
+
+Check that `configuration.yaml` had no `apache_kafka:` block already -
+a second one is a config error, and Home Assistant starts in safe mode.
+A `filter:` under it (include or exclude domains, entities, globs) narrows
+what is sent; by default it is everything. Kafka is reachable from this pod
+only because `clusters/lab/data/networkpolicy.yaml` names it.
+
 ## Known limits
 
 - **No local discovery** (mDNS / SSDP / DHCP broadcasts): multicast does not

@@ -13,6 +13,10 @@
 # every watch Alloy opens is served by whichever one it connects to. Three
 # collectors watching pods is still nothing next to what Prometheus and Flux
 # already ask of the same endpoint.
+#
+# Two destinations: Loki, for reading logs in Grafana, and Kafka, for the
+# data warehouse (clusters/lab/data/) - the same lines, plus the cluster's
+# events, which go to Kafka only.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -60,8 +64,28 @@ spec:
         - apiGroups: [""]
           resources: ["pods", "pods/log", "namespaces"]
           verbs: ["get", "list", "watch"]
+        # Kubernetes events, for the raw.k8s-events topic.
+        - apiGroups: ["", "events.k8s.io"]
+          resources: ["events"]
+          verbs: ["get", "list", "watch"]
 
     alloy:
+      # The node this pod runs on, so it reads only that node's pods (the
+      # pod discovery below). Without it every collector read every pod:
+      # three copies of each line, which Loki quietly merged and Kafka
+      # would not.
+      extraEnv:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+
+      # The three collectors form a cluster so that cluster-wide work - the
+      # Kubernetes event stream - is done once, by one of them, rather than
+      # three times. Per-node log reading does not need it.
+      clustering:
+        enabled: true
+
       resources:
         requests:
           cpu: 50m
@@ -89,6 +113,10 @@ spec:
         content: |-
           discovery.kubernetes "pods" {
             role = "pod"
+            selectors {
+              role  = "pod"
+              field = "spec.nodeName=" + sys.env("NODE_NAME")
+            }
           }
 
           discovery.relabel "pod_logs" {
@@ -114,7 +142,52 @@ spec:
 
           loki.source.kubernetes "pod_logs" {
             targets    = discovery.relabel.pod_logs.output
-            forward_to = [loki.write.default.receiver]
+            forward_to = [loki.write.default.receiver, otelcol.receiver.loki.logs.receiver]
+          }
+
+          // The same lines, and the cluster's events, to Kafka for the data
+          // warehouse (clusters/lab/data/). Each line goes out as OTLP JSON,
+          // its Loki labels - namespace, pod, container, node - as
+          // attributes beside the line itself.
+          otelcol.receiver.loki "logs" {
+            output {
+              logs = [otelcol.exporter.kafka.logs.input]
+            }
+          }
+
+          otelcol.exporter.kafka "logs" {
+            brokers          = ["kafka.data.svc.cluster.local:9092"]
+            protocol_version = "3.6.0"
+            logs {
+              topic    = "raw.logs"
+              encoding = "otlp_json"
+            }
+          }
+
+          // Every Kubernetes event in every namespace, as JSON. Clustered:
+          // one collector holds the watch, so each event is sent once. A
+          // rollout of the collectors may re-send a few as the watch moves.
+          loki.source.kubernetes_events "events" {
+            log_format = "json"
+            forward_to = [otelcol.receiver.loki.events.receiver]
+            clustering {
+              enabled = true
+            }
+          }
+
+          otelcol.receiver.loki "events" {
+            output {
+              logs = [otelcol.exporter.kafka.events.input]
+            }
+          }
+
+          otelcol.exporter.kafka "events" {
+            brokers          = ["kafka.data.svc.cluster.local:9092"]
+            protocol_version = "3.6.0"
+            logs {
+              topic    = "raw.k8s-events"
+              encoding = "otlp_json"
+            }
           }
 
           loki.write "default" {
