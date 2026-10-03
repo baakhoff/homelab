@@ -20,15 +20,18 @@ One ClickHouse database each:
 | Database | What is in it | Built by |
 |---|---|---|
 | `raw` | One table per source system, every message as it arrived | the Kafka consumers, set up by `clickhouse-schema.yaml` |
-| `ods` | Operational data store: each system's raw rows parsed into typed, cleaned, deduplicated tables | transformation models, from `raw` |
-| `ads` | Aggregated data storage: joins and aggregates across systems | transformation models, from `ods` |
-| `dm` | Data marts: the tables a question or a dashboard reads | transformation models, from `ads` |
+| `ods` | Operational data store: each system's raw rows parsed into typed, cleaned, deduplicated tables | dbt, from `raw` |
+| `ads` | Aggregated data storage: joins and aggregates across systems | dbt, from `ods` |
+| `dm` | Data marts: the tables a question or a dashboard reads | dbt, from `ads` |
 
 A fifth database, `kafka`, holds the plumbing between Kafka and `raw` - one
 Kafka engine table (`<source>_queue`) and one materialized view
 (`<source>_to_raw`) per source - so that `raw` holds data and nothing else.
-The schema job creates `ods`, `ads` and `dm` empty; nothing writes into
-them by hand.
+The schema job creates `ods`, `ads` and `dm` empty, and the `dbt` user
+that fills them: it reads `raw` and owns the three layers, nothing more.
+The models are in [`pipelines/dbt/`](../../../pipelines/README.md), run
+hourly by Airflow (`clusters/lab/airflow/`). Nothing writes into those
+layers by hand.
 
 ## Who writes
 
@@ -37,6 +40,7 @@ them by hand.
 | Every pod's log lines | the Alloy collectors, `clusters/lab/logging/alloy.yaml` - OTLP JSON, the line plus its namespace, pod, container and node | `raw.logs` |
 | Kubernetes events | the same collectors, one of them at a time - OTLP JSON, the event as JSON in the body | `raw.k8s-events` |
 | Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
+| Firefly, Vikunja, Mealie, Paperless | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots, one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless` |
 
 ## What is here
 

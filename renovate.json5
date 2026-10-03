@@ -117,6 +117,33 @@
   // ------------------------------------------------------------------
   customManagers: [
     {
+      // The Airflow image's Python pins (images/airflow/Dockerfile), one
+      // rule each. Airflow itself is the FROM line, which the dockerfile
+      // manager already reads.
+      customType: "regex",
+      description: "astronomer-cosmos pinned in the Airflow image",
+      managerFilePatterns: ["/^images/airflow/Dockerfile$/"],
+      matchStrings: ["ARG COSMOS_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "astronomer-cosmos",
+      datasourceTemplate: "pypi",
+    },
+    {
+      customType: "regex",
+      description: "dbt-core pinned in the Airflow image",
+      managerFilePatterns: ["/^images/airflow/Dockerfile$/"],
+      matchStrings: ["ARG DBT_CORE_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "dbt-core",
+      datasourceTemplate: "pypi",
+    },
+    {
+      customType: "regex",
+      description: "dbt-clickhouse pinned in the Airflow image",
+      managerFilePatterns: ["/^images/airflow/Dockerfile$/"],
+      matchStrings: ["ARG DBT_CLICKHOUSE_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "dbt-clickhouse",
+      datasourceTemplate: "pypi",
+    },
+    {
       customType: "regex",
       description: "Claude Code CLI version pinned in the agent image",
       managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],

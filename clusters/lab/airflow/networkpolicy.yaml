@@ -1,0 +1,124 @@
+# Who may talk to Airflow, and what it may talk to.
+#
+# In: each other (the scheduler serves task logs to the API server, every
+# component reaches Postgres), and the UI through the admin gate.
+#
+# Out: the internet, for git-sync to pull pipelines/ from GitHub. Inside the
+# lab, only the doors the DAGs need, each matched by a rule on the far side
+# that admits the scheduler by name:
+#
+#   data            Kafka 9092 (ingest), ClickHouse 8123 (dbt)
+#   firefly-broker  8080
+#   vikunja         3456
+#   mealie          9000
+#   paperless       8000 (Paperless has no policy of its own to match)
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: airflow
+  namespace: airflow
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector: {}
+    # The internet and nothing private: no LAN, no tailnet, no other pod or
+    # Service by address - the same exceptions as the agents policy.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clickhouse
+      ports:
+        - protocol: TCP
+          port: 8123
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firefly-broker
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firefly-broker
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vikunja
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vikunja
+      ports:
+        - protocol: TCP
+          port: 3456
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mealie
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mealie
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: paperless
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: paperless
+      ports:
+        - protocol: TCP
+          port: 8000
