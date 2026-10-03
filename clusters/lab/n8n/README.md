@@ -6,7 +6,7 @@ branch) that end in actions (send a Telegram message, file a document in
 Paperless, write a row somewhere). About 400 built-in integrations, and
 JavaScript or Python where they run out.
 
-At <https://n8n.lab.baakhoff.com>, and on Homepage under Lab.
+At <https://n8n.lab.baakhoff.com>, and on Homepage under Tools.
 
 ## How login works
 

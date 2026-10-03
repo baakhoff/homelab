@@ -13,7 +13,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "256m"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: Paperless
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Home
     gethomepage.dev/icon: paperless-ngx.png
     gethomepage.dev/description: Document archive
     # Explicit because there is no tls block for Homepage to infer https from.
