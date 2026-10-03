@@ -240,6 +240,28 @@ data:
       # is never removed. Same failure node01 hit with a mktemp'd inventory
       # path, arriving by a different route: the repository grows forever
       # while every job reports success.
+      # Root by default: a restic that is not root cannot read another uid's
+      # 0600 file, and most volumes here mix owners. A namespace listed in
+      # RESTIC_NONROOT_NAMESPACES gets the opposite - uid RESTIC_NONROOT_UID
+      # and the `restricted` Pod Security profile in full - because its
+      # namespace refuses root pods at admission (agents does, deliberately),
+      # and because everything on its volumes belongs to that one uid anyway.
+      podsec="        runAsUser: 0"
+      ctrsec=""
+      case " ${RESTIC_NONROOT_NAMESPACES:-} " in
+        *" $ns "*)
+          podsec="        runAsNonRoot: true
+            runAsUser: ${RESTIC_NONROOT_UID}
+            runAsGroup: ${RESTIC_NONROOT_UID}
+            seccompProfile:
+              type: RuntimeDefault"
+          ctrsec="          securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]"
+          ;;
+      esac
+
       kubectl apply -f - >/dev/null <<EOF
     apiVersion: batch/v1
     kind: Job
@@ -264,10 +286,11 @@ data:
         spec:
           restartPolicy: Never
           securityContext:
-            runAsUser: 0
+    $podsec
           containers:
             - name: restic
               image: $RESTIC_IMAGE
+    $ctrsec
               command: ["/bin/sh", "-c"]
               args:
                 - |
@@ -312,6 +335,11 @@ data:
               envFrom:
                 - secretRef:
                     name: $RESTIC_SECRET
+              env:
+                # Somewhere every uid can write: a non-root restic has no home
+                # to keep its cache in. The cache dies with the pod either way.
+                - name: RESTIC_CACHE_DIR
+                  value: /tmp/restic-cache
               volumeMounts:
                 - name: data
                   mountPath: /data/$ns/$pvc
