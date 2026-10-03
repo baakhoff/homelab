@@ -10,6 +10,7 @@ model is live a minute later, with no restart.
 |---|---|---|
 | `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, the rest every 6 hours |
 | `ingest_telegram` | One Telegram account's private chats into `raw.telegram`, logged in as the account: new messages, and the last 3 days again for edits; the history in 40-minute portions on the first runs ([how](../../../pipelines/telegram.md)) | hourly, at :20 |
+| `ingest_google`, `ingest_google_gmail`, `ingest_google_portability` | The Google account into `raw.google`: Calendar, Contacts, Tasks and Drive as snapshots; Gmail metadata as changes; My Activity, Chrome and the rest as Data Portability exports ([`pipelines/google.md`](../../../pipelines/google.md)) | 6-hourly, hourly, daily |
 | `warehouse` | The dbt project: `raw` -> `ods` -> `ads` -> `dm`, one task per model and per model's tests, rendered by [Cosmos](https://github.com/astronomer/astronomer-cosmos) | hourly, at :45 |
 
 UI: <https://airflow.lab.baakhoff.com>, behind the admin gate. That gate is
@@ -41,7 +42,8 @@ container's log.
 
 ## What it can reach
 
-`networkpolicy.yaml` lets Airflow out to GitHub (git-sync) and to exactly
+`networkpolicy.yaml` lets Airflow out to the internet on 443 - GitHub for
+git-sync, Google's APIs for the Google DAGs - and inside the lab to exactly
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
 Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline. Each of
 those admits the scheduler pod by name in its own policy. A new source needs
@@ -120,7 +122,8 @@ Dawarich's keys are added later, into the same Secret - step 5 of
 and so is Outline's API key, step 4 of `clusters/lab/notes/README.md`, and
 Telegram's login, by `pipelines/tools/telegram_login.py` (`pipelines/telegram.md`).
 So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
-`clusters/lab/cloudbeaver/README.md`.
+`clusters/lab/cloudbeaver/README.md` - and Google's client and tokens, by
+`pipelines/tools/google_auth.py` (`pipelines/google.md`).
 
 **4. Create the dbt user** once the Secrets have reconciled, rather than
 waiting for the hourly schema job:
@@ -130,7 +133,7 @@ kubectl -n data create job --from=cronjob/clickhouse-schema schema-dbt
 kubectl -n data logs -f job/schema-dbt --all-containers
 ```
 
-**5. Check.** In the UI, all five DAGs are listed with no import errors.
+**5. Check.** In the UI, every DAG is listed with no import errors.
 Trigger `ingest_vikunja` by hand; when it is green,
 `SELECT count() FROM raw.vikunja` in ClickHouse is above zero. Then trigger
 `warehouse` and look at `ods.vikunja_tasks`.
