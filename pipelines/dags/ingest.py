@@ -154,11 +154,17 @@ def _make_dag(source: str, cfg: dict):
         default_args={"retries": 2, "retry_delay": pendulum.duration(minutes=2)},
     )
     def ingest():
-        # Each mapped task is labelled with its endpoint in the UI.
+        # Each mapped task is labelled with its endpoint in the UI. The
+        # label must be set on get_current_context(), not on a **context
+        # argument: that is a copy, the template rendered after the task
+        # never sees it, and the task fails *after* sending its records -
+        # "'endpoint_label' is undefined" on the first day, every task.
         @task(map_index_template="{{ endpoint_label }}")
-        def snapshot(endpoint: str, **context) -> int:
+        def snapshot(endpoint: str) -> int:
+            from airflow.sdk import get_current_context
             from confluent_kafka import Producer
 
+            context = get_current_context()
             context["endpoint_label"] = endpoint
 
             topic = f"raw.{source}"
