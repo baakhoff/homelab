@@ -23,7 +23,7 @@ manager.
 
 | What | Why it is unrecoverable without it |
 |---|---|
-| age private key | Decrypts every `*.sops.yaml` in this repo. Without it Flux comes up healthy and decrypts nothing |
+| age private key — **the cluster's** | Decrypts every `*.sops.yaml` in this repo, and is the one Flux holds. Without it Flux comes up healthy and decrypts nothing |
 | restic password — **lab repository** | The backup is ciphertext. There is no reset |
 | restic password — **node01 archive** | A different repository with a different password. Only needed for anything predating the move off that machine |
 | S3 access key + secret | Needed to reach the bucket at all |
@@ -32,6 +32,11 @@ manager.
 Plus account access for GitHub, Cloudflare, Hetzner, Tailscale and
 healthchecks.io. Most are email-recoverable — which only helps if your email is
 reachable without the lab.
+
+Every file is also encrypted to a second key, the MacBook's own (see
+[Who can decrypt](#who-can-decrypt-the-secrets)). It is a convenience for
+editing secrets from the Mac, not a recovery path: rebuilding the cluster
+needs the cluster's key, because that is what Flux is given.
 
 The test for anything else you are tempted to store in the vault:
 **if all three nodes are bricks, can I still get this?**
@@ -359,3 +364,34 @@ not from the tailnet, until the subnet route is back.
   a hypothesis. Scenario D costs five minutes and is worth running
   occasionally; Scenario A is worth doing once, deliberately, on scratch
   hardware.
+
+---
+
+## Who can decrypt the secrets
+
+`.sops.yaml` lists two age recipients, and every `*.sops.yaml` is encrypted to
+both, so either private key opens any of them:
+
+| Key | Where the private half is |
+|---|---|
+| the cluster's | the `sops-age` Secret Flux uses, the Linux workstation, the emergency kit |
+| the MacBook's | made on the Mac, in `~/Library/Application Support/sops/age/keys.txt`; a copy as a vault note |
+
+New files are encrypted to both automatically. A change to the list does not
+touch existing files: re-wrap them, on a machine that holds a key already in
+the list, from the repo root.
+
+```bash
+for f in $(git ls-files '*.sops.yaml'); do sops updatekeys -y "$f"; done
+```
+
+The values inside are unchanged, so the commit changes only the files'
+`sops:` blocks and Flux applies nothing new.
+
+**A machine is lost.** Remove its line from `.sops.yaml`, re-wrap as above from
+the other machine, commit. The lost machine's key no longer opens the current
+files - but it still opens every older version in git history, so rotate
+whatever secrets it could have read, starting with the ones that matter most.
+**The cluster's key is lost or exposed**: that is a new key for Flux too - the
+`sops-age` Secret and the kit - and the same re-wrap.
+
