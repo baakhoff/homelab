@@ -104,8 +104,13 @@ spec:
               value: 1@localhost:9093
             - name: KAFKA_INTER_BROKER_LISTENER_NAME
               value: PLAINTEXT
+            # A subdirectory, not the volume's root. A fresh Ceph volume
+            # comes with lost+found at its root, and Kafka refuses to start
+            # with anything in its log directory that is not a topic
+            # partition - it crash-looped on exactly that on its first
+            # night. The image formats the directory on first start.
             - name: KAFKA_LOG_DIRS
-              value: /var/lib/kafka/data
+              value: /var/lib/kafka/data/logs
             # One broker, so every internal topic has one replica.
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
               value: "1"
