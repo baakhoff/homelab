@@ -1,0 +1,22 @@
+apiVersion: v1
+data:
+    CLICKHOUSE_PASSWORD: ENC[AES256_GCM,data:EYrJA171zwojJ/zw4UKdhw==,iv:/W523p0zNe+UwSbuEsCmEgBZO4BWDC+OcqcZCrnTGl0=,tag:pso/yM0npLPPMwo9nfXzng==,type:str]
+kind: Secret
+metadata:
+    name: clickhouse-admin
+    namespace: data
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBObjZYT1BobFd1TTQwU2JQ
+            SG1LUTVRWW04K1BTWEp4bTFrelVJa0pPaVNNClR6SHgwZGZ2NUdsT3lZMDAySjMz
+            aGxXVHc1V3RYVUdoL3ByZ0t4YW9BUzAKLS0tIFNHWUs2b1ZrS3U1bEVZQ1NzRVB5
+            UDlRMi9WZmpJVlU4ZkhxR2FYQmxLK3cKjYbiijSVpUkzOiP/f2TtWpU3bfJOHUEs
+            2SJqX+6Otv7Yogym+IlE/YHfwH3WenGv22FZD6+XuzwaU/oZ3bS7wQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-03T07:31:34Z"
+    mac: ENC[AES256_GCM,data:HirCrA4QazXlV+CK00ArMQtQqbXMnNr+VyuSBV0qLJv7zU6dAh6sUGYWFCAX7yuxD7iP+Jw8NcZNzbTLc9xlhvKYfllWkGtPhRvIiCuqsnRH/Aynv51B9sDxc4fakyNwLihE1JYiJobXDRu+tjuDjbUQvmK09n8Paqw5bDv6lRE=,iv:/iUyh41f6S2ttxqM0U2GIAsoBz1q7nc4nFnVpkHlWOs=,tag:wTDfKUbqKFrrHsEGBB17pQ==,type:str]
+    version: 3.13.3
