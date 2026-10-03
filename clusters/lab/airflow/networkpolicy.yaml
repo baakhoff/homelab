@@ -3,7 +3,8 @@
 # In: each other (the scheduler serves task logs to the API server, every
 # component reaches Postgres), and the UI through the admin gate.
 #
-# Out: the internet, for git-sync to pull pipelines/ from GitHub. Inside the
+# Out: the internet on 443, for git-sync to pull pipelines/ from GitHub
+# and for the Google DAGs to reach Google's APIs. Inside the
 # lab, only the doors the DAGs need, each matched by a rule on the far side
 # that admits the scheduler by name:
 #
