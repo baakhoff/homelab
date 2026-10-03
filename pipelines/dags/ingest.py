@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pendulum
 import requests
@@ -109,6 +109,34 @@ def _paperless_pages(session: requests.Session, url: str):
         next_url, params = body.get("next"), None
 
 
+# SparkyFitness has no "list everything" endpoints: the diary is read by
+# date. A range from before the first possible entry to tomorrow is the
+# whole diary, in one request per endpoint. Exercise history is the one
+# paged endpoint. Everything is the API key's own account - README in
+# clusters/lab/sparkyfitness/.
+SPARKY_FIRST_DAY = "2000-01-01"
+
+
+def _sparkyfitness_pages(session: requests.Session, url: str):
+    """Date ranges in the path or the query, and one paged history."""
+    tomorrow = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()
+    if url.endswith("/v2/exercise-entries/history"):
+        page = 1
+        while True:
+            r = session.get(url, params={"page": page, "pageSize": PAGE_SIZE}, timeout=TIMEOUT)
+            body = _json(r, "sessions", url)
+            yield from body["sessions"]
+            if not body.get("pagination", {}).get("hasMore"):
+                return
+            page += 1
+    elif url.endswith("/sleep"):
+        r = session.get(url, params={"startDate": SPARKY_FIRST_DAY, "endDate": tomorrow}, timeout=TIMEOUT)
+        yield from _json(r, None, url)
+    else:
+        full = f"{url}/{SPARKY_FIRST_DAY}/{tomorrow}"
+        yield from _json(session.get(full, timeout=TIMEOUT), None, full)
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -150,6 +178,23 @@ SOURCES = {
             "storage_paths", "custom_fields",
         ],
         "schedule": "30 */6 * * *",
+    },
+    # Straight to the server, not through the frontend's nginx: its rate
+    # limit is for sign-ins, and this is an API key.
+    "sparkyfitness": {
+        "base": "http://sparkyfitness-server.sparkyfitness.svc.cluster.local:3010/api",
+        "auth": ("Bearer", "SPARKYFITNESS_API_KEY"),
+        "pages": _sparkyfitness_pages,
+        "endpoints": [
+            "food-entries/range",
+            "measurements/check-in-measurements-range",
+            "measurements/water-intake-range",
+            "sleep",
+            "v2/exercise-entries/history",
+        ],
+        # Water comes back as one total per day, with no id of its own.
+        "ids": {"measurements/water-intake-range": "entry_date"},
+        "schedule": "35 */6 * * *",
     },
 }
 
@@ -208,9 +253,12 @@ def _make_dag(source: str, cfg: dict):
             extracted_at = datetime.now(timezone.utc).isoformat()
             run_id = context["run_id"]
             session = _session(cfg["auth"])
+            # The ods layer keeps one row per id, so a record without an
+            # "id" names the field that identifies it instead.
+            id_field = cfg.get("ids", {}).get(endpoint, "id")
             count = 0
             for record in cfg["pages"](session, f"{cfg['base']}/{endpoint}"):
-                rid = str(record.get("id", "")) if isinstance(record, dict) else ""
+                rid = str(record.get(id_field, "")) if isinstance(record, dict) else ""
                 envelope = {
                     "source": source,
                     "endpoint": endpoint,

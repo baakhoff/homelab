@@ -19,7 +19,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: SparkyFitness
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Home
     gethomepage.dev/icon: sparky-fitness.png
     gethomepage.dev/description: Calories, meals, exercise and weight
     # Explicit because there is no tls block for Homepage to infer https from.

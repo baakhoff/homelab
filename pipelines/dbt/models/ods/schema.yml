@@ -31,3 +31,15 @@ models:
     columns:
       - name: entity_id
         tests: [not_null]
+  - name: sparkyfitness_food_entries
+    columns:
+      - name: entry_id
+        tests: [not_null, unique]
+  - name: sparkyfitness_exercise
+    columns:
+      - name: session_id
+        tests: [not_null, unique]
+  - name: sparkyfitness_water
+    columns:
+      - name: entry_date
+        tests: [not_null, unique]
