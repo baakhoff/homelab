@@ -76,29 +76,16 @@ and for Mealie `https://recipes.lab.baakhoff.com/login` plus the same with
 `?direct=1`.
 
 
-## Backup — not yet, and in this order
+## Backup
 
-The database is the only thing here that is not reconstructible: it holds the
-passkey public keys, the users and the OIDC clients. Rebuilding from nothing is
-possible — re-register every passkey, re-create every client — which puts it a
-notch below the Minecraft world in irreplaceability and well above "just redeploy
-it". It is not in the nightly backup yet because that takes the same three things
-the Minecraft README lists, and the first cannot come from this repository:
+`pocket-id/pocket-id-data` is in the nightly backup (`clusters/lab/backup/`),
+third: the database holds the passkey public keys, the users and the OIDC
+clients. Rebuilding from nothing is possible - re-register every passkey,
+re-create every client - which is exactly the evening the backup saves.
 
-1. **The `restic-repo` Secret in the `pocket-id` namespace.** Same values as the
-   other copies, differing only in `metadata.namespace`; the backup README has
-   the exact commands. Encrypt it into
-   `clusters/lab/backup/restic-repo-pocket-id.sops.yaml`.
-2. **The `RoleBinding`** — already in `clusters/lab/backup/rbac.yaml`, landed
-   with the server. Harmless ahead of time.
-3. **`pocket-id/pocket-id-data` in `BACKUP_TARGETS`** in
-   `clusters/lab/backup/cronjob-backup.yaml`. **Last**, in a commit after the
-   Secret has reconciled: the driver fails the whole run, heartbeat included, on
-   a target whose Secret is missing.
-
-Crash-consistent RBD snapshot of a SQLite database in WAL mode, taken while the
-server runs — the same trade every other target makes, and one SQLite is built
-to survive.
+A crash-consistent RBD snapshot of a SQLite database in WAL mode, taken while
+the server runs - the same trade every other target makes, and one SQLite is
+built to survive.
 
 ## Operating it
 
