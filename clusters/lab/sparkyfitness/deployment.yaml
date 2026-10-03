@@ -1,0 +1,236 @@
+# Two Deployments, as upstream ships it: the server (Node, the API and the
+# scheduled jobs) and the frontend (nginx, the web app's files, and a proxy
+# that hands /api, /uploads and /health-data to the server). The Ingress
+# points at the frontend only.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sparkyfitness-server
+  namespace: sparkyfitness
+spec:
+  # One replica on a ReadWriteOnce volume. Recreate for the reasons the
+  # Vaultwarden Deployment spells out; and with more than one, every replica
+  # would run the scheduled jobs.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sparkyfitness-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sparkyfitness-server
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # node, the base image's own user. The image would run as root.
+        runAsUser: 1000
+        runAsGroup: 1000
+        # kubelet hands the fresh volume's root to this group.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: docker.io/codewithcj/sparkyfitness_server:v1.7.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Decides which day an entry is filed under.
+            - name: TZ
+              value: Europe/Copenhagen
+            - name: NODE_ENV
+              value: production
+            - name: SPARKY_FITNESS_LOG_LEVEL
+              value: INFO
+            # Login callbacks, links and the trusted origin are built from
+            # this.
+            - name: SPARKY_FITNESS_FRONTEND_URL
+              value: https://fitness.lab.baakhoff.com
+            # ingress-nginx, then the frontend's nginx. Two hops, so the
+            # client's own address is the one the login rate limit counts.
+            - name: SPARKY_FITNESS_TRUSTED_PROXY_HOPS
+              value: "2"
+            # --- Database: postgres.yaml ------------------------------------
+            - name: SPARKY_FITNESS_DB_HOST
+              value: sparkyfitness-postgres
+            - name: SPARKY_FITNESS_DB_PORT
+              value: "5432"
+            - name: SPARKY_FITNESS_DB_NAME
+              value: sparkyfitness
+            - name: SPARKY_FITNESS_DB_USER
+              value: sparky
+            - name: SPARKY_FITNESS_APP_DB_USER
+              value: sparky_app
+            # --- Files: one volume, two directories ----------------------------
+            # Set rather than the image's defaults so both land on one volume;
+            # the server creates them. Backups are kept off the uploads path,
+            # which is served over the web.
+            - name: SPARKY_FITNESS_CUSTOM_UPLOADS_DIRECTORY
+              value: /data/uploads
+            - name: SPARKY_FITNESS_CUSTOM_BACKUP_DIRECTORY
+              value: /data/backup
+            # Where a backup uploaded for restore waits. Scratch.
+            - name: SPARKY_FITNESS_CUSTOM_TEMP_DIRECTORY
+              value: /tmp/restore
+            # --- Login: Pocket ID only -----------------------------------------
+            # No password form and no sign-up form: with email login off, both
+            # are closed at the API too, not only hidden. An account is created
+            # at its first Pocket ID login. Who may log in at all is the
+            # client's Allowed User Groups in Pocket ID. Passkeys can be added
+            # inside the app once signed in.
+            #
+            # Not SPARKY_FITNESS_DISABLE_SIGNUP: that blocks the account
+            # creation behind a first Pocket ID login as well.
+            - name: SPARKY_FITNESS_DISABLE_EMAIL_LOGIN
+              value: "true"
+            - name: SPARKY_FITNESS_OIDC_AUTH_ENABLED
+              value: "true"
+            # Part of the callback address registered in Pocket ID:
+            # /api/auth/sso/callback/pocket-id. Changing it breaks the login.
+            - name: SPARKY_FITNESS_OIDC_PROVIDER_SLUG
+              value: pocket-id
+            - name: SPARKY_FITNESS_OIDC_PROVIDER_NAME
+              value: Pocket ID
+            - name: SPARKY_FITNESS_OIDC_ISSUER_URL
+              value: https://id.lab.baakhoff.com
+            # `groups` puts the groups claim in the token, which the admin
+            # mapping below reads.
+            - name: SPARKY_FITNESS_OIDC_SCOPE
+              value: openid email profile groups
+            # Members of this Pocket ID group are SparkyFitness admins,
+            # re-evaluated at every login, like mealie-admins.
+            - name: SPARKY_FITNESS_OIDC_ADMIN_GROUP
+              value: sparkyfitness-admins
+            # Straight to Pocket ID, no login page with one button on it.
+            - name: SPARKY_FITNESS_OIDC_AUTO_REDIRECT
+              value: "true"
+          envFrom:
+            # The two database passwords, the encryption key for stored API
+            # keys, the session secret, and the Pocket ID client. Created by
+            # hand into secret.sops.yaml beside this file. Until it exists the
+            # pod waits in CreateContainerConfigError - README, step 2.
+            - secretRef:
+                name: sparkyfitness
+          ports:
+            - name: http
+              containerPort: 3010
+          # Migrations run before the server listens, and it restarts until
+          # Postgres answers. Five minutes before liveness gets a vote.
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: sparkyfitness-data
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sparkyfitness-frontend
+  namespace: sparkyfitness
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sparkyfitness-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sparkyfitness-frontend
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # nginx, the image's own user. Not root, the entrypoint picks 8080
+        # for nginx to listen on rather than 80.
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: docker.io/codewithcj/sparkyfitness:v1.7.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Fully qualified: nginx resolves the upstream itself and does not
+            # use the search domains.
+            - name: SPARKY_FITNESS_SERVER_HOST
+              value: sparkyfitness-server.sparkyfitness.svc.cluster.local
+            - name: SPARKY_FITNESS_SERVER_PORT
+              value: "3010"
+            - name: SPARKY_FITNESS_FRONTEND_URL
+              value: https://fitness.lab.baakhoff.com
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          # Where the entrypoint writes the rendered nginx config, and where
+          # nginx keeps its pid and buffers. Writable for the nginx user.
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /var/run/nginx
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: conf
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
