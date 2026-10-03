@@ -216,13 +216,19 @@ spec:
               memory: 128Mi
           # Where the entrypoint writes the rendered nginx config, and where
           # nginx keeps its pid and buffers. Writable for the nginx user.
+          #
+          # /run, not /var/run/nginx: the image's build edits nginx.conf to
+          # put the pid in /var/run/nginx/, but the newer nginx base writes
+          # that line as /run/nginx.pid, so the edit misses and nginx exits
+          # with "open() /run/nginx.pid failed (13: Permission denied)". A
+          # writable /run serves both, since /var/run links to it on Alpine.
           volumeMounts:
             - name: conf
               mountPath: /etc/nginx/conf.d
             - name: cache
               mountPath: /var/cache/nginx
             - name: run
-              mountPath: /var/run/nginx
+              mountPath: /run
             - name: tmp
               mountPath: /tmp
       volumes:
