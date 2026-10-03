@@ -60,8 +60,9 @@ Measured during bring-in, worth keeping as a baseline:
 
 ## Rack
 
-A 10-inch 3D-printed rack. The frame is printed and assembled at 12U and still
-empty; the equipment goes in once the patch cords arrive.
+A 10-inch 3D-printed rack, 12U. The switch, the keystone patch panel, the three
+mini PCs and the power shelf are mounted in it, and the mesh unit sits on the lid.
+The Pi shelf and carrier are printed and not yet fitted.
 
 Every printed part comes from MakerWorld; each link opens the print profile used.
 

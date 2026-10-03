@@ -7,14 +7,16 @@ tooling (Claude Code instances) off my main workstation.
 The build is documented here as it happens: what exists, how it was set up, and which
 decisions were made and why.
 
-## The lab, v1.0
+## The lab, v2.0
 
-![Three HP Elite Mini 600 G9 stacked in a corner, an eight-port switch and a mesh Wi-Fi unit on top of them, a Raspberry Pi 3B+ on the floor alongside](docs/images/rack-v1.0.jpg)
+![A 10-inch 3D-printed rack with yellow rails on a wooden floor: a mesh Wi-Fi unit on top, an eight-port switch and a keystone patch panel in the top units, three HP Elite Mini 600 G9 in printed mounts below them, and a shelf of power adapters at the bottom, with yellow patch cords still hanging loose out of the front](docs/images/rack-v2.0.jpg)
 
-Three mini PCs, the switch, the mesh unit and the Pi, stacked on the floor and cabled
-together. The 10″ rack is now printed and assembled, and stays empty until the patch
-cords arrive. This photo gets replaced as the build changes, and the one it replaces
-moves to [the lab over time](docs/history.md) — which is what the version number is for.
+Everything from the floor is in the rack: the switch and the keystone patch panel at
+the top, the three mini PCs in their mounts, the power adapters on the shelf at the
+bottom, and the mesh unit sitting on the lid. The patch cords arrived and are plugged
+in but not yet dressed, which is why the front looks the way it does. This photo gets
+replaced as the build changes, and the one it replaces moves to
+[the lab over time](docs/history.md) — which is what the version number is for.
 
 ## Hardware
 
@@ -23,7 +25,7 @@ moves to [the lab over time](docs/history.md) — which is what the version numb
 | Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router, wired |
 | 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | in service: a three-node k3s cluster with replicated Ceph storage — [bring-up](docs/runbooks/node-bring-up.md) |
 | Switch | TP-Link TL-SG108E, 8 × 1 GbE, web-managed — [details](docs/hardware.md) | in service: the wired backbone — [the network](docs/network.md) |
-| Rack | 10″ 3D-printed, 12U — [KWS Rack V2 and the printed mounts](docs/hardware.md#rack) | assembled, empty — waiting on patch cords |
+| Rack | 10″ 3D-printed, 12U — [KWS Rack V2 and the printed mounts](docs/hardware.md#rack) | in service: switch, patch panel, the three mini PCs and their power adapters are mounted; cables still to be dressed |
 
 Hardware that has left service is in [the lab over time](docs/history.md).
 

@@ -11,6 +11,20 @@ Everything below is written in the past tense on purpose, even where the hardwar
 still plugged in. The README is the only place that describes the present; if these two
 ever disagree, the README is right and this file needs fixing.
 
+## v1.0 — a stack on the floor
+
+![Three HP Elite Mini 600 G9 stacked in a corner, an eight-port switch and a mesh Wi-Fi unit on top of them, a Raspberry Pi 3B+ on the floor alongside](images/rack-v1.0.jpg)
+
+Three mini PCs, the switch, the mesh unit and the Pi, stacked on the floor in a corner
+and cabled together. This was the three-node cluster from its first boot: the same
+machines and the same switch that are in the rack now, with nothing between them and
+the floor but each other.
+
+The rack was already printed and assembled through most of this period and stood empty
+beside the stack, because the switch-to-machine runs were meant to go through a keystone
+patch panel and the patch cords for that had not arrived. When they did, the stack moved
+in, one mount at a time, and became v2.0.
+
 ## v0.1 — one laptop in a letter rack
 
 ![An MSI laptop, lid closed and covered in stickers, standing on its edge in a wire mesh letter rack on a desk, power cable plugged in](images/node01-v0.1.jpg)
