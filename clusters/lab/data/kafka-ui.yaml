@@ -1,0 +1,152 @@
+# Kafbat UI: a browser view of the Kafka broker - topics and their sizes,
+# the messages in them with JSON pretty-printed, and each ClickHouse
+# consumer group with its lag. https://kafka.lab.baakhoff.com, behind the
+# admin gate (the Ingress at the end of this file).
+#
+# READ-ONLY, and that is the point of the configuration below. Kafka has no
+# login of its own (kafka.yaml), so a UI that could delete topics, reset
+# consumer offsets or produce messages would be a second, weaker door onto
+# the bus than the NetworkPolicy. Read-only it can look at everything and
+# change nothing.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui
+  namespace: data
+spec:
+  selector:
+    app.kubernetes.io/name: kafka-ui
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  namespace: data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-ui
+    spec:
+      # The Service named `kafka` in this namespace would otherwise inject
+      # KAFKA_* variables, and this app reads KAFKA_* as its own settings.
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's kafkaui system user; it writes nothing outside /tmp.
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kafka-ui
+          image: ghcr.io/kafbat/kafka-ui:v1.5.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: lab
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: kafka.data.svc.cluster.local:9092
+            - name: KAFKA_CLUSTERS_0_READONLY
+              value: "true"
+            # No settings changed from the UI either: the config is this
+            # file and nothing else.
+            - name: DYNAMIC_CONFIG_ENABLED
+              value: "false"
+            # Its own login off: the admin gate is the lock, as for Airflow.
+            - name: AUTH_TYPE
+              value: DISABLED
+            - name: JAVA_OPTS
+              value: -Xms128m -Xmx320m
+            # The app logs every request at DEBUG by default.
+            - name: LOGGING_LEVEL_IO_KAFBAT_UI
+              value: INFO
+          resources:
+            requests:
+              cpu: 50m
+              memory: 384Mi
+            limits:
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 4
+---
+# The gate's way in to this one pod's port. A policy of its own rather than
+# a port in networkpolicy.yaml's ingress-nginx rule: that policy covers
+# every pod here, and this opens 8080 on the UI and nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-ui
+  namespace: data
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# Behind the admin gate (lab-admins only), its only lock. No tls: block -
+# the controller serves the lab wildcard as its default certificate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kafka-ui
+  namespace: data
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Kafka
+    gethomepage.dev/group: Lab
+    gethomepage.dev/icon: kafka.png
+    gethomepage.dev/description: The event bus - topics, messages, consumer lag
+    gethomepage.dev/href: https://kafka.lab.baakhoff.com
+spec:
+  rules:
+    - host: kafka.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kafka-ui
+                port:
+                  number: 80
