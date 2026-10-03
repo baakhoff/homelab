@@ -23,7 +23,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: ConvertX
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Tools
     gethomepage.dev/icon: convertx.png
     gethomepage.dev/description: Convert files between formats
     # Explicit because there is no tls block for Homepage to infer https from.

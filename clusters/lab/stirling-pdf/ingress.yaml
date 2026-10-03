@@ -24,7 +24,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: Stirling-PDF
-    gethomepage.dev/group: Lab
+    gethomepage.dev/group: Tools
     gethomepage.dev/icon: stirling-pdf.png
     gethomepage.dev/description: Merge, split, reorder and edit PDFs
     # Explicit because there is no tls block for Homepage to infer https from.
