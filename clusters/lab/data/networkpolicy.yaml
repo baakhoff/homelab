@@ -29,6 +29,17 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
+    # Prometheus, scraping ClickHouse's metrics (alerts.yaml).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9363
     # Producers: everything allowed to write to Kafka, one rule each.
     #
     # The log collectors - every pod's log lines (raw.logs) and the
