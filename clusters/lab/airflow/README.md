@@ -8,7 +8,7 @@ model is live a minute later, with no restart.
 
 | DAG | What it does | When |
 |---|---|---|
-| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint | Vikunja hourly, the rest every 6 hours |
+| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, the rest every 6 hours |
 | `warehouse` | The dbt project: `raw` -> `ods` -> `ads` -> `dm`, one task per model and per model's tests, rendered by [Cosmos](https://github.com/astronomer/astronomer-cosmos) | hourly, at :45 |
 
 UI: <https://airflow.lab.baakhoff.com>, behind the admin gate. That gate is
@@ -34,8 +34,8 @@ the only login - Airflow treats everyone who reaches it as an admin.
 
 `networkpolicy.yaml` lets Airflow out to GitHub (git-sync) and to exactly
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
-Vikunja, Mealie, Paperless, SparkyFitness. Each of those admits the
-scheduler pod by name in its own policy. A new source needs a door on both
+Vikunja, Mealie, Paperless, SparkyFitness, Dawarich. Each of those admits
+the scheduler pod by name in its own policy. A new source needs a door on both
 sides.
 
 ## Setup, in this order
@@ -102,9 +102,9 @@ unset DBTPW VT MT PT
 sops --encrypt --in-place clusters/lab/airflow/sources.sops.yaml
 ```
 
-Firefly needs no token here: the broker holds it. SparkyFitness's key is
-added later, into the same Secret - `clusters/lab/sparkyfitness/README.md`,
-step 5.
+Firefly needs no token here: the broker holds it. SparkyFitness's and
+Dawarich's keys are added later, into the same Secret - step 5 of
+`clusters/lab/sparkyfitness/README.md` and of `clusters/lab/dawarich/README.md`.
 
 **4. Create the dbt user** once the Secrets have reconciled, rather than
 waiting for the hourly schema job:

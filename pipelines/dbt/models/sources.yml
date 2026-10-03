@@ -23,3 +23,5 @@ sources:
         description: Paperless-ngx API snapshots, one record per message in the ingest envelope.
       - name: sparkyfitness
         description: SparkyFitness API snapshots of one account's diary, one record per message in the ingest envelope.
+      - name: dawarich
+        description: Dawarich API reads of one account's location history - visits and places as snapshots, points as the last week's, one record per message in the ingest envelope.

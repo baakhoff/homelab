@@ -1,0 +1,41 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, so this gets HTTPS without naming a Secret, like every other
+# Ingress here.
+#
+# Not behind the oauth2-proxy gate, like SparkyFitness and Paperless: the
+# phone apps cannot get through it. They post points with an API key, which
+# the gate does not know. Dawarich's own login is Pocket ID and nothing else
+# (deployment.yaml), the API answers nothing without a key, and the lab is
+# reachable from the house and the tailnet only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dawarich
+  namespace: dawarich
+  annotations:
+    # Imports are uploaded whole: a Google Takeout of many years is hundreds
+    # of megabytes. Streamed to Dawarich as it arrives rather than buffered
+    # on the controller's disk first.
+    nginx.ingress.kubernetes.io/proxy-body-size: "2g"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Dawarich
+    gethomepage.dev/group: Home
+    gethomepage.dev/icon: dawarich.png
+    gethomepage.dev/description: Where we have been, on a map
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://location.lab.baakhoff.com
+spec:
+  rules:
+    - host: location.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dawarich
+                port:
+                  number: 80

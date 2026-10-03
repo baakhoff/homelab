@@ -71,10 +71,12 @@ whose loss would hurt most are written first:
 | 8 | `mealie/mealie-data` | recipes and meal plans |
 | 9 | `sparkyfitness/data-sparkyfitness-postgres-0` | the food diary, workouts and measurements |
 | 10 | `sparkyfitness/sparkyfitness-data` | meal and progress photos |
-| 11-12 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
-| 13 | `minecraft/minecraft-data` | the world |
-| 14 | `data/data-clickhouse-0` | the warehouse's history |
-| 15-23 | the nine `agents/*` volumes | session transcripts and unpushed work |
+| 11 | `dawarich/data-dawarich-postgres-0` | the location history; what a phone recorded is not recorded anywhere else |
+| 12 | `dawarich/dawarich-storage` | the original import files - Google Timeline and the like |
+| 13-14 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
+| 15 | `minecraft/minecraft-data` | the world |
+| 16 | `data/data-clickhouse-0` | the warehouse's history |
+| 17-25 | the nine `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly

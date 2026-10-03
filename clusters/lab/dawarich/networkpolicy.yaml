@@ -1,0 +1,60 @@
+# One way in at each layer: ingress-nginx to the web server, the web server
+# and Sidekiq to Postgres. Redis listens on the pod's loopback only
+# (deployment.yaml), so it needs no rule.
+#
+# One exception: Airflow's scheduler reaches the web server directly, for
+# the ingest_dawarich DAG (pipelines/dags/ingest.py), with an API key.
+#
+# No egress rules: the server goes out to Pocket ID for the login, to a
+# reverse-geocoding provider if one is set, and later to Immich. None of
+# them is set up to receive location points without being switched on -
+# README, "Things to know".
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dawarich
+  namespace: dawarich
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dawarich
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dawarich-postgres
+  namespace: dawarich
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dawarich-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: dawarich
+      ports:
+        - protocol: TCP
+          port: 5432

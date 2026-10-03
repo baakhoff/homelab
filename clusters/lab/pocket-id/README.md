@@ -63,6 +63,7 @@ setting them as an env var would do nothing.
 | Paperless | `PAPERLESS_SOCIALACCOUNT_PROVIDERS` in `clusters/lab/paperless/env.sops.yaml`, policy in the Deployment beside it | the Pocket ID group `paperless-admins` maps to superuser, re-evaluated at every login; who may log in at all is the client's *Allowed User Groups* |
 | Mealie | `OIDC_*` in `clusters/lab/mealie/deployment.yaml`; id and secret in `oidc.sops.yaml` beside it | the Pocket ID group `mealie-admins` maps to Mealie admin, re-evaluated at every login; who may log in at all is the client's *Allowed User Groups* |
 | SparkyFitness | `SPARKY_FITNESS_OIDC_*` in `clusters/lab/sparkyfitness/deployment.yaml`; id and secret in `secret.sops.yaml` beside it | the Pocket ID group `sparkyfitness-admins` maps to SparkyFitness admin, re-evaluated at every login; who may log in at all is the client's *Allowed User Groups* |
+| Dawarich | `OIDC_*` in the ConfigMap in `clusters/lab/dawarich/deployment.yaml`; id and secret in `secret.sops.yaml` beside it | none: Dawarich admin is set once by hand (its README, step 3); who may log in at all is the client's *Allowed User Groups* |
 | oauth2-proxy | `clusters/lab/oauth2-proxy/`; gates every host whose Ingress carries the `auth-url` annotations, listed in its README | yes/no only: anyone the client admits. Restrict on the client's *Allowed User Groups* tab in Pocket ID |
 
 **Not behind it, on purpose: Vaultwarden.** The vault holds the passkeys. An
@@ -74,8 +75,9 @@ has to exist before the manifest that references it can. The callback URL for
 Grafana is `https://grafana.lab.baakhoff.com/login/generic_oauth`, for
 Paperless `https://paperless.lab.baakhoff.com/accounts/oidc/pocketid/login/callback/`,
 for Mealie `https://recipes.lab.baakhoff.com/login` plus the same with
-`?direct=1`, and for SparkyFitness
-`https://fitness.lab.baakhoff.com/api/auth/sso/callback/pocket-id`.
+`?direct=1`, for SparkyFitness
+`https://fitness.lab.baakhoff.com/api/auth/sso/callback/pocket-id`, and for
+Dawarich `https://location.lab.baakhoff.com/users/auth/openid_connect/callback`.
 
 
 ## Backup

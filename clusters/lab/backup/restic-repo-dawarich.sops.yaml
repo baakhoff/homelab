@@ -1,0 +1,36 @@
+apiVersion: v1
+data:
+    AWS_ACCESS_KEY_ID: ENC[AES256_GCM,data:iX2y7jTKmYivgl50Es6sZ4F3AKRekMkr+hgUMA==,iv:2lzudToDEuvDfmgWJovGvNgFqpbeFkFkxXS77Wmcg/Q=,tag:5BaTItZoWuCLkK8OpZ3i3w==,type:str]
+    AWS_SECRET_ACCESS_KEY: ENC[AES256_GCM,data:0+2l3eHe+Kgq505baNsRFds9Lr3Z3hN2YdtN0CkumhXi/LRTIvVWWEPuDUkay3MeZ7NKe26h9DU=,iv:mD+P0TeCRzSM/GtOmZPrnyrAimSq90oWUL23w5tvhws=,tag:WODuP1b1M+xiyTsWlRXASw==,type:str]
+    HC_PRUNE_URL: ENC[AES256_GCM,data:gvWurc2lq/FYzgfsu+j1r8yZ6pGWxpgV+akD4sqe8Y11aYy8xoNgpLg1m0i3QG6klmybUrPWg8v5Vih+LyC7cm7qyXWGZEPlI6ol4A==,iv:CYn4yaiVVoETyEFd45zL6PZx7xJ98BAjR1QJ6CCZIsY=,tag:oGHeIXfPjnSBkOApk2zEOQ==,type:str]
+    HC_URL: ENC[AES256_GCM,data:8oN5zQWxC1GaOd6JePZq1YpOzRoRjrJOKuWS0G0cxG5vA6jGLyhRzMeYFpZDmHPOWw0iqUqaIrwV+ut64tUGPGMhCdqMIVH78nL4Ng==,iv:9M+5DYn2Yx60kGZN2BpWZzm/zV+LngHwSVUNz9IhNuE=,tag:VzqwIQNZ+R/txewUwH9maw==,type:str]
+    RESTIC_PASSWORD: ENC[AES256_GCM,data:C9ELV7hqVbBxYIWVCPBGoWF/Os6By9HjlHReWUzThjltvW4+vxqDil5nZBREMh8aTPTMVAkadmhPUGWX,iv:DBH8MbNrgTyzlPasxUGYwHwaQB5Er6h6Pq+RuXzXXRc=,tag:x9u2Z/hads+FtF0ILjFISA==,type:str]
+    RESTIC_REPOSITORY: ENC[AES256_GCM,data:KzSq0bhpCqIpaUMG1efSy0NV+CVjZEYVPuJgnrJc6GjIkZMiWVidCxs/jDvZp60vyO+662cshwN5imVKmuiwZv5xrlKlP+EoctZnByPC1F1ipNmN,iv:6TtmAYXOiLNDr8tj+tYWZLm/FG3nWhN2O0ypH3lvYbE=,tag:EsefTBZSlpmazmqHCjKU/w==,type:str]
+kind: Secret
+metadata:
+    name: restic-repo
+    namespace: dawarich
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBZK093T3dGMW5ZQVNtUjQw
+            a1JteWh5anFFZDJEcHBzNk05Q0Uwbm12U1dzClFDc25wQ21CS3hXYzRJTFROSkhw
+            aExSUW5tTFp6NUxRemJDN2M2eWVYdlEKLS0tIGZrekkxSDRuTXR2cHhCdUhYTDVZ
+            cW1GVzVyMFVxQzJKYVJ6cXNNQ1Azek0K4sQvBYPOLdWcGhD+T47pM23+WrO2Bb+4
+            t4jSoJt+biVgUIaLi3phDO6yRZbUOgNFHgtX4XDJ/IKC2VqLfjxX1g==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAwM1BuYmtHREN6SEcxUVY4
+            dDZzVDN5VWx0TGlUc1RHeGZNcW94aUIyS25jCkRrQmtrTUhyOE9YSUN4UHVzc1k4
+            ZEJyR01pcVJFQlk1b1pZcGlrdzZFRVEKLS0tIHNxdFdZVlcwaFdiYjZxVVU2Qk1v
+            T0prMzRCbmw0V2IyeDJKb0YxTnJVQncKerMCm/iJgUnAqhWgqt4+ohUQFSgt2kSZ
+            HG/fAOPLIHVdhkoPDH1PpYsRra1ytnJQBDT+ple0hIrfuRHZZ1tSIA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-03T19:51:24Z"
+    mac: ENC[AES256_GCM,data:FVnzrX1LOogI933Xdvx4jheC9zBcON1ft6P+beWq/TwuOyHryJLacZrFd9cGrxq+YvjwDPrAQFz91fAmQUUoi45ao0o/8RZilFQqwfsEMPx3bBOrWK29FBKEIrmK15Cg47R6YJn/rlO4Khjo3ybvYBtwSzFHD8XvOlSSOqEc/a8=,iv:+ocnwMyNidFEAKQrE862G75Rt6xPwaUV+C7Efs42g8s=,tag:q0JAbQLfsyqLKcsLQWet9g==,type:str]
+    version: 3.13.3

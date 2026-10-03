@@ -1,0 +1,114 @@
+# Dawarich's database: every location point, visit, place, trip and stat,
+# and the users. Its own Postgres, like SparkyFitness's, rather than a shared
+# one.
+#
+# PostGIS, not plain Postgres: points are stored as geography and queried
+# by distance and area. The image creates the postgis extension in the
+# database when it first initialises. Postgres 17, the version upstream's
+# Docker Compose runs.
+#
+# The user created here is the database's superuser, and Dawarich signs in
+# as it to run its migrations, as upstream's Compose does.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dawarich-postgres
+  namespace: dawarich
+spec:
+  selector:
+    app.kubernetes.io/name: dawarich-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dawarich-postgres
+  namespace: dawarich
+spec:
+  serviceName: dawarich-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dawarich-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dawarich-postgres
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The alpine image's postgres user.
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: docker.io/postgis/postgis:17-3.5-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: dawarich
+            - name: POSTGRES_DB
+              value: dawarich
+            # Read only when the database is first created. Changing it in
+            # the Secret later does not change it here - README.
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich
+                  key: DATABASE_PASSWORD
+            # A subdirectory, because the volume's root holds lost+found and
+            # initdb refuses a non-empty directory.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "dawarich", "-d", "dawarich"]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "dawarich", "-d", "dawarich"]
+            periodSeconds: 30
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            # Parallel queries over many points use shared memory; the
+            # runtime's default is 64Mi. Upstream's Compose gives it 1G.
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: ceph-block
+        resources:
+          requests:
+            storage: 10Gi
