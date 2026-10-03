@@ -136,13 +136,11 @@ PHP
   is unchanged by that.
 - **Email** is not configured. Firefly logs what it would have sent.
 
-## Backup - not yet, and in this order
+## Backup
 
-The same three pieces as Paperless, whose README has the reasoning:
-
-1. **The `restic-repo` Secret in the `firefly` namespace**, encrypted into
-   `clusters/lab/backup/restic-repo-firefly.sops.yaml`. It uses the same values
-   as the other copies and differs only in `metadata.namespace`.
-2. **The `RoleBinding`**, already in `clusters/lab/backup/rbac.yaml`.
-3. **`firefly/firefly-data` in `BACKUP_TARGETS`**, last, after the Secret has
-   reconciled.
+`firefly/firefly-data` is in the nightly backup (`clusters/lab/backup/`),
+second after Vaultwarden: the SQLite database, attachments and the exchange
+rates, from a CSI snapshot so the database is copied at one moment. It
+matters more than it did, because the Firefly broker lets an agent delete
+(`clusters/lab/firefly-broker/`) and Firefly has no recycle bin - a restore
+from here is the undo.

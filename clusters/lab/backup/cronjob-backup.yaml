@@ -89,8 +89,10 @@ spec:
                 - name: BACKUP_TARGETS
                   value: >-
                     vaultwarden/vaultwarden-data
+                    firefly/firefly-data
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
+                    data/data-clickhouse-0
                 - name: SNAPSHOT_CLASS
                   value: ceph-block
                 - name: STORAGE_CLASS
