@@ -113,6 +113,7 @@ applied to this cluster:
 |---|---|
 | Prometheus | 15d retention and an 8GB cap, so it already deletes itself; its blocks churn constantly and losing it costs history, not capability |
 | Loki | same argument at 7d, and its logs only start when Alloy was deployed |
+| `photon/photon-data` | Photon's geocoding index, downloaded and built again by its next start (`clusters/lab/photon/README.md`) |
 
 Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its
 namespace, and a copy of the Secret below. Three things have to line up rather

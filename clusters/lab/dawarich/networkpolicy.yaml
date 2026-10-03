@@ -5,10 +5,10 @@
 # One exception: Airflow's scheduler reaches the web server directly, for
 # the ingest_dawarich DAG (pipelines/dags/ingest.py), with an API key.
 #
-# No egress rules: the server goes out to Pocket ID for the login, to a
-# reverse-geocoding provider if one is set, and later to Immich. None of
-# them is set up to receive location points without being switched on -
-# README, "Things to know".
+# No egress rules: the server goes out to Pocket ID for the login, to the
+# lab's Photon for reverse geocoding (whose own policy admits this pod), and
+# later to Immich. Nothing outside the lab receives location points unless
+# an admin sets an outside geocoder - README, "Things to know".
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
