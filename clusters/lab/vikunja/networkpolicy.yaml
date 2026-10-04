@@ -1,6 +1,7 @@
 # Who may talk to the board, and what it may talk to.
 #
-# In: the gate (the humans' door), the brand agent pod, which calls the
+# In: the gate (the humans' door), the brand agent pod and its scheduled
+# jobs in brand-jobs, which call the
 # Service directly at this port with an API token, and Airflow's scheduler,
 # which snapshots the API with its own token, and n8n, whose workflows call
 # the API with theirs. Nothing else: not the other lab pods, not the LAN.
@@ -43,6 +44,15 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: brand
+      ports:
+        - protocol: TCP
+          port: 3456
+    # brand's scheduled jobs (clusters/lab/brand-jobs/), every pod in that
+    # namespace, with whatever token the job carries.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: brand-jobs
       ports:
         - protocol: TCP
           port: 3456

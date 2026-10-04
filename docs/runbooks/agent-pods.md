@@ -325,6 +325,18 @@ controller: k3s's rejects denied packets, so it is exit 7 here. A certificate
 error, exit code 60, means the API server answered, so the policy is not
 being enforced.
 
+Run it against any pod except `brand`. The brand pod is meant to reach the
+API, and its check is the opposite: it can act in its own namespace and
+nowhere else.
+
+```bash
+kubectl -n agents exec deploy/brand -- kubectl auth can-i create cronjobs
+kubectl -n agents exec deploy/brand -- kubectl auth can-i list pods -n agents
+```
+
+expects `yes`, then `no`. A `yes` to the second means the Role in
+`clusters/lab/brand-jobs/rbac.yaml` has grown past its namespace.
+
 ## When the login expires
 
 `/status` in a session shows the login row and warns three days ahead. Renew
@@ -382,7 +394,9 @@ the problem in miniature.
   restores the isolation.
 - No cluster access, no LAN, no tailnet from inside, by policy. One
   exception: the `brand` pod reaches the Firefly API broker and Vikunja's
-  API (`clusters/lab/agents/networkpolicy-brand.yaml`).
+  API (`clusters/lab/agents/networkpolicy-brand.yaml`), and the Kubernetes
+  API, where it manages its own CronJobs in the `brand-jobs` namespace and
+  nothing else (`clusters/lab/brand-jobs/README.md`).
 - Deleting a project's manifest prunes its volume: the checkout, the login and
   any uncommitted work go with it. Commit or push first.
 - The volumes are in the nightly backup

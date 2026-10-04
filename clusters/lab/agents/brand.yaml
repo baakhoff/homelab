@@ -47,7 +47,12 @@ spec:
         app.kubernetes.io/part-of: agents
     spec:
       priorityClassName: agents
-      automountServiceAccountToken: false
+      # The one agent pod with a Kubernetes identity: it manages its own
+      # CronJobs in the brand-jobs namespace and nothing else
+      # (clusters/lab/brand-jobs/rbac.yaml). The token is what the Role binds
+      # to; networkpolicy-brand.yaml is what lets it reach the API at all.
+      serviceAccountName: brand
+      automountServiceAccountToken: true
       # The pause container becomes PID 1 and reaps orphans. Otherwise
       # PID 1 is `claude remote-control`, which does not: every headless
       # browser a session's tests start leaves its exited helpers behind as
@@ -64,7 +69,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: claude
-          image: ghcr.io/baakhoff/claude-agent:2.1.280
+          image: ghcr.io/baakhoff/claude-agent:2.1.284
           # Always, not IfNotPresent, because the tag is MUTABLE: it is the
           # Claude Code version, so any change to the image that is not a CLI
           # release rebuilds the same tag in place. IfNotPresent keys on the
@@ -93,6 +98,11 @@ spec:
               value: baakhoff
             - name: GIT_COMMITTER_EMAIL
               value: a@baakhoff.com
+            # kubectl's default namespace is the pod's own, agents, where
+            # brand may do nothing. This kubeconfig points it at brand-jobs,
+            # so `kubectl get cronjobs` means the right thing without -n.
+            - name: KUBECONFIG
+              value: /etc/kube/config
           resources:
             requests:
               cpu: 250m
@@ -102,7 +112,42 @@ spec:
           volumeMounts:
             - name: home
               mountPath: /home/node
+            - name: kubeconfig
+              mountPath: /etc/kube
+              readOnly: true
       volumes:
         - name: home
           persistentVolumeClaim:
             claimName: brand
+        - name: kubeconfig
+          configMap:
+            name: brand-kubeconfig
+---
+# kubectl's configuration for the brand pod: the in-cluster API, the pod's
+# own mounted token and CA, and brand-jobs as the default namespace. Nothing
+# secret - the token is read from the file the kubelet mounts and rotates.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: brand-kubeconfig
+  namespace: agents
+data:
+  config: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+      - name: lab
+        cluster:
+          server: https://kubernetes.default.svc
+          certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    users:
+      - name: brand
+        user:
+          tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    contexts:
+      - name: brand-jobs
+        context:
+          cluster: lab
+          user: brand
+          namespace: brand-jobs
+    current-context: brand-jobs

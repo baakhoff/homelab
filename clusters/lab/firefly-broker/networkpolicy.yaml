@@ -1,6 +1,7 @@
 # Who may talk to the broker, and what it may talk to.
 #
-# In: the brand agent pod and Airflow's scheduler, and nothing else. The broker holds a token with
+# In: the brand agent pod, its scheduled jobs in brand-jobs, and Airflow's
+# scheduler, and nothing else. The broker holds a token with
 # the household owner's rights, so every other pod is refused even though
 # the name resolves cluster-wide. brand's egress half of this door is
 # clusters/lab/agents/networkpolicy-brand.yaml; another agent given access
@@ -25,6 +26,15 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: brand
+      ports:
+        - protocol: TCP
+          port: 8080
+    # brand's scheduled jobs (clusters/lab/brand-jobs/), every pod in that
+    # namespace: the same caller as brand, running on a timer.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: brand-jobs
       ports:
         - protocol: TCP
           port: 8080
