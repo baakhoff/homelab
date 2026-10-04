@@ -191,10 +191,12 @@ spec:
                 europe/slovenia europe/bulgaria europe/greece europe/romania
                 europe/turkey europe/georgia europe/russia
                 asia/china asia/central-asia
-            # What the index keeps. Central Asia comes as one dump; this
-            # keeps Kazakhstan from it.
+                asia/india asia/indonesia asia/thailand asia/arabian-peninsula
+            # What the index keeps. Central Asia and the Arabian Peninsula
+            # come as one dump each; this keeps Kazakhstan and the United
+            # Arab Emirates from them.
             - name: COUNTRIES
-              value: DK,RS,BA,ME,HR,XK,MK,AL,SI,BG,GR,RO,TR,GE,RU,CN,KZ
+              value: DK,RS,BA,ME,HR,XK,MK,AL,SI,BG,GR,RO,TR,GE,RU,CN,KZ,IN,ID,TH,AE
             # Names are always kept in the local language; these are the
             # translations kept besides, the household's languages.
             # Serbian covers both scripts where OpenStreetMap has them.
