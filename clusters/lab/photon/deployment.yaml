@@ -256,11 +256,13 @@ spec:
             periodSeconds: 30
           # The heap above, plus OpenSearch's memory outside it; the index
           # itself is read through the page cache, which is not counted
-          # here.
+          # here. The request is what it uses serving the household - 450Mi
+          # on its first night - with room; the heap grows into the limit
+          # if it ever needs to.
           resources:
             requests:
               cpu: 100m
-              memory: 3Gi
+              memory: 1Gi
             limits:
               memory: 4Gi
           volumeMounts:
