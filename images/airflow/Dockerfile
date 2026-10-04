@@ -13,12 +13,16 @@ FROM apache/airflow:3.2.2-python3.12
 # from "upgrading" Airflow to satisfy something else.
 #   astronomer-cosmos - renders the dbt project as the warehouse DAG
 #   confluent-kafka   - the ingest DAGs' producer; the constraints pin it
+#   telethon          - ingest_telegram's client (pipelines/dags/telegram.py);
+#                       not in the constraints, so pinned here
 ARG COSMOS_VERSION=1.15.1
+ARG TELETHON_VERSION=1.45.0
 RUN AIRFLOW_VERSION=$(python -c 'import airflow; print(airflow.__version__)') \
  && pip install --no-cache-dir \
       "apache-airflow==${AIRFLOW_VERSION}" \
       "astronomer-cosmos==${COSMOS_VERSION}" \
       confluent-kafka \
+      "telethon==${TELETHON_VERSION}" \
       --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-3.12.txt"
 
 # dbt in its own virtualenv at /opt/dbt. dbt and Airflow pin overlapping
