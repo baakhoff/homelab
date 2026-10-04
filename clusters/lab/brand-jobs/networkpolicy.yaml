@@ -1,0 +1,57 @@
+# The same reach as the brand pod that writes these jobs, and no more: cluster
+# DNS, the internet, the Firefly API broker and Vikunja's API. Not the
+# Kubernetes API - only the brand pod itself has that - not the house LAN, not
+# the tailnet, not any other lab service. Nothing reaches in.
+#
+# The Firefly broker and Vikunja admit this namespace in their own policies;
+# both halves are needed, as for brand.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: brand-jobs
+  namespace: brand-jobs
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firefly-broker
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firefly-broker
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vikunja
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vikunja
+      ports:
+        - protocol: TCP
+          port: 3456
