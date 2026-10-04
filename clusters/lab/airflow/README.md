@@ -14,6 +14,14 @@ model is live a minute later, with no restart.
 UI: <https://airflow.lab.baakhoff.com>, behind the admin gate. That gate is
 the only login - Airflow treats everyone who reaches it as an admin.
 
+dbt's own documentation site is at <https://dbt.lab.baakhoff.com>, behind the
+same gate: the lineage graph from `raw` to `dm`, each model's SQL, and every
+column with its description and ClickHouse type. `dbt-docs.yaml` runs it as a
+pod of its own that regenerates the site from `main` every hour, so the page
+trails a merge by up to an hour. Deleting the pod regenerates it at once. A
+failed run leaves the previous page up and says why in the `generate`
+container's log.
+
 ## How it runs
 
 - **LocalExecutor**: tasks are processes inside the scheduler pod. No
@@ -36,7 +44,8 @@ the only login - Airflow treats everyone who reaches it as an admin.
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
 Vikunja, Mealie, Paperless, SparkyFitness, Dawarich. Each of those admits
 the scheduler pod by name in its own policy. A new source needs a door on both
-sides.
+sides. The dbt docs pod uses the same rules for ClickHouse and GitHub, and
+ClickHouse admits it by name as well.
 
 ## Setup, in this order
 
