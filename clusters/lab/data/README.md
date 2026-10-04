@@ -49,6 +49,7 @@ layers by hand.
 | `kafka.yaml` | One broker, KRaft mode (no ZooKeeper), 10Gi, one week of retention. Kafka is the buffer; ClickHouse is the archive |
 | `clickhouse.yaml` | One server, 30Gi, tuned for a 16 GB node it shares |
 | `clickhouse-schema.yaml` | An hourly job that creates the topics, the databases and the raw tables. Idempotent |
+| `kafka-reader-repair.yaml` | Every 10 minutes, reattaches a ClickHouse Kafka reader that has stopped reading after a Kafka blip - the stall that kept the warehouse empty for seven hours on 2026-10-03. Nothing is lost: the reader resumes from its last committed offset |
 | `networkpolicy.yaml` | Kafka has no login, so this is its access control: the list of everything allowed to write |
 | `ingress.yaml` | `https://clickhouse.lab.baakhoff.com/play`, behind the admin gate |
 | `kafka-ui.yaml` | [Kafbat UI](https://github.com/kafbat/kafka-ui) at `https://kafka.lab.baakhoff.com`, behind the admin gate: topics, messages and consumer lag. Read-only - it cannot delete, reset or produce |
@@ -172,5 +173,11 @@ kernel then kills the broker, not the tool.
   be: a week's buffer of what ClickHouse already holds. The backup's restic
   pod reaches the bucket through `restic-backup-egress` in
   `networkpolicy.yaml`; nothing else here has the internet.
+- **A stalled reader** shows as `DataIngestionStalled` and a growing lag in
+  Kafbat UI or `kafka-consumer-groups.sh --describe --all-groups`, while
+  Kafka and ClickHouse both look healthy. `kafka-reader-repair` fixes it
+  within 20 minutes; `kubectl -n data logs job/<its latest run>` says which
+  tables it reattached. By hand it is `DETACH TABLE kafka.<source>_queue`,
+  then `ATTACH TABLE` the same.
 - **Memory:** Kafka is capped at 1Gi (512m heap), ClickHouse at 3Gi, and
   ClickHouse holds itself to 80% of that.
