@@ -1,0 +1,104 @@
+# Reattaches a ClickHouse Kafka reader that has stopped reading.
+#
+# After Kafka is briefly unreachable ("1/1 brokers are down") or a commit to
+# it fails, a Kafka engine table can stay connected and keep polling while
+# fetching nothing, with no sign of it in the pod's health: on 2026-10-03
+# every reader but one stalled that way between 13:45 and 18:10 UTC and the
+# warehouse received nothing for seven hours, until each was detached and
+# attached again by hand. Kafka keeps the messages, so a reattached reader
+# carries on from its last committed offset and loses nothing; at worst the
+# one block written but not committed arrives twice.
+#
+# A reader counts as stuck when its newest error is newer than its last
+# commit, and both are over 10 minutes old - long enough to have recovered
+# by itself. An idle reader that merely saw a blip is caught by the same
+# rule and reattached once, which costs nothing: a fresh reader starts with
+# no errors.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-reader-repair
+  namespace: data
+data:
+  repair.sh: |
+    set -eu
+    ch() {
+      clickhouse-client --host clickhouse.data.svc.cluster.local --user admin \
+        --password "$CLICKHOUSE_PASSWORD" "$@"
+    }
+    stuck=$(ch --query "
+      SELECT DISTINCT database || '.' || table
+      FROM system.kafka_consumers
+      WHERE length(exceptions.time) > 0
+        AND exceptions.time[-1] > last_commit_time
+        AND exceptions.time[-1] < now() - INTERVAL 10 MINUTE
+        AND last_commit_time < now() - INTERVAL 10 MINUTE
+    ")
+    if [ -z "$stuck" ]; then
+      echo "every Kafka reader is reading"
+      exit 0
+    fi
+    for t in $stuck; do
+      ch --query "DETACH TABLE $t"
+      ch --query "ATTACH TABLE $t"
+      echo "reattached $t"
+    done
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kafka-reader-repair
+  namespace: data
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  # As clickhouse-schema: one failed run kept to read, no retries - the
+  # next run is ten minutes away, and each kept failure is an alert.
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: kafka-reader-repair
+        spec:
+          restartPolicy: Never
+          enableServiceLinks: false
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: repair
+              image: docker.io/clickhouse/clickhouse-server:26.8.15.10
+              command: ["bash", "/scripts/repair.sh"]
+              env:
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-admin
+                      key: CLICKHOUSE_PASSWORD
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: scripts
+              configMap:
+                name: kafka-reader-repair
