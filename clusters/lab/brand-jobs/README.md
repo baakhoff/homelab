@@ -26,7 +26,8 @@ everything - a job's script and its credentials live here and never in the
 repository.
 
 It cannot create ServiceAccounts, Roles or bindings, so every job runs as
-this namespace's `default` account, which has no rights and mounts no token.
+this namespace's `default` account, which has no rights and mounts no token
+unless a job's pod spec asks for one - and then it is a token for nothing.
 It cannot act in any other namespace, and no job can reach the Kubernetes
 API at all.
 
