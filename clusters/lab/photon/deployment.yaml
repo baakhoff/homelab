@@ -1,9 +1,14 @@
-# How the index is built: the OpenStreetMap dumps GraphHopper publishes for
+# How the index is built - on the workstation, never in the cluster (README,
+# "Building the index"): the OpenStreetMap dumps GraphHopper publishes for
 # Photon, one per country or region, streamed one after another straight
 # into Photon's importer - decompressed on the way, nothing written to disk
 # but the index itself. Photon skips the second and later files' headers
 # with a warning, and -country-codes keeps only the countries asked for,
 # which trims the Central Asia dump to Kazakhstan.
+#
+# stream.py and import.sh are here for the workstation to fetch with the
+# settings below, so its build is this exact one; check.sh is what the pod
+# runs.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -71,17 +76,16 @@ data:
 
   import.sh: |
     #!/bin/bash
-    # Builds the index unless the one on the volume was built from exactly
-    # these settings. Any change to them - a country, a language, or
-    # IMPORT_STAMP - builds it again and swaps it in only once the import
-    # has succeeded.
+    # The build, run on the workstation in this image (README, "Building the
+    # index"), with /photon/data and /build as folders there. Builds the
+    # index unless the one in /photon/data was built from exactly these
+    # settings, in /build, and swaps it in only once the import has
+    # succeeded.
     #
-    # The build happens on the node's own disk (/build), not on the Ceph
-    # volume: indexing tens of millions of places merges the index over and
-    # over, and over the network those writes stalled OpenSearch past the
-    # importer's fixed 30-second timeout, which ends the import. The finished
-    # index is then copied to the volume once, sequentially, and the build
-    # copy deleted.
+    # Not in the cluster: an hour of indexing tens of millions of places
+    # stalled OpenSearch past the importer's fixed 30-second timeout on the
+    # Ceph volume, and on a node's own NVMe - shared with etcd and the Ceph
+    # OSD - it starved the node and took the control plane down.
     set -euo pipefail
     cd /photon/data
     want="$IMPORT_STAMP | $DUMPS | $COUNTRIES | $LANGUAGES"
@@ -108,23 +112,37 @@ data:
     rmdir next
     printf '%s' "$want" > import-settings
     echo "Index built."
+
+  check.sh: |
+    #!/bin/bash
+    # Lets the server start only on an index built from exactly the
+    # settings below. Anything else - no index yet, or a country, language
+    # or IMPORT_STAMP changed - stops here instead of building one in the
+    # cluster, and says how.
+    set -euo pipefail
+    want="$IMPORT_STAMP | $DUMPS | $COUNTRIES | $LANGUAGES"
+    have="$(cat /photon/data/import-settings 2>/dev/null || true)"
+    if [ -d /photon/data/photon_data ] && [ "$have" = "$want" ]; then
+      echo "The index matches the settings: $want"
+      exit 0
+    fi
+    echo "No index built from these settings on the volume."
+    echo "  wanted: $want"
+    echo "  found:  ${have:-nothing}"
+    echo "Build it on the workstation and copy it in: clusters/lab/photon/README.md, \"Building the index\"."
+    exit 1
 ---
-# One pod: the import, when there is something to import, then the server.
-# Photon keeps its index in an OpenSearch it runs inside its own process,
-# on the volume, so one replica and Recreate: two would open the same
-# index.
+# One pod: a check that the volume holds the index these settings describe,
+# then the server. Photon keeps its index in an OpenSearch it runs inside
+# its own process, on the volume, so one replica and Recreate: two would
+# open the same index.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: photon
   namespace: photon
 spec:
-  # Paused. Building the index starved the node it ran on: on Ceph the
-  # import stalled past its 30-second timeout, and on the node's own NVMe -
-  # the disk etcd and the Ceph OSD share - it pushed the load past 50 and
-  # took the control plane down for a moment. Back to 1 once the index can
-  # be built somewhere that is not a cluster node's system disk.
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
@@ -148,13 +166,12 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # The first start downloads about 3.2GB and indexes it, some 40
-        # million places at about 9000 a second - an hour or two, longer on
-        # a busy node; the pod stays in Init until then. Later starts
-        # find the index already built and are through in a second.
-        - name: import
+        # Through in a second when the index matches the settings; otherwise
+        # the pod stops here, in Init:Error, and the log says what to do.
+        # The settings are also what the workstation's build reads.
+        - name: check
           image: docker.io/rtuszik/photon-docker:2.4.0
-          command: ["/bin/bash", "/scripts/import.sh"]
+          command: ["/bin/bash", "/scripts/check.sh"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -183,26 +200,22 @@ spec:
             # Serbian covers both scripts where OpenStreetMap has them.
             - name: LANGUAGES
               value: en,ru,sr,kk
-            # Russia is one country, so the importer's cache of its
-            # addresses is the largest it holds at once.
+            # The workstation build's heap. Russia is one country, so the
+            # importer's cache of its addresses is the largest it holds.
             - name: JAVA_OPTS
               value: -Xmx4g
           resources:
             requests:
-              cpu: 500m
-              memory: 5Gi
-              # The build's room on the node's disk, so the scheduler picks
-              # a node that has it.
-              ephemeral-storage: 25Gi
+              cpu: 10m
+              memory: 16Mi
             limits:
-              memory: 6Gi
+              memory: 64Mi
           volumeMounts:
             - name: data
               mountPath: /photon/data
+              readOnly: true
             - name: scripts
               mountPath: /scripts
-            - name: build
-              mountPath: /build
       containers:
         - name: photon
           image: docker.io/rtuszik/photon-docker:2.4.0
@@ -260,10 +273,3 @@ spec:
         - name: scripts
           configMap:
             name: photon-import
-        # Where the index is built, on the node's NVMe rather than Ceph -
-        # import.sh says why. Empty again once the index is copied; gone
-        # with the pod. The limit is the index for these countries (about
-        # 16GB) with room to spare; past it the kubelet evicts the pod.
-        - name: build
-          emptyDir:
-            sizeLimit: 30Gi
