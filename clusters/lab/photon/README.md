@@ -20,7 +20,7 @@ lives in and travels to:
 |---|---|
 | Home | Denmark |
 | The Balkans | Serbia, Bosnia and Herzegovina, Montenegro, Croatia, Kosovo, North Macedonia, Albania, Slovenia, Bulgaria, Greece, Romania |
-| Further | Turkey, Georgia, Russia, China, Kazakhstan |
+| Further | Turkey, Georgia, Russia, China, Kazakhstan, India, Indonesia, Thailand, the United Arab Emirates |
 
 A point outside them still gets its country from Dawarich, which works
 countries out itself, and no street or city.
@@ -30,8 +30,9 @@ Kazakh where OpenStreetMap has them.
 
 ## How the index is built
 
-On the workstation, never in the cluster. The index is 32.6 million places
-in an OpenSearch database, about 11GB, and building it is an hour of
+On the workstation, never in the cluster. The index is tens of millions of
+places in an OpenSearch database - 32.6 million and 11GB before India,
+Indonesia, Thailand and the UAE joined - and building it is an hour or more of
 constant disk writing. In the cluster that went wrong twice: on the Ceph
 volume the database stalled past the importer's fixed 30-second timeout,
 and on a node's own NVMe - the disk etcd and the node's Ceph OSD share - it

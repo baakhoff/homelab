@@ -192,8 +192,8 @@ the web server directly on 3000, not through the Ingress, past a door in
 - **Nothing leaves the lab.** Reverse geocoding, which turns points into
   street, city and place names, is the lab's own Photon
   (`clusters/lab/photon/`), set in `deployment.yaml`. It holds Denmark,
-  the Balkans, Greece, Romania, Turkey, Georgia, Russia, China and
-  Kazakhstan; a point elsewhere keeps its country and gets no street.
+  the Balkans, Greece, Romania, Turkey, Georgia, Russia, China,
+  Kazakhstan, India, Indonesia, Thailand and the UAE; a point elsewhere keeps its country and gets no street.
   Countries are worked out locally, from the borders loaded at the first
   start. The instance settings page shows Photon as pinned by a variable:
   a provider entered there does not replace it. Immich, below, stays
