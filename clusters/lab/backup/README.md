@@ -246,6 +246,12 @@ heartbeat. An empty snapshot is worse than a missing one, because it is the
 newest for its path, so the restore in step 2 below exits zero having written
 nothing.
 
+One empty volume passes: one that has never been backed up. A volume added
+to the backup before anything is on it - SparkyFitness's photos, until the
+first photo - logs `EMPTY: ... nothing to back up yet, no snapshot written`
+and counts as backed up. An empty volume that already has snapshots still
+fails the target.
+
 ## Restoring
 
 There is no way to restore *into* a volume a running workload has mounted, so

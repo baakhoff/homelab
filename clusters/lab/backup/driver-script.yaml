@@ -311,12 +311,28 @@ data:
                   #
                   # Asserted before restic runs rather than on its summary
                   # afterwards, so the empty snapshot never enters the
-                  # repository at all. A volume that is legitimately empty fails
-                  # loudly, which is the right trade while no target is expected
-                  # to be one.
+                  # repository at all.
+                  #
+                  # ONE EMPTY VOLUME IS FINE: one that has never held anything.
+                  # SparkyFitness's photo volume is backed up from the day it
+                  # was created and stays empty until the first photo - failing
+                  # it every night was an alert about nothing. So an empty
+                  # volume with no snapshot yet is skipped, and nothing is
+                  # written. An empty volume that HAS snapshots is the case
+                  # this guard exists for - lost data, or a clone that came up
+                  # bare - and still fails. The lookup runs under set -e, so a
+                  # repository it cannot reach fails the job rather than
+                  # passing for "never backed up".
                   if [ -z "\$(find /data/$ns/$pvc -type f | head -n 1)" ]; then
-                    echo "FATAL: /data/$ns/$pvc holds no files - refusing to write an empty snapshot"
-                    exit 1
+                    snaps=\$(restic snapshots --host $RESTIC_HOST --path /data/$ns/$pvc --json)
+                    case "\$snaps" in
+                      *'"id"'*)
+                        echo "FATAL: /data/$ns/$pvc holds no files but has snapshots - refusing to write an empty one"
+                        exit 1
+                        ;;
+                    esac
+                    echo "EMPTY: /data/$ns/$pvc has never held a file - nothing to back up yet, no snapshot written"
+                    exit 0
                   fi
                   # THROTTLED ON PURPOSE: the read sweep this job gives the Ceph
                   # OSDs is what trips their slow-heartbeat checks on backup
