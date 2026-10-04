@@ -26,6 +26,23 @@ data:
       clickhouse-client --host clickhouse.data.svc.cluster.local --user admin \
         --password "$CLICKHOUSE_PASSWORD" "$@"
     }
+    # ClickHouse not answering - restarting, or briefly not ready, so its
+    # Service refuses connections - is not this job's to report: its own pod
+    # alerts do. Retried for a minute, then this run is skipped. Only that
+    # error (210, NETWORK_ERROR); anything else, a rejected password say,
+    # fails the job as before. On 2026-10-04 a bare failure here paged once
+    # an hour all night for a ClickHouse that was merely busy.
+    for i in 1 2 3 4 5 6 7; do
+      rc=0
+      ch --query "SELECT 1" >/dev/null || rc=$?
+      [ "$rc" -eq 0 ] && break
+      [ "$rc" -eq 210 ] || exit "$rc"
+      if [ "$i" -eq 7 ]; then
+        echo "ClickHouse is not answering - skipping this run"
+        exit 0
+      fi
+      sleep 10
+    done
     stuck=$(ch --query "
       SELECT DISTINCT database || '.' || table
       FROM system.kafka_consumers
