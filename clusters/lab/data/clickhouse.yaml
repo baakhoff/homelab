@@ -155,24 +155,16 @@ spec:
               port: http
             periodSeconds: 5
             failureThreshold: 60
-          # Five seconds to answer, not Kubernetes' default one. /ping is
-          # trivial, but a ClickHouse busy with a dbt run or a merge on a
-          # node whose disk is stalling can miss one second three times in
-          # a row; it was marked not ready and its Service refused
-          # connections several times on the night of 2026-10-03 without
-          # ever restarting.
           readinessProbe:
             httpGet:
               path: /ping
               port: http
             periodSeconds: 10
-            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /ping
               port: http
             periodSeconds: 20
-            timeoutSeconds: 5
             failureThreshold: 6
           volumeMounts:
             - name: data
