@@ -5,7 +5,8 @@
 # acceptable next to a password vault and the Flux decryption key.
 #
 # One exception, in networkpolicy-brand.yaml beside this: the brand pod also
-# reaches the Firefly API broker and Vikunja's API.
+# reaches the Firefly API broker, Vikunja's API and the Kubernetes API, where
+# it may manage CronJobs in the brand-jobs namespace and nothing else.
 #
 # k3s enforces NetworkPolicy with its embedded controller (kube-router's netpol
 # library) unless started with --disable-network-policy, which this cluster

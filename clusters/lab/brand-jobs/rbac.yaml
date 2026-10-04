@@ -1,0 +1,68 @@
+# The brand pod's identity, and the one namespace it may act in.
+#
+# The ServiceAccount lives in agents, beside the pod that uses it. The Role
+# and its binding live here, so its rights end at this namespace's edge:
+# brand can list nothing, read nothing and change nothing anywhere else.
+#
+# What it may do here:
+#   cronjobs, jobs      everything - create, change, suspend, delete, and
+#                       `kubectl create job --from=cronjob/<name>` to run one now
+#   pods, pods/log,     read, and delete a stuck pod; never create one
+#   events              directly, never exec into one
+#   configmaps,         everything - a job's script and its credentials. They
+#   secrets             stay in this namespace and never enter the repository
+#
+# What it may not do, on purpose: create ServiceAccounts, Roles or bindings,
+# so a job can never run as anything more than this namespace's `default`
+# ServiceAccount, which has no rights and no token (below).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: brand
+  namespace: agents
+---
+# The namespace's own default account, declared so that it mounts no token:
+# every job pod here runs as it, and none of them has any business with the
+# API.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: brand-jobs
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: brand
+  namespace: brand-jobs
+rules:
+  - apiGroups: ["batch"]
+    resources: ["cronjobs", "jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: brand
+  namespace: brand-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: brand
+subjects:
+  - kind: ServiceAccount
+    name: brand
+    namespace: agents

@@ -21,6 +21,7 @@ FROM node:24-bookworm-slim
 ARG CLAUDE_CODE_VERSION=2.1.284
 ARG GH_VERSION=2.101.0
 ARG GLAB_VERSION=1.119.0
+ARG KUBECTL_VERSION=1.37.0
 
 # The toolchain an agent can use inside its pod. Kept general on purpose: a
 # project that needs more (a database client, another language) gets its own
@@ -93,6 +94,20 @@ RUN set -eux; \
     install -m 0755 /tmp/bin/glab /usr/local/bin/glab; \
     rm -rf /tmp/glab.tar.gz /tmp/bin; \
     glab --version
+
+# kubectl, for the one pod that may use it: brand manages its CronJobs in the
+# brand-jobs namespace (clusters/lab/brand-jobs/). Every other agent pod has
+# no Kubernetes identity and no network path to the API, so there it is an
+# inert binary. Pinned to the cluster's minor version and bumped by Renovate
+# (github-releases, regex manager in renovate.json5); keep it within one
+# minor version of the cluster. Checked against the published sha256, and
+# `kubectl version --client` is the same guard as gh's and glab's.
+RUN set -eux; \
+    curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; \
+    echo "$(curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256")  /tmp/kubectl" | sha256sum -c -; \
+    install -m 0755 /tmp/kubectl /usr/local/bin/kubectl; \
+    rm -f /tmp/kubectl; \
+    kubectl version --client
 
 RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force

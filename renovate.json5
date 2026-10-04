@@ -173,6 +173,18 @@
       extractVersionTemplate: "^v(?<version>.*)$",
     },
     {
+      // kubectl in the agent image, for brand's CronJobs. A new minor version
+      // is worth a look before merging: kubectl supports one minor version
+      // either side of the cluster, and k3s is upgraded by hand.
+      customType: "regex",
+      description: "kubectl version pinned in the agent image",
+      managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],
+      matchStrings: ["ARG KUBECTL_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "kubernetes/kubernetes",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v(?<version>.*)$",
+    },
+    {
       // Neither manager above can see an image reference that is not an
       // `image:` field, and clusters/lab/backup/ has one: the driver passes
       // the restic image to the Jobs it creates, so it travels as an env var.
