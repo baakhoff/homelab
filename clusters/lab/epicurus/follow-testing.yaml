@@ -192,7 +192,7 @@ spec:
               # Same image as the backup driver, for the same reason: it has a
               # shell, kubectl, curl and jq, and the official kubectl images are
               # distroless. See clusters/lab/backup/cronjob-backup.yaml.
-              image: alpine/k8s:1.37.0
+              image: alpine/k8s:1.37.1
               command: ["/bin/sh", "/script/follow-testing.sh"]
               env:
                 # kubectl writes a discovery cache under $HOME; the root
