@@ -53,6 +53,7 @@ exception: it keeps its own master password.
 | [ClickHouse](https://clickhouse.com) | The column store those events land in, queried in SQL. |
 | [Apache Airflow](https://airflow.apache.org) | Runs the data pipelines: API snapshots into Kafka, and the dbt models. |
 | [dbt](https://www.getdbt.com) | The SQL models that build the warehouse's layers from the raw data. |
+| [CloudBeaver](https://github.com/dbeaver/cloudbeaver) | DBeaver in the browser: every database in the lab, read-only, with an SQL editor and result grids. |
 | [Mealie](https://mealie.io) | Recipes imported from any site by link, meal plans and shared shopping lists. |
 | [SparkyFitness](https://github.com/CodeWithCJ/SparkyFitness) | Calorie and macro tracking with an AI that logs meals from a photo, plus exercise and weight, with a phone app. |
 | [Dawarich](https://github.com/Freika/dawarich) | Location history from the phone on a map: trips, visits, countries and stats, a self-hosted Google Timeline. |
@@ -102,7 +103,8 @@ exception: it keeps its own master password.
   feeding ClickHouse, where every source's raw data is kept for querying
   ([how](clusters/lab/data/README.md)), and Airflow running the pipelines
   that pull the services' data in and the dbt models that shape it
-  ([how](clusters/lab/airflow/README.md)). Nightly restic backup of its volumes
+  ([how](clusters/lab/airflow/README.md)), and CloudBeaver reading every
+  database in the lab from the browser ([how](clusters/lab/cloudbeaver/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)

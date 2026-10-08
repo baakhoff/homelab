@@ -1,0 +1,147 @@
+# CloudBeaver Community, the web version of DBeaver: a database tree, an
+# SQL editor and result grids for every database in the lab, in the
+# browser. https://db.lab.baakhoff.com, behind the admin gate.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudbeaver
+  namespace: cloudbeaver
+spec:
+  # One replica on a ReadWriteOnce volume. Recreate, so the old pod has let
+  # go of the volume before the new one mounts it.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudbeaver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudbeaver
+      annotations:
+        # Bump with every edit to config.yaml: the files are copied into
+        # place when a pod starts, and a changed pod template is how Flux
+        # starts a new one.
+        cloudbeaver.lab/config-revision: "1"
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's dbeaver user. Started as root, the image would chown
+        # the workspace and drop to this uid with su; starting as it skips
+        # both.
+        runAsUser: 8978
+        runAsGroup: 8978
+        fsGroup: 8978
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: workspace
+          image: docker.io/dbeaver/cloudbeaver:26.2.2
+          command: ["sh", "/config/init.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: CB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudbeaver
+                  key: CB_ADMIN_PASSWORD
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: workspace
+              mountPath: /opt/cloudbeaver/workspace
+            - name: config
+              mountPath: /config
+            - name: init
+              mountPath: /init
+      containers:
+        - name: cloudbeaver
+          image: docker.io/dbeaver/cloudbeaver:26.2.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # A share of the container's limit rather than a fixed heap, so
+            # raising the limit is one number. The rest is the JVM's own
+            # memory and the drivers'.
+            - name: JAVA_OPTS
+              value: -XX:MaxRAMPercentage=65 -XX:+ExitOnOutOfMemoryError
+          # The internal database's password, the local admin's, and one
+          # read-only password per database (README, "Setup"). Created by
+          # hand into secret.sops.yaml beside this file; until it exists
+          # the pod waits in CreateContainerConfigError.
+          envFrom:
+            - secretRef:
+                name: cloudbeaver
+          ports:
+            - name: http
+              containerPort: 8978
+          # "ok" once the web server is up, which it is only after the
+          # internal database and the security layer have started. The
+          # first start creates the schema; a few minutes before liveness
+          # gets a vote.
+          startupProbe:
+            httpGet:
+              path: /status
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: http
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: http
+            periodSeconds: 30
+            failureThreshold: 4
+          # Idle it is a few hundred megabytes. Large result grids and
+          # exports are what the limit is for.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 768Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: workspace
+              mountPath: /opt/cloudbeaver/workspace
+            - name: config
+              mountPath: /opt/cloudbeaver/conf/cloudbeaver.conf
+              subPath: cloudbeaver.conf
+            - name: init
+              mountPath: /init
+              readOnly: true
+            # Exports, imports and large values are staged here.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: cloudbeaver-workspace
+        - name: config
+          configMap:
+            name: cloudbeaver
+        # The initial-data file with the admin password in it, made by the
+        # init container. In memory, never on the volume.
+        - name: init
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 2Gi
