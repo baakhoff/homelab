@@ -5,6 +5,9 @@
 # One exception: Airflow's scheduler reaches the web server directly, for
 # the ingest_dawarich DAG (pipelines/dags/ingest.py), with an API key.
 #
+# A second: CloudBeaver reaches Postgres as its read-only `cloudbeaver`
+# role (cloudbeaver-reader.yaml), and so does the job that keeps that role.
+#
 # No egress rules: the server goes out to Pocket ID for the login, to the
 # lab's Photon for reverse geocoding (whose own policy admits this pod), and
 # later to Immich. Nothing outside the lab receives location points unless
@@ -55,6 +58,22 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: dawarich
+      ports:
+        - protocol: TCP
+          port: 5432
+    # CloudBeaver (clusters/lab/cloudbeaver/), as the read-only
+    # `cloudbeaver` role, and the job here that keeps that role
+    # (cloudbeaver-reader.yaml).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudbeaver
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver-reader
       ports:
         - protocol: TCP
           port: 5432

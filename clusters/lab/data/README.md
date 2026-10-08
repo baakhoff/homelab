@@ -41,6 +41,7 @@ layers by hand.
 | Kubernetes events | the same collectors, one of them at a time - OTLP JSON, the event as JSON in the body | `raw.k8s-events` |
 | Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
 | Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich` |
+| CloudBeaver's usage | Airflow's `ingest_cloudbeaver` DAG, `pipelines/dags/cloudbeaver.py` - its ClickHouse queries from `system.query_log`, its sessions and sign-ins from its own database. Its Postgres statements come in with the log lines | `raw.cloudbeaver` |
 
 ## What is here
 
@@ -186,7 +187,21 @@ unset BPW
 The file is on brand's home volume, so it outlives a restart. Rotating is
 the same block again, then the schema job (Setup, step 2).
 
-## Things to know
+## CloudBeaver's user
+
+CloudBeaver (`clusters/lab/cloudbeaver/`) reads the warehouse as the
+`cloudbeaver` user: `SELECT` on every database, `system` included, and no
+writes or DDL (`readonly = 2`). Its profile caps a query at 1.5 GB and four
+threads, spills large `GROUP BY`s and sorts to disk at half that, and
+allows four queries at a time. The schema job creates it from the
+`clickhouse-cloudbeaver` Secret, whose value is also `READER_CLICKHOUSE` in
+CloudBeaver's own Secret - both made by the block in CloudBeaver's README.
+
+Every query it runs is in `system.query_log`, and the usage DAG copies its
+rows to `raw.cloudbeaver`. dbt may read those rows of `system.query_log`
+and no others: a row policy limits it to `user = 'cloudbeaver'`, and a
+second keeps the table whole for everyone else.
+
 
 - **Writing to Kafka** takes a rule in `networkpolicy.yaml` naming the
   producer's namespace and pods, and the source in `SOURCES`. Without both,

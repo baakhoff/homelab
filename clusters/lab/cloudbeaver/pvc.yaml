@@ -1,0 +1,17 @@
+# CloudBeaver's workspace: each user's own connections and saved SQL
+# scripts, and the server's runtime files. Everything that is the lab's -
+# the shared connections, the settings - is rewritten from config.yaml at
+# every start, so what this holds that git does not is what was made in
+# the UI. Users, teams and sessions are in Postgres (postgres.yaml).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cloudbeaver-workspace
+  namespace: cloudbeaver
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 2Gi

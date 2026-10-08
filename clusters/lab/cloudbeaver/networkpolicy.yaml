@@ -1,0 +1,172 @@
+# Who may talk to CloudBeaver, and what it may talk to.
+#
+# In: ingress-nginx to the web server, and nothing else to it - the
+# Pocket ID header is trusted because nothing else can send it
+# (ingress.yaml). Its Postgres from the pods here, and from Airflow's
+# scheduler for the usage DAG (pipelines/dags/cloudbeaver.py).
+#
+# Out: each lab database on its own port, every one matched by a rule on
+# the far side that admits CloudBeaver by name:
+#
+#   data           ClickHouse 8123, HTTP only (clusters/lab/data/networkpolicy.yaml)
+#   airflow        airflow-postgres 5432 (clusters/lab/airflow/networkpolicy.yaml)
+#   sparkyfitness  sparkyfitness-postgres 5432
+#   dawarich       dawarich-postgres 5432
+#   epicurus       postgres 5432 (clusters/lab/epicurus/networkpolicy-cloudbeaver.yaml)
+#
+# No internet: the drivers are in the image, and nothing it browses should
+# leave the lab. A connection you add to a database outside these is
+# refused here until it gets a rule.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudbeaver
+  namespace: cloudbeaver
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector: {}
+---
+# The web server, from the gate. A policy of its own so the port opens on
+# this pod only, not on Postgres.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudbeaver-web
+  namespace: cloudbeaver
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudbeaver
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8978
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clickhouse
+      ports:
+        - protocol: TCP
+          port: 8123
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: airflow-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sparkyfitness
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: sparkyfitness-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dawarich
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: dawarich-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: epicurus
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: epicurus
+              app.kubernetes.io/component: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Airflow's scheduler, reading the sessions and sign-ins as the `ingest`
+# role (postgres.yaml). The other half is in clusters/lab/airflow/.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudbeaver-postgres
+  namespace: cloudbeaver
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudbeaver-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# The nightly backup's restic pod, and only it, out to the object-storage
+# bucket - as in the data namespace. The backup driver starts that pod here,
+# beside the volume it reads (clusters/lab/backup/), and labels it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restic-backup-egress
+  namespace: cloudbeaver
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restic-backup
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

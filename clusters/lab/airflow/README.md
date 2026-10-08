@@ -114,6 +114,8 @@ sops --encrypt --in-place clusters/lab/airflow/sources.sops.yaml
 Firefly needs no token here: the broker holds it. SparkyFitness's and
 Dawarich's keys are added later, into the same Secret - step 5 of
 `clusters/lab/sparkyfitness/README.md` and of `clusters/lab/dawarich/README.md`.
+So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
+`clusters/lab/cloudbeaver/README.md`.
 
 **4. Create the dbt user** once the Secrets have reconciled, rather than
 waiting for the hourly schema job:

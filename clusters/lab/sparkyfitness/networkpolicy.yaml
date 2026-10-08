@@ -6,6 +6,9 @@
 # ingest_sparkyfitness DAG (pipelines/dags/ingest.py). It signs in with an
 # API key, not a login, so the sign-in rate limit has nothing to protect.
 #
+# A second: CloudBeaver reaches Postgres as its read-only `cloudbeaver`
+# role (cloudbeaver-reader.yaml), and so does the job that keeps that role.
+#
 # No egress rules: the server goes out to food databases, the AI provider
 # chosen in its settings, and Pocket ID.
 #
@@ -73,6 +76,22 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: sparkyfitness-server
+      ports:
+        - protocol: TCP
+          port: 5432
+    # CloudBeaver (clusters/lab/cloudbeaver/), as the read-only
+    # `cloudbeaver` role, and the job here that keeps that role
+    # (cloudbeaver-reader.yaml).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudbeaver
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver-reader
       ports:
         - protocol: TCP
           port: 5432

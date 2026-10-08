@@ -31,7 +31,7 @@ data:
   # write to the topic; nothing is auto-created (kafka.yaml), so a producer
   # with a wrong name fails instead of disappearing into a topic nobody
   # reads.
-  SOURCES: homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich
+  SOURCES: homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver
 
   topics.sh: |
     set -eu
@@ -145,6 +145,40 @@ data:
       ALTER USER brand IDENTIFIED WITH sha256_password BY '$BRAND_PASSWORD' SETTINGS PROFILE 'brand';
       GRANT SELECT ON ods.* TO brand;
     "
+
+    # CloudBeaver's user (clusters/lab/cloudbeaver/): reads every database,
+    # system included, and writes nothing - readonly = 2 lets a client
+    # change settings, never data or schema. The profile keeps one query
+    # inside what the server can give: MAX rather than CONST, so a query
+    # may ask for less. Big GROUP BYs and sorts spill to disk at half the
+    # memory cap instead of failing at it. Reading a Kafka engine table
+    # directly would take its messages from the warehouse; that stays off.
+    #
+    # dbt may read this user's rows of system.query_log, and only those,
+    # for the usage DAG (pipelines/dags/cloudbeaver.py): the first row
+    # policy hides every other user's queries from it. The second keeps
+    # the table whole for everyone else - a user no policy names would
+    # otherwise depend on users_without_row_policies_can_read_rows.
+    ch --query "
+      CREATE SETTINGS PROFILE IF NOT EXISTS cloudbeaver;
+      ALTER SETTINGS PROFILE cloudbeaver SETTINGS
+        readonly = 2 CONST,
+        max_memory_usage = 1500000000 MAX 1500000000,
+        max_bytes_before_external_group_by = 750000000,
+        max_bytes_before_external_sort = 750000000,
+        max_execution_time = 900 MAX 3600,
+        max_threads = 4 MAX 4,
+        max_concurrent_queries_for_user = 4 CONST,
+        stream_like_engine_allow_direct_select = 0 CONST;
+      CREATE USER IF NOT EXISTS cloudbeaver IDENTIFIED WITH sha256_password BY '$CLOUDBEAVER_PASSWORD';
+      ALTER USER cloudbeaver IDENTIFIED WITH sha256_password BY '$CLOUDBEAVER_PASSWORD' SETTINGS PROFILE 'cloudbeaver';
+      GRANT SELECT, SHOW, dictGet ON *.* TO cloudbeaver;
+      GRANT SELECT ON system.query_log TO dbt;
+      CREATE ROW POLICY IF NOT EXISTS cloudbeaver_only ON system.query_log
+        FOR SELECT USING user = 'cloudbeaver' TO dbt;
+      CREATE ROW POLICY IF NOT EXISTS everyone ON system.query_log
+        FOR SELECT USING 1 TO ALL EXCEPT dbt;
+    "
     echo "schema in place for: $SOURCES"
 ---
 apiVersion: batch/v1
@@ -231,6 +265,13 @@ spec:
                     secretKeyRef:
                       name: clickhouse-brand
                       key: BRAND_PASSWORD
+                # Created by hand, the same value as READER_CLICKHOUSE in
+                # clusters/lab/cloudbeaver/secret.sops.yaml (its README).
+                - name: CLOUDBEAVER_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-cloudbeaver
+                      key: CLOUDBEAVER_PASSWORD
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:

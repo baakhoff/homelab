@@ -142,6 +142,25 @@ spec:
 
           loki.source.kubernetes "pod_logs" {
             targets    = discovery.relabel.pod_logs.output
+            forward_to = [loki.process.multiline.receiver]
+          }
+
+          // Postgres writes a statement over several lines as it was typed,
+          // the first with the timestamp prefix and the rest as bare
+          // continuation lines. Joined back into one entry here, so a query
+          // run from CloudBeaver reaches the warehouse whole
+          // (pipelines/dbt/models/ods/cloudbeaver_postgres_log.sql). Every
+          // Postgres container in the lab is named `postgres` and every one
+          // starts its lines with the date; nothing else is touched.
+          loki.process "multiline" {
+            stage.match {
+              selector = "{container=\"postgres\"}"
+              stage.multiline {
+                firstline     = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
+                max_wait_time = "3s"
+                max_lines     = 1000
+              }
+            }
             forward_to = [loki.write.default.receiver, loki.process.to_kafka.receiver]
           }
 
