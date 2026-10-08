@@ -124,6 +124,27 @@ data:
       GRANT TABLE ENGINE ON MergeTree TO dbt;
       GRANT CREATE TEMPORARY TABLE ON *.* TO dbt;
     "
+
+    # The brand agent's user (clusters/lab/agents/brand.yaml): reads ods and
+    # nothing else - not raw, not the layers above, no writes, no DDL. More
+    # is one GRANT line here; a grant taken away needs a REVOKE run by hand
+    # as well, since this only ever adds. The profile keeps one bad query
+    # from hurting the server; CONST, so a query cannot raise the limits.
+    # Rotating the password: the clickhouse-brand Secret, the next run of
+    # this job, and the file on brand's pod (README).
+    ch --query "
+      CREATE SETTINGS PROFILE IF NOT EXISTS brand;
+      ALTER SETTINGS PROFILE brand SETTINGS
+        readonly = 2 CONST,
+        max_memory_usage = 1000000000 CONST,
+        max_execution_time = 60 CONST,
+        max_threads = 2 CONST,
+        max_result_rows = 1000000 CONST,
+        max_concurrent_queries_for_user = 2 CONST;
+      CREATE USER IF NOT EXISTS brand IDENTIFIED WITH sha256_password BY '$BRAND_PASSWORD';
+      ALTER USER brand IDENTIFIED WITH sha256_password BY '$BRAND_PASSWORD' SETTINGS PROFILE 'brand';
+      GRANT SELECT ON ods.* TO brand;
+    "
     echo "schema in place for: $SOURCES"
 ---
 apiVersion: batch/v1
@@ -205,6 +226,11 @@ spec:
                     secretKeyRef:
                       name: clickhouse-dbt
                       key: DBT_PASSWORD
+                - name: BRAND_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-brand
+                      key: BRAND_PASSWORD
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
