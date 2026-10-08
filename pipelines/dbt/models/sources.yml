@@ -25,3 +25,5 @@ sources:
         description: SparkyFitness API snapshots of one account's diary, one record per message in the ingest envelope.
       - name: dawarich
         description: Dawarich API reads of one account's location history - visits and places as snapshots, points as the last week's, one record per message in the ingest envelope.
+      - name: cloudbeaver
+        description: CloudBeaver's usage - its ClickHouse queries from system.query_log, and its sessions, users and sign-ins as snapshots, one record per message in the ingest envelope. Its Postgres statements are in logs.

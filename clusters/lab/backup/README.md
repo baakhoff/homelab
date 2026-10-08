@@ -75,8 +75,10 @@ whose loss would hurt most are written first:
 | 12 | `dawarich/dawarich-storage` | the original import files - Google Timeline and the like |
 | 13-14 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
 | 15 | `minecraft/minecraft-data` | the world |
-| 16 | `data/data-clickhouse-0` | the warehouse's history |
-| 17-25 | the nine `agents/*` volumes | session transcripts and unpushed work |
+| 16 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
+| 17 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
+| 18 | `data/data-clickhouse-0` | the warehouse's history |
+| 19-27 | the nine `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly

@@ -1,0 +1,104 @@
+# The `cloudbeaver` role on SparkyFitness's Postgres: what CloudBeaver signs in
+# as (clusters/lab/cloudbeaver/). It reads everything - every table in
+# every database and schema, present and future, row-level security
+# bypassed - and changes nothing: pg_read_all_data grants SELECT and no
+# more, and pg_monitor adds the statistics views.
+#
+# Its sessions log every statement with its duration, and their
+# disconnection, and the log line names the role and the database. Those
+# lines reach ClickHouse through the log collectors, and become
+# ods.cloudbeaver_postgres_log - who ran what, where, when.
+#
+# Hourly, like the warehouse's schema job: it makes the role if it is
+# missing and sets the password from the Secret every time, so rotating it
+# is both copies of the Secret and the next run (cloudbeaver README).
+# Taking the role away is DROP ROLE by hand once this file is gone.
+#
+# ALTER SYSTEM sets log_line_prefix for the whole server, the one setting
+# here that is not the role's own: Postgres's default prefix names neither
+# the role nor the database. It is stored in postgresql.auto.conf on the
+# data volume.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cloudbeaver-reader
+  namespace: sparkyfitness
+spec:
+  schedule: "13 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cloudbeaver-reader
+        spec:
+          restartPolicy: Never
+          enableServiceLinks: false
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            # The alpine image's postgres user; only psql runs.
+            runAsUser: 70
+            runAsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: psql
+              image: docker.io/library/postgres:18.6-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              env:
+                - name: PGHOST
+                  value: sparkyfitness-postgres
+                - name: PGUSER
+                  value: sparky
+                - name: PGDATABASE
+                  value: sparkyfitness
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: sparkyfitness
+                      key: SPARKY_FITNESS_DB_PASSWORD
+                # Created by hand, the same value as READER_SPARKYFITNESS in
+                # clusters/lab/cloudbeaver/secret.sops.yaml (cloudbeaver README).
+                - name: READER_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudbeaver-reader
+                      key: PASSWORD
+              # The password goes in as a psql variable, never on a command
+              # line. A failed statement is logged with its text by default,
+              # so this session logs none: the ALTER ROLE carries the
+              # password. BYPASSRLS needs a superuser to grant, which the
+              # app's own user is.
+              command:
+                - sh
+                - -ec
+                - |
+                  psql -v ON_ERROR_STOP=1 -v pw="$READER_PASSWORD" <<'SQL'
+                  SET log_min_error_statement = panic;
+                  SELECT 'CREATE ROLE cloudbeaver' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'cloudbeaver') \gexec
+                  ALTER ROLE cloudbeaver WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS PASSWORD :'pw';
+                  GRANT pg_read_all_data, pg_monitor TO cloudbeaver;
+                  ALTER ROLE cloudbeaver SET default_transaction_read_only = on;
+                  ALTER ROLE cloudbeaver SET log_min_duration_statement = 0;
+                  ALTER ROLE cloudbeaver SET log_disconnections = on;
+                  ALTER ROLE cloudbeaver SET statement_timeout = '15min';
+                  ALTER SYSTEM SET log_line_prefix = '%m [%p] %q%u@%d [%a] ';
+                  SELECT pg_reload_conf();
+                  SQL
+                  echo "cloudbeaver role in place"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi
