@@ -158,6 +158,34 @@ pod's own variable gives each Java process the broker's 512m heap, and a
 second one beside the broker can push the pod past its 1Gi limit - and the
 kernel then kills the broker, not the tool.
 
+## The brand agent's user
+
+The brand agent (`clusters/lab/agents/brand.yaml`) reads the warehouse as
+the `brand` user: `SELECT` on `ods` and nothing else, over HTTP on 8123,
+with a settings profile capping each query at 1 GB, 60 seconds, two threads
+and a million result rows, two queries at a time. The schema job creates it;
+the two network policies (`networkpolicy.yaml` here, `networkpolicy-brand.yaml`
+in agents) open the path. Another layer is one `GRANT` line in the schema
+job; taking one away is a `REVOKE ... FROM brand` in /play as well.
+
+One password, generated on the workstation, from the repo root, into the
+Secret here and into a file on brand's pod - never on screen:
+
+```bash
+BPW=$(openssl rand -hex 24)
+kubectl create secret generic clickhouse-brand \
+  --namespace data \
+  --from-literal=BRAND_PASSWORD="$BPW" \
+  --dry-run=client -o yaml > clusters/lab/data/clickhouse-brand.sops.yaml
+sops --encrypt --in-place clusters/lab/data/clickhouse-brand.sops.yaml
+printf '%s' "$BPW" | kubectl -n agents exec -i deploy/brand -c claude -- \
+  sh -c 'umask 077 && cat > /home/node/.clickhouse-password'
+unset BPW
+```
+
+The file is on brand's home volume, so it outlives a restart. Rotating is
+the same block again, then the schema job (Setup, step 2).
+
 ## Things to know
 
 - **Writing to Kafka** takes a rule in `networkpolicy.yaml` naming the
