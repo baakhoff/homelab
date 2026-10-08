@@ -14,6 +14,10 @@
 #   paperless       8000 (Paperless has no policy of its own to match)
 #   sparkyfitness   3010, the server itself rather than its frontend
 #   dawarich        3000
+#   cloudbeaver     its Postgres 5432, for the usage DAG
+#
+# And one more way in: CloudBeaver to Postgres, as its read-only role - the
+# second policy below.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
@@ -144,3 +148,39 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudbeaver
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# CloudBeaver (clusters/lab/cloudbeaver/) into Airflow's Postgres, as the
+# read-only `cloudbeaver` role that cloudbeaver-reader.yaml keeps. A policy
+# of its own, so the port opens on Postgres and not on every pod the one
+# above covers. The job itself is inside the namespace and needs no rule.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: airflow-postgres-cloudbeaver
+  namespace: airflow
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: airflow-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudbeaver
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver
+      ports:
+        - protocol: TCP
+          port: 5432

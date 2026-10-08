@@ -107,6 +107,19 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
+    # CloudBeaver, as ClickHouse's read-only `cloudbeaver` user
+    # (clickhouse-schema.yaml). HTTP only; the other half is
+    # clusters/lab/cloudbeaver/networkpolicy.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudbeaver
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver
+      ports:
+        - protocol: TCP
+          port: 8123
   egress:
     # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
     - to:

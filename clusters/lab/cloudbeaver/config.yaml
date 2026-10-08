@@ -1,0 +1,328 @@
+# CloudBeaver's settings and the lab's shared connections, all of it here.
+#
+# Git is the only source: at every start the init container (deployment.yaml,
+# init.sh below) deletes the runtime settings file CloudBeaver writes when
+# its admin pages are saved, and puts the connections back as they are
+# below. A setting changed in the UI lasts until the next restart; to keep
+# it, change it here. Each user's own connections and scripts are not
+# touched - they are in their own project on the workspace volume.
+#
+# Every edit here also bumps cloudbeaver.lab/config-revision in the
+# Deployment, or the running pod keeps the old files.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudbeaver
+  namespace: cloudbeaver
+data:
+  # Replaces the image's conf/cloudbeaver.conf. Any "${NAME}" in a string
+  # is read from the container's environment - the passwords come in that
+  # way, from the cloudbeaver Secret, and never sit in a file.
+  cloudbeaver.conf: |
+    {
+      server: {
+        serverPort: 8978,
+        // Non-empty means "configured": no setup wizard on first start.
+        serverName: "lab",
+        contentRoot: "web",
+        driversLocation: "drivers",
+        rootURI: "/",
+        serviceURI: "/api/",
+        // Logged out after 30 minutes idle; the next request signs straight
+        // back in through the gate (app.authConfigurations below).
+        expireSessionAfterPeriod: 1800000,
+        // No host check: the Ingress and the NetworkPolicy decide who
+        // reaches it.
+        supportedHosts: [],
+
+        database: {
+          driver: "postgres-jdbc",
+          url: "jdbc:postgresql://cloudbeaver-postgres:5432/cloudbeaver",
+          schema: "cb",
+          user: "cloudbeaver",
+          password: "${CLOUDBEAVER_DB_PASSWORD}",
+          // Written by init.sh from initial-data.conf below, with the admin
+          // password filled in.
+          initialDataConfiguration: "/init/initial-data.conf",
+          // Before each schema upgrade CloudBeaver would run pg_dump, which
+          // its image does not have - and the server would not start. The
+          // nightly backup has the volume.
+          backupEnabled: false,
+          pool: {
+            minIdleConnections: 2,
+            maxIdleConnections: 5,
+            maxConnections: 20,
+            validationQuery: "SELECT 1"
+          }
+        },
+
+        sm: {
+          enableBruteForceProtection: true,
+          maxFailedLogin: 10,
+          minimumLoginTimeout: 1,
+          blockLoginPeriod: 300,
+          // The local admin's password is 48 hex characters, which has no
+          // capitals; length is the strength here.
+          passwordPolicy: {
+            minLength: 12,
+            requireMixedCase: false,
+            minNumberCount: 1,
+            minSymbolCount: 0
+          }
+        },
+
+        productSettings: {
+          core.theming.theme: "system",
+          core.localization.language: "en",
+          plugin.sql-editor.autoSave: true,
+          plugin.sql-editor.disabled: false,
+          plugin.sql-editor.maxFileSize: 10240,
+          plugin.log-viewer.disabled: false,
+          plugin.log-viewer.logBatchSize: 1000,
+          plugin.log-viewer.maxLogRecords: 2000,
+          sql.proposals.insert.table.alias: "PLAIN",
+          SQLEditor.ContentAssistant.experimental.mode: "NEW"
+        }
+      },
+
+      app: {
+        anonymousAccessEnabled: false,
+        anonymousUserRole: "user",
+        // Everyone who gets this far came through the admin gate
+        // (ingress.yaml), so everyone is a CloudBeaver admin.
+        defaultUserTeam: "admin",
+        grantConnectionsAccessToAnonymousTeam: false,
+        // Your own connections, beside the shared ones: kept in your
+        // project on the volume, not reset by a restart.
+        supportsCustomConnections: true,
+        showReadOnlyConnectionInfo: true,
+        // What lets "${READER_...}" in the connections below be read from
+        // the environment. It also lets anyone who can edit a connection
+        // read any of this container's variables through one - which is
+        // the admins, who could read the Secret anyway.
+        systemVariablesResolvingEnabled: true,
+        // TLS ends at ingress-nginx; trust its X-Forwarded-* headers.
+        forwardProxy: true,
+        publicCredentialsSaveEnabled: true,
+        adminCredentialsSaveEnabled: true,
+        resourceManagerEnabled: true,
+        dbUserPasswordChangeEnabled: false,
+
+        resourceQuotas: {
+          resourceManagerFileSizeLimit: 500000,
+          sqlMaxRunningQueries: 20,
+          // Rows a grid fetches at most; an export is not limited by it.
+          sqlResultSetRowsLimit: 100000,
+          sqlTextPreviewMaxLength: 4096,
+          sqlBinaryPreviewMaxLength: 261120
+        },
+
+        // Pocket ID, through the gate: ingress-nginx asks oauth2-proxy,
+        // and passes on the signed-in address in X-Auth-Request-Email,
+        // overwriting any the browser sent. CloudBeaver signs that address
+        // in, and makes the account at its first visit. `local` stays for
+        // the admin account (initial-data.conf), the way in if the header
+        // ever stops arriving.
+        enabledAuthProviders: ["local", "reverseProxy"],
+        authConfigurations: [
+          {
+            id: "pocket-id",
+            provider: "reverseProxy",
+            displayName: "Pocket ID",
+            disabled: false,
+            iconURL: "",
+            description: "Signed in at the lab's gate",
+            parameters: {
+              "user-header": "X-Auth-Request-Email",
+              // No team header: CloudBeaver refuses a sign-in that names a
+              // team it does not have, and Pocket ID's groups are not
+              // CloudBeaver's teams. defaultUserTeam above decides.
+              "team-header": "",
+              "logout-url": "https://auth.lab.baakhoff.com/oauth2/sign_out",
+              "auto-user-provisioning": true
+            }
+          }
+        ]
+      }
+    }
+
+  # The two teams CloudBeaver needs, and the local admin. Read once, when
+  # CloudBeaver first creates its schema; afterwards the admin's password
+  # is CloudBeaver's own, changed in its UI. @ADMIN_PASSWORD@ is filled in
+  # by init.sh.
+  initial-data.conf: |
+    {
+      adminName: "admin",
+      adminPassword: "@ADMIN_PASSWORD@",
+      teams: [
+        {
+          subjectId: "admin",
+          teamName: "Admin",
+          description: "Administrative access. Has all permissions.",
+          permissions: ["admin"]
+        },
+        {
+          subjectId: "user",
+          teamName: "User",
+          description: "All users.",
+          permissions: []
+        }
+      ]
+    }
+
+  # The lab's databases, one connection each, read-only twice over: here,
+  # and - what actually holds - as each database's `cloudbeaver` role,
+  # which can read everything and change nothing (README). The passwords
+  # are variables, read from the environment at connect time.
+  data-sources.json: |
+    {
+      "folders": {},
+      "connections": {
+        "lab-clickhouse": {
+          "provider": "clickhouse",
+          "driver": "com_clickhouse",
+          "name": "ClickHouse - warehouse",
+          "description": "raw, ods, ads, dm and system. clusters/lab/data/",
+          "save-password": true,
+          "read-only": true,
+          "configuration": {
+            "host": "clickhouse.data.svc.cluster.local",
+            "port": "8123",
+            "database": "default",
+            "url": "jdbc:clickhouse://clickhouse.data.svc.cluster.local:8123/default",
+            "configurationType": "MANUAL",
+            "type": "prod",
+            "auth-model": "native",
+            "auth-properties": {
+              "userName": "cloudbeaver",
+              "userPassword": "${READER_CLICKHOUSE}"
+            }
+          }
+        },
+        "lab-airflow": {
+          "provider": "postgresql",
+          "driver": "postgres-jdbc",
+          "name": "Postgres - Airflow",
+          "description": "Airflow's metadata: DAG runs, task states, Variables. clusters/lab/airflow/",
+          "save-password": true,
+          "read-only": true,
+          "configuration": {
+            "host": "airflow-postgres.airflow.svc.cluster.local",
+            "port": "5432",
+            "database": "airflow",
+            "url": "jdbc:postgresql://airflow-postgres.airflow.svc.cluster.local:5432/airflow",
+            "configurationType": "MANUAL",
+            "type": "prod",
+            "provider-properties": {
+              "@dbeaver-show-non-default-db@": "true"
+            },
+            "auth-model": "native",
+            "auth-properties": {
+              "userName": "cloudbeaver",
+              "userPassword": "${READER_AIRFLOW}"
+            }
+          }
+        },
+        "lab-sparkyfitness": {
+          "provider": "postgresql",
+          "driver": "postgres-jdbc",
+          "name": "Postgres - SparkyFitness",
+          "description": "The food diary, workouts and measurements. clusters/lab/sparkyfitness/",
+          "save-password": true,
+          "read-only": true,
+          "configuration": {
+            "host": "sparkyfitness-postgres.sparkyfitness.svc.cluster.local",
+            "port": "5432",
+            "database": "sparkyfitness",
+            "url": "jdbc:postgresql://sparkyfitness-postgres.sparkyfitness.svc.cluster.local:5432/sparkyfitness",
+            "configurationType": "MANUAL",
+            "type": "prod",
+            "provider-properties": {
+              "@dbeaver-show-non-default-db@": "true"
+            },
+            "auth-model": "native",
+            "auth-properties": {
+              "userName": "cloudbeaver",
+              "userPassword": "${READER_SPARKYFITNESS}"
+            }
+          }
+        },
+        "lab-dawarich": {
+          "provider": "postgresql",
+          "driver": "postgres-jdbc",
+          "name": "Postgres - Dawarich",
+          "description": "The location history, PostGIS. clusters/lab/dawarich/",
+          "save-password": true,
+          "read-only": true,
+          "configuration": {
+            "host": "dawarich-postgres.dawarich.svc.cluster.local",
+            "port": "5432",
+            "database": "dawarich",
+            "url": "jdbc:postgresql://dawarich-postgres.dawarich.svc.cluster.local:5432/dawarich",
+            "configurationType": "MANUAL",
+            "type": "prod",
+            "provider-properties": {
+              "@dbeaver-show-non-default-db@": "true"
+            },
+            "auth-model": "native",
+            "auth-properties": {
+              "userName": "cloudbeaver",
+              "userPassword": "${READER_DAWARICH}"
+            }
+          }
+        },
+        "lab-epicurus": {
+          "provider": "postgresql",
+          "driver": "postgres-jdbc",
+          "name": "Postgres - Epicurus",
+          "description": "Epicurus's platform database. clusters/lab/epicurus/",
+          "save-password": true,
+          "read-only": true,
+          "configuration": {
+            "host": "postgres.epicurus.svc.cluster.local",
+            "port": "5432",
+            "database": "epicurus",
+            "url": "jdbc:postgresql://postgres.epicurus.svc.cluster.local:5432/epicurus",
+            "configurationType": "MANUAL",
+            "type": "prod",
+            "provider-properties": {
+              "@dbeaver-show-non-default-db@": "true"
+            },
+            "auth-model": "native",
+            "auth-properties": {
+              "userName": "cloudbeaver",
+              "userPassword": "${READER_EPICURUS}"
+            }
+          }
+        }
+      }
+    }
+
+  # Who sees the shared connections: both teams, so everyone - every
+  # account is in admin (defaultUserTeam above), the rest would be in user.
+  # Applied at every start.
+  data-sources-permissions.json: |
+    {
+      "lab-clickhouse": ["admin", "user"],
+      "lab-airflow": ["admin", "user"],
+      "lab-sparkyfitness": ["admin", "user"],
+      "lab-dawarich": ["admin", "user"],
+      "lab-epicurus": ["admin", "user"]
+    }
+
+  init.sh: |
+    set -eu
+    ws=/opt/cloudbeaver/workspace
+    dbeaver="$ws/GlobalConfiguration/.dbeaver"
+    # .metadata present tells the image's start script this is not a first
+    # start, so it does not lay its empty connection list over ours.
+    mkdir -p "$ws/.metadata" "$ws/.data" "$dbeaver"
+    # Settings saved in the UI, and the shared connections' stored copy of
+    # their credentials: both come from git again, below and in the
+    # environment.
+    rm -f "$ws/.data/.cloudbeaver.runtime.conf" "$dbeaver/credentials-config.json"
+    cp /config/data-sources.json /config/data-sources-permissions.json "$dbeaver/"
+    # Hex, so nothing in it needs escaping for sed or JSON.
+    sed "s/@ADMIN_PASSWORD@/$CB_ADMIN_PASSWORD/" /config/initial-data.conf > /init/initial-data.conf
+    chmod 600 /init/initial-data.conf
+    echo "workspace ready"

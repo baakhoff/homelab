@@ -103,6 +103,8 @@ spec:
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     minecraft/minecraft-data
+                    cloudbeaver/data-cloudbeaver-postgres-0
+                    cloudbeaver/cloudbeaver-workspace
                     data/data-clickhouse-0
                     agents/homelab
                     agents/brand

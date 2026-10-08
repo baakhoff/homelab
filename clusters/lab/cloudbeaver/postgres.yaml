@@ -1,0 +1,202 @@
+# CloudBeaver's own database: its users, teams, sessions and sign-ins, and
+# the connection passwords a user saves for their own connections
+# (encrypted). Not the databases it browses - those are the lab's, and it
+# reaches them over the network as their read-only `cloudbeaver` roles.
+#
+# Postgres rather than the embedded H2 default, so that Airflow can read the
+# sessions and sign-ins for the warehouse (pipelines/dags/cloudbeaver.py)
+# while CloudBeaver runs - H2 is one process's file.
+#
+# The user created here is the database's superuser, and CloudBeaver signs
+# in as it to create and migrate its schema, `cb`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudbeaver-postgres
+  namespace: cloudbeaver
+spec:
+  selector:
+    app.kubernetes.io/name: cloudbeaver-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cloudbeaver-postgres
+  namespace: cloudbeaver
+spec:
+  serviceName: cloudbeaver-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudbeaver-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudbeaver-postgres
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The alpine image's postgres user.
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: docker.io/library/postgres:18.6-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: cloudbeaver
+            - name: POSTGRES_DB
+              value: cloudbeaver
+            # Read only when the database is first created. Changing it in
+            # the Secret later does not change it here.
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudbeaver
+                  key: CLOUDBEAVER_DB_PASSWORD
+            # A subdirectory, because the volume's root holds lost+found and
+            # initdb refuses a non-empty directory.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "cloudbeaver", "-d", "cloudbeaver"]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "cloudbeaver", "-d", "cloudbeaver"]
+            periodSeconds: 30
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: ceph-block
+        resources:
+          requests:
+            storage: 2Gi
+---
+# Airflow's way in: the `ingest` role, which reads three of CloudBeaver's
+# tables and nothing else - the sessions, the users and the sign-in
+# attempts, for pipelines/dags/cloudbeaver.py. Not the tables holding
+# saved credentials, tokens or session state.
+#
+# A job rather than an init script: the tables only exist once CloudBeaver
+# has started against the database for the first time, and an init script
+# runs before that, once. Hourly, like the warehouse's schema job, so the
+# grants arrive by themselves after the first start, and so the password is
+# the Secret's again an hour after either copy of it changes. Until the
+# tables exist the role is there with no grants, and the DAG's reads fail
+# with "permission denied" - which is the right failure.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cloudbeaver-postgres-roles
+  namespace: cloudbeaver
+spec:
+  schedule: "12 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cloudbeaver-postgres-roles
+        spec:
+          restartPolicy: Never
+          enableServiceLinks: false
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: psql
+              image: docker.io/library/postgres:18.6-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              env:
+                - name: PGHOST
+                  value: cloudbeaver-postgres
+                - name: PGUSER
+                  value: cloudbeaver
+                - name: PGDATABASE
+                  value: cloudbeaver
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudbeaver
+                      key: CLOUDBEAVER_DB_PASSWORD
+                - name: INGEST_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudbeaver
+                      key: INGEST_DB_PASSWORD
+              # The password goes in as a psql variable, never on a command
+              # line. A failed statement is logged with its text by default,
+              # so this session logs none: the ALTER ROLE carries the
+              # password.
+              command:
+                - sh
+                - -ec
+                - |
+                  psql -v ON_ERROR_STOP=1 -v pw="$INGEST_PASSWORD" <<'SQL'
+                  SET log_min_error_statement = panic;
+                  SELECT 'CREATE ROLE ingest' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ingest') \gexec
+                  ALTER ROLE ingest WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'pw';
+                  ALTER ROLE ingest SET default_transaction_read_only = on;
+                  DO $$
+                  BEGIN
+                    IF to_regclass('cb.cb_session') IS NULL THEN
+                      RAISE NOTICE 'no cb schema yet - CloudBeaver has not started against this database';
+                      RETURN;
+                    END IF;
+                    GRANT USAGE ON SCHEMA cb TO ingest;
+                    GRANT SELECT ON cb.cb_session, cb.cb_user, cb.cb_auth_attempt TO ingest;
+                  END
+                  $$;
+                  SQL
+                  echo "ingest role in place"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi
