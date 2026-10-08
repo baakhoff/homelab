@@ -1,0 +1,31 @@
+apiVersion: v1
+data:
+    PASSWORD: ENC[AES256_GCM,data:/FoI0Bmtmjm3BslxU0KX0qHOKPAMuoyBT6TCzo/+13S0TuKHZbCtV1yvcHPhXfk5NxIxOPMRApAT47vLjoel2g==,iv:+0mVIeWXEQrMQLXA6I1GzcsYWJosJozpI47A1BxeBk4=,tag:fTym5IbaOIOm+5vPpj2rDg==,type:str]
+kind: Secret
+metadata:
+    name: cloudbeaver-reader
+    namespace: sparkyfitness
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBMVitnd2ZCS0xjRktpWm85
+            bHRIbTlabGZJMFJkSjRyYzRCd3FOU1RzQUdJClFlK0MrRi84a1FPaVFJTkNFendX
+            d2ZvUzQvZENhZ2REMGtBTVdldXlGbDAKLS0tIGdoM2FTTlVqR0gvR1M4czNjdVZU
+            VE9MTFVpdGJqOFdnbVJ3U0FoSTV6cmMK87smIY3vD+e44PHem6QbWmXkHj+7U6X2
+            c0mLlKOqC+zkOBcutcFDPPVVmSz8BqG70Udrm2Td7wiljcWGoFPVHA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB3akFhUzZ6eG5XaGlrZExD
+            KzVwSTdDMWR5VjJHN0k4MTdGTSt5cVMxWUFjClhiWmNQNW9WMTYzRDhaTHhVcldB
+            d1ZOMlJuaVZVMlU3NCtDVFZUaVlxZjAKLS0tIGNiYS9zU1FUN29USmRTTGhIanRh
+            UHRXeDZ1c0RncGhWZkNvRUwwMm9oQUEKv9dSnoqRvPP8gMlrbEk29A6qIJ2EhGIo
+            nvR2oHVhOajJUM0Uvzi8bqJmDD5LWDtMb6Jcaz9HS31ANTjSuWGQoA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-08T14:31:56Z"
+    mac: ENC[AES256_GCM,data:4oQcNF7jJXVnHEKlVJViJTiY/lbY5+zW+tYfzSg39SdJ1G0SvwwIZMd4QZ0w0WAr+MjqXqe0cuPRNZT8wxr3tcfc+QB4A69piLzUAvhdt7qg9oGwmlx6W2kuQxjKcEI17qS2CI3XKj0+TozkKDgyqR3dVKj9Jw/2Wq66tpWk+gg=,iv:JtN8/D4b99oOxJar6nLz0NLfmIx/hNNV9V6X2/0IHAY=,tag:BXK1+eMNVqFuhK5A38tA4g==,type:str]
+    version: 3.13.3
