@@ -94,6 +94,19 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
+    # The brand agent, as ClickHouse's read-only `brand` user
+    # (clickhouse-schema.yaml). HTTP only, not the native port; the other
+    # half is clusters/lab/agents/networkpolicy-brand.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agents
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: brand
+      ports:
+        - protocol: TCP
+          port: 8123
   egress:
     # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
     - to:
