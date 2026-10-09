@@ -14,12 +14,15 @@
 #   dawarich       dawarich-postgres 5432
 #   epicurus       postgres 5432 (clusters/lab/epicurus/networkpolicy-cloudbeaver.yaml)
 #
-# And SSH, port 22 only, to the public internet: a connection to a
-# database outside the lab goes through an SSH tunnel, set up in the
-# connection's SSH tab. The hosts are not named here: outside addresses
-# stay out of this repository. Nothing else reaches the internet: the
-# drivers are in the image, and a database outside the lab without SSH is
-# refused until it gets a rule.
+# And the public internet, every port: databases outside the lab, directly
+# or through an SSH tunnel, the AI chat's provider (README, "The AI chat"),
+# and a driver CloudBeaver offers to download. No host is named - outside
+# addresses stay out of this repository.
+#
+# Nothing private: no LAN, no tailnet, no node, no other pod by address.
+# That is the line this policy holds - CloudBeaver reads every database in
+# the lab, and must not also be a way onto the router, the hosts or the
+# cluster. Inside the cluster it reaches only the five databases above.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
@@ -71,8 +74,8 @@ spec:
         - protocol: TCP
           port: 8978
   egress:
-    # SSH tunnels out, as above: any public address, nothing private - no
-    # LAN, no tailnet - the same exceptions as the agents policy.
+    # The public internet, as above: any public address on any port,
+    # nothing private - the same exceptions as the agents policy.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -82,9 +85,6 @@ spec:
               - 192.168.0.0/16
               - 100.64.0.0/10
               - 169.254.0.0/16
-      ports:
-        - protocol: TCP
-          port: 22
     - to:
         - namespaceSelector:
             matchLabels:
