@@ -2,8 +2,8 @@
 
 -- What CloudBeaver did on the lab's Postgres servers, from their logs: one
 -- row per log entry of the `cloudbeaver` role. Each server logs that role's
--- every statement with its duration, its errors, and each session's end
--- with how long it lasted (cloudbeaver-reader.yaml in each namespace). The
+-- every statement with its duration, and its errors
+-- (cloudbeaver-reader.yaml in each namespace). The
 -- collectors carry the lines to raw.logs and ods.logs keeps them 90 days;
 -- this keeps them for good.
 --
@@ -18,9 +18,10 @@
 --   parse / bind         the steps before an execute, with their own times
 --   error                the statement failed; the next row, kind
 --                        failed_statement, is its text
---   disconnection        a session ended; session_s is how long it lasted,
---                        so ts - session_s is when it began
 --   detail               the parameters of the statement before it
+--
+-- A connection is a pid: every row from one connection shares it, from its
+-- first statement to its last.
 with lines as (
   select
     namespace,
@@ -63,7 +64,6 @@ select
     match(message, '^duration: [0-9.]+ ms  execute '), 'execute',
     match(message, '^duration: [0-9.]+ ms  parse '), 'parse',
     match(message, '^duration: [0-9.]+ ms  bind '), 'bind',
-    startsWith(message, 'disconnection: '), 'disconnection',
     severity in ('ERROR', 'FATAL'), 'error',
     severity = 'STATEMENT', 'failed_statement',
     severity = 'DETAIL', 'detail',
@@ -77,12 +77,6 @@ select
     ''
   ) as query,
   if(kind = 'error', message, '') as error,
-  if(kind = 'disconnection',
-     toUInt32OrZero(extract(message, 'session time: (\\d+):')) * 3600
-       + toUInt32OrZero(extract(message, 'session time: \\d+:(\\d+):')) * 60
-       + toFloat64OrZero(extract(message, 'session time: \\d+:\\d+:([0-9.]+)')),
-     NULL) as session_s,
-  if(kind = 'disconnection', extract(message, ' host=(\\S+)'), '') as client_address,
   message,
   ingested_at
 from parsed
