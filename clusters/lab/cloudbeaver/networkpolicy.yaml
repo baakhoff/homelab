@@ -14,9 +14,12 @@
 #   dawarich       dawarich-postgres 5432
 #   epicurus       postgres 5432 (clusters/lab/epicurus/networkpolicy-cloudbeaver.yaml)
 #
-# No internet: the drivers are in the image, and nothing it browses should
-# leave the lab. A connection you add to a database outside these is
-# refused here until it gets a rule.
+# And SSH, port 22 only, to the public internet: a connection to a
+# database outside the lab goes through an SSH tunnel, set up in the
+# connection's SSH tab. The hosts are not named here: outside addresses
+# stay out of this repository. Nothing else reaches the internet: the
+# drivers are in the image, and a database outside the lab without SSH is
+# refused until it gets a rule.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
@@ -68,6 +71,20 @@ spec:
         - protocol: TCP
           port: 8978
   egress:
+    # SSH tunnels out, as above: any public address, nothing private - no
+    # LAN, no tailnet - the same exceptions as the agents policy.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 22
     - to:
         - namespaceSelector:
             matchLabels:
