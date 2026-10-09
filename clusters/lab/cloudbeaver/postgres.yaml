@@ -173,6 +173,9 @@ spec:
               # line. A failed statement is logged with its text by default,
               # so this session logs none: the ALTER ROLE carries the
               # password.
+              #
+              # $grant$ rather than the usual $$: Kubernetes reads $$ in a
+              # command as an escaped $, and Postgres then got "DO $".
               command:
                 - sh
                 - -ec
@@ -186,7 +189,7 @@ spec:
                   SELECT 'CREATE ROLE ingest' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ingest') \gexec
                   ALTER ROLE ingest WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'pw';
                   ALTER ROLE ingest SET default_transaction_read_only = on;
-                  DO $$
+                  DO $grant$
                   BEGIN
                     IF to_regclass('cb.cb_session') IS NULL THEN
                       RAISE NOTICE 'no cb schema yet - CloudBeaver has not started against this database';
@@ -195,7 +198,7 @@ spec:
                     GRANT USAGE ON SCHEMA cb TO ingest;
                     GRANT SELECT ON cb.cb_session, cb.cb_user, cb.cb_auth_attempt TO ingest;
                   END
-                  $$;
+                  $grant$;
                   SQL
                   echo "ingest role in place"
               resources:
