@@ -72,7 +72,7 @@ password.
 | Table | One row per | From |
 |---|---|---|
 | `ods.cloudbeaver_clickhouse_queries` | query on ClickHouse: text, databases and tables, duration, rows and bytes read and returned, error | `system.query_log`, by the `ingest_cloudbeaver` DAG |
-| `ods.cloudbeaver_postgres_log` | logged statement, error or session end on a Postgres server: the database, the duration, the text; a session end says how long it lasted | the servers' own logs, through the log collectors |
+| `ods.cloudbeaver_postgres_log` | logged statement or error on a Postgres server: the database, the duration, the text | the servers' own logs, through the log collectors |
 | `ods.cloudbeaver_sessions` | CloudBeaver session: who, from which address and browser, from when until the last request | CloudBeaver's database, by the DAG |
 | `ods.cloudbeaver_auth_attempts` | sign-in, successful or not | the same |
 | `ods.cloudbeaver_users` | account | the same |
@@ -88,8 +88,7 @@ rows. It reads three of CloudBeaver's tables as the `ingest` role
 tokens or session state.
 
 **Postgres logs every statement the role runs,** because the reader job
-sets `log_min_duration_statement = 0` and `log_disconnections` on the role.
-It also sets the server's `log_line_prefix` so that each line names the
+sets `log_min_duration_statement = 0` on the role. It also sets the server's `log_line_prefix` so that each line names the
 role and the database. The collectors join a multi-line statement back into
 one entry (`clusters/lab/logging/alloy.yaml`). It then reaches `raw.logs`
 like every other log line.

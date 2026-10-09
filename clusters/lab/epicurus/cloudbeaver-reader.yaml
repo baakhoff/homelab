@@ -4,10 +4,11 @@
 # bypassed - and changes nothing: pg_read_all_data grants SELECT and no
 # more, and pg_monitor adds the statistics views.
 #
-# Its sessions log every statement with its duration, and their
-# disconnection, and the log line names the role and the database. Those
-# lines reach ClickHouse through the log collectors, and become
-# ods.cloudbeaver_postgres_log - who ran what, where, when.
+# Its sessions log every statement with its duration, and the log line
+# names the role and the database. Those lines reach ClickHouse through the
+# log collectors, and become ods.cloudbeaver_postgres_log - who ran what,
+# where, when. Not its disconnections: log_disconnections is read once, as
+# a connection opens, and Postgres refuses it as a role setting.
 #
 # Hourly, like the warehouse's schema job: it makes the role if it is
 # missing and sets the password from the Secret every time, so rotating it
@@ -94,7 +95,6 @@ spec:
                   GRANT pg_read_all_data, pg_monitor TO cloudbeaver;
                   ALTER ROLE cloudbeaver SET default_transaction_read_only = on;
                   ALTER ROLE cloudbeaver SET log_min_duration_statement = 0;
-                  ALTER ROLE cloudbeaver SET log_disconnections = on;
                   ALTER ROLE cloudbeaver SET statement_timeout = '15min';
                   ALTER SYSTEM SET log_line_prefix = '%m [%p] %q%u@%d [%a] ';
                   SELECT pg_reload_conf();

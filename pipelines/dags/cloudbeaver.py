@@ -13,7 +13,7 @@ on. Each is read as it is kept:
               else - clusters/lab/data/clickhouse-schema.yaml). Read from
               where the last run left off, in Variable cloudbeaver_sync.
   Postgres    nothing here: each server logs the `cloudbeaver` role's
-              statements and disconnections, the log collectors already
+              statements and errors, the log collectors already
               carry every log line to raw.logs, and dbt picks them out
               (ods.cloudbeaver_postgres_log).
   CloudBeaver its own database: the sessions (who, from where, with which
