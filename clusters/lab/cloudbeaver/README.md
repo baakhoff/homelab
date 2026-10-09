@@ -43,9 +43,20 @@ reach them. What the warehouse ingests from them is in ClickHouse under
 `ods`.
 
 Your own connections are possible as well: *New connection* in the tree.
-They are kept in your project on the volume and survive restarts. The
-NetworkPolicy lets CloudBeaver reach only the five servers above, so a new
-server also needs a rule in `networkpolicy.yaml` and one on its own side.
+They are kept in your project on the volume and survive restarts. Inside
+the lab the NetworkPolicy lets CloudBeaver reach only the five servers
+above, so another lab server needs a rule in `networkpolicy.yaml` and one
+on its own side.
+
+**A database outside the lab** goes through an SSH tunnel: the
+connection's SSH tab, *Public key*, and the private key pasted into it.
+CloudBeaver keeps the key encrypted in its own database; nothing goes on
+the volume by hand. From the Mac, `pbcopy < ~/.ssh/<key>` to copy it and
+`pbcopy < /dev/null` after. The NetworkPolicy allows SSH, port 22, to
+any public address and nothing else out - which hosts is not written
+down here. Queries over such a tunnel do not reach the warehouse: the
+usage feed reads the lab servers' own logs, and only CloudBeaver's
+sessions show the visit.
 
 ## How login works
 
