@@ -23,7 +23,7 @@ spec:
         # Bump with every edit to config.yaml: the files are copied into
         # place when a pod starts, and a changed pod template is how Flux
         # starts a new one.
-        cloudbeaver.lab/config-revision: "1"
+        cloudbeaver.lab/config-revision: "2"
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false
