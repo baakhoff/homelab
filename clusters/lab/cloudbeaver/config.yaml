@@ -121,7 +121,7 @@ data:
         // and passes on the signed-in address in X-Auth-Request-Email,
         // overwriting any the browser sent. CloudBeaver signs that address
         // in, and makes the account at its first visit. `local` stays for
-        // the admin account (initial-data.conf), the way in if the header
+        // the cbadmin account (initial-data.conf), the way in if the header
         // ever stops arriving.
         enabledAuthProviders: ["local", "reverseProxy"],
         authConfigurations: [
@@ -150,9 +150,14 @@ data:
   # CloudBeaver first creates its schema; afterwards the admin's password
   # is CloudBeaver's own, changed in its UI. @ADMIN_PASSWORD@ is filled in
   # by init.sh.
+  #
+  # Not "admin": users and teams share one table of names, and the team
+  # below is already called that. With both named admin, creating the user
+  # failed half-way through the first start, and every start after it
+  # crashed on the half-made schema.
   initial-data.conf: |
     {
-      adminName: "admin",
+      adminName: "cbadmin",
       adminPassword: "@ADMIN_PASSWORD@",
       teams: [
         {
