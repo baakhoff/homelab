@@ -83,6 +83,10 @@ spec:
                 - sh
                 - -ec
                 - |
+                  # A new pod's address reaches the cluster's NetworkPolicy
+                  # rules a few seconds after it starts, and until then its
+                  # connections are refused - which failed the first run.
+                  for i in $(seq 1 30); do pg_isready -q && break; sleep 2; done
                   psql -v ON_ERROR_STOP=1 -v pw="$READER_PASSWORD" <<'SQL'
                   SET log_min_error_statement = panic;
                   SELECT 'CREATE ROLE cloudbeaver' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'cloudbeaver') \gexec
