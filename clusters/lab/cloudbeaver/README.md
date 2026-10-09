@@ -52,9 +52,10 @@ on its own side.
 connection's SSH tab, *Public key*, and the private key pasted into it.
 CloudBeaver keeps the key encrypted in its own database; nothing goes on
 the volume by hand. From the Mac, `pbcopy < ~/.ssh/<key>` to copy it and
-`pbcopy < /dev/null` after. The NetworkPolicy allows SSH, port 22, to
-any public address and nothing else out - which hosts is not written
-down here. Queries over such a tunnel do not reach the warehouse: the
+`pbcopy < /dev/null` after. A database with a public address of its own
+needs no tunnel: the NetworkPolicy lets CloudBeaver reach the whole public
+internet, on any port, and nothing private - no LAN, no tailnet, no node.
+Which hosts is not written down here. Queries over such a tunnel do not reach the warehouse: the
 usage feed reads the lab servers' own logs, and only CloudBeaver's
 sessions show the visit.
 
