@@ -18,9 +18,8 @@
 # database outside the lab goes through an SSH tunnel, set up in the
 # connection's SSH tab. The hosts are not named here: outside addresses
 # stay out of this repository. Nothing else reaches the internet: the
-# drivers are in the
-# image, and a database outside the lab without SSH is refused until it
-# gets a rule.
+# drivers are in the image, and a database outside the lab without SSH is
+# refused until it gets a rule.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
