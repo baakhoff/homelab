@@ -56,8 +56,8 @@ CloudBeaver signs that address in. The account is created at the first
 visit and is a CloudBeaver admin, because only admins get through the gate.
 No second login.
 
-There is also one local account, `admin`, made at the first start with the
-password from the Secret. It is the way in if the header ever stops
+There is also one local account, `cbadmin`, made at the first start with
+the password from the Secret. It is the way in if the header ever stops
 arriving: *Sign in* -> *Local*. The password is in the Secret:
 `sops -d clusters/lab/cloudbeaver/secret.sops.yaml`, key
 `CB_ADMIN_PASSWORD`, base64.
@@ -222,6 +222,12 @@ LIMIT 20` in CloudBeaver itself.
   counted. Signing out of the gate at
   `https://auth.lab.baakhoff.com/oauth2/sign_out` and back in starts a
   fresh, smaller cookie.
+- **A first start that fails part-way leaves a half-made schema** that
+  every later start trips over (`relation "cb_schema_info" already
+  exists`): CloudBeaver does not create its schema in one transaction. With
+  nothing in it yet, the way out is a clean start - scale the Deployment to
+  0, `DROP SCHEMA cb CASCADE` in `cloudbeaver-postgres-0`, scale back to 1.
+  A schema with real users in it wants a restore instead.
 - **The upgrade path:** CloudBeaver migrates its own schema on start. Its
   automatic backup before a migration is off (`cloudbeaver.conf`), because
   the image has no `pg_dump`. The nightly backup is the undo.
