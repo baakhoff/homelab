@@ -7,10 +7,13 @@ minute, so a merged change is live a minute later.
     dags/
       ingest.py      one DAG per service: snapshot its API into Kafka
       telegram.py    one Telegram account's private chats, logged in as it
+      sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
       telegram_login.py  the one-time Telegram login, into the Secret
     telegram.md      what Telegram sends, its setup and renewal
+    sensitive.md     what is masked before data reaches the warehouse, and how
+    tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
     dbt/
       models/ods/    raw parsed into typed tables, one system at a time
       models/ads/    joins and aggregates across systems

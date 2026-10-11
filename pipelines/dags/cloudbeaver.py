@@ -38,6 +38,10 @@ import pendulum
 import requests
 from airflow.sdk import Variable, dag, task
 
+# Secrets and identity numbers masked before anything leaves for Kafka -
+# sensitive.py beside this file.
+from sensitive import mask_record
+
 KAFKA_BOOTSTRAP = "kafka.data.svc.cluster.local:9092"
 CLICKHOUSE = "http://clickhouse.data.svc.cluster.local:8123/"
 CLOUDBEAVER_DB = {
@@ -139,6 +143,7 @@ class _Raw:
         })
 
     def send(self, endpoint: str, rid: str, record: dict) -> None:
+        record, flags = mask_record(record)
         envelope = {
             "source": "cloudbeaver",
             "endpoint": endpoint,
@@ -146,6 +151,7 @@ class _Raw:
             "run_id": self.run_id,
             "id": rid,
             "record": record,
+            **flags,
         }
         value = json.dumps(envelope, ensure_ascii=False, default=str).encode()
         while True:

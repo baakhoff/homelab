@@ -38,6 +38,10 @@ from datetime import datetime, timedelta, timezone
 import pendulum
 from airflow.sdk import Variable, dag, task
 
+# Secrets and identity numbers masked before anything leaves for Kafka -
+# sensitive.py beside this file.
+from sensitive import mask_record
+
 KAFKA_BOOTSTRAP = "kafka.data.svc.cluster.local:9092"
 TOPIC = "raw.telegram"
 STATE = "telegram_sync"
@@ -177,6 +181,7 @@ class _Raw:
         })
 
     def send(self, endpoint: str, rid: str, record: dict) -> None:
+        record, flags = mask_record(record)
         envelope = {
             "source": "telegram",
             "endpoint": endpoint,
@@ -184,6 +189,7 @@ class _Raw:
             "run_id": self.run_id,
             "id": rid,
             "record": record,
+            **flags,
         }
         value = json.dumps(envelope, ensure_ascii=False).encode()
         while True:
