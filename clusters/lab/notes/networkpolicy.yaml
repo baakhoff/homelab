@@ -1,28 +1,28 @@
-# Three ways in, each with its own reason:
+# Three ways in to Outline, each with its own reason:
 #
 # - ingress-nginx, for browsers, through the gate in ingress.yaml.
-# - The brand agent pod, which reads and writes notes through SilverBullet's
-#   HTTP API (/.fs) with an API token of its own account. The matching
-#   egress rule is in clusters/lab/agents/networkpolicy-brand.yaml.
-# - Airflow's scheduler, for the ingest_silverbullet DAG, which copies the
-#   notes into the warehouse with a read-only token
-#   (pipelines/dags/ingest.py; the egress rule is in
+# - The brand agent pod, which reads and writes documents through Outline's
+#   API with the API key of its own account. The matching egress rule is in
+#   clusters/lab/agents/networkpolicy-brand.yaml.
+# - Airflow's scheduler, for the ingest_outline DAG, which copies documents
+#   into the warehouse (pipelines/dags/ingest.py; the egress rule is in
 #   clusters/lab/airflow/networkpolicy.yaml).
 #
-# The last two reach the server ungated, so the setup wizard's first admin
-# must exist before either has a token - which it does, since tokens are
-# issued from that admin's Dashboard.
+# The last two reach Outline ungated, which is safe because the API answers
+# nothing without a key, and keys are only made by signed-in users.
+#
+# And one way in to Postgres: Outline itself.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: silverbullet-ingress
+  name: outline
   namespace: notes
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: silverbullet
+      app.kubernetes.io/name: outline
   policyTypes: [Ingress]
   ingress:
     - from:
@@ -52,3 +52,22 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: outline-postgres
+  namespace: notes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: outline-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: outline
+      ports:
+        - protocol: TCP
+          port: 5432
