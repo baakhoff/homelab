@@ -2,7 +2,7 @@
 #
 # - ingress-nginx, for browsers, through the gate in ingress.yaml.
 # - The brand agent pod, which reads and writes documents through Outline's
-#   API with the API key of its own account. The matching egress rule is in
+#   API with an API key (README, step 3). The matching egress rule is in
 #   clusters/lab/agents/networkpolicy-brand.yaml.
 # - Airflow's scheduler, for the ingest_outline DAG, which copies documents
 #   into the warehouse (pipelines/dags/ingest.py; the egress rule is in

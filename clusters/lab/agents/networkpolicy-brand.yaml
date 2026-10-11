@@ -5,7 +5,7 @@
 # may manage CronJobs in brand-jobs and nothing else
 # (clusters/lab/brand-jobs/rbac.yaml); ClickHouse's HTTP port, where
 # its `brand` user reads the ods layer (clusters/lab/data/clickhouse-schema.yaml);
-# and Outline's API, where its own account reads and writes documents
+# and Outline's API, where it reads and writes documents with an API key
 # (clusters/lab/notes/README.md).
 #
 # Each in-cluster door has a matching ingress rule on the far side - in

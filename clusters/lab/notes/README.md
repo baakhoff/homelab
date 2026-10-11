@@ -9,8 +9,7 @@ restored.
 At <https://notes.lab.baakhoff.com>, and on Homepage under Home.
 
 The `brand` agent pod reads and writes documents too, through Outline's API
-with an account of its own, so its edits show under its own name in the
-history.
+with an API key (step 3).
 
 ## How login works
 
@@ -95,18 +94,22 @@ before anyone else does: that first account is the workspace's admin.
 Outline refuses a sign-in without an email. Under Administration → Users in
 Pocket ID, check that each person's email is set.
 
-**3. The brand agent's account.** Outline makes accounts only at sign-in, so
-the agent needs a Pocket ID user of its own:
+**3. The brand agent's key.** In your own Outline account, Settings → API →
+New API key, named `brand agent` so it can be told apart and revoked on its
+own. Paste it into a session in the `brand` pod and ask the agent to keep it
+under its home directory.
 
-1. In Pocket ID, Administration → Users → Add: a user such as `brand-agent`,
-   with an email address, in the group the Outline client allows.
-2. On that user, create a one-time login link, and open it in a private
-   browser window. Then open <https://notes.lab.baakhoff.com> in the same
-   window and sign in: Outline creates the account as a member.
-3. Still in that window, Outline's Settings → API → New API key. Copy it,
-   close the window.
-4. Paste the key into a session in the `brand` pod and ask the agent to keep
-   it under its home directory. It calls:
+Outline records which account made an edit, not which key, so the agent's
+edits show in each document's history as yours. Restore works the same; ask
+the agent to note its own changes if you want to tell them apart. The key
+reaches everything your account does. To keep the agent to some
+collections, or to see its edits under its own name, it needs an account of
+its own instead, and Outline makes accounts only at sign-in: a Pocket ID
+user for it (e.g. `brand-agent`, in the client's allowed group), a one-time
+login link from Pocket ID opened in a private window, a sign-in to Outline
+there, and the API key made in that window.
+
+The agent calls:
 
 ```
 POST http://outline.notes.svc.cluster.local/api/<method>
@@ -116,9 +119,7 @@ Content-Type: application/json
 
 with methods such as `documents.list`, `documents.info`, `documents.search`,
 `documents.create` and `documents.update` - Outline's API reference is at
-<https://www.getoutline.com/developers>. In your own account, give
-brand's account access to the collections it should work in, or leave them
-open to the workspace.
+<https://www.getoutline.com/developers>.
 
 `clusters/lab/agents/networkpolicy-brand.yaml` is what lets that pod, and no
 other agent, reach Outline.
@@ -156,9 +157,9 @@ is affected.
   pick the version, Restore.
 - **Drafts are private** until published, and `documents.list` does not
   return them, so they reach neither the warehouse nor another account.
-- **Only `brand` among the agents.** Another pod gets access with its own
-  Pocket ID user and Outline account, and a door in `networkpolicy.yaml`
-  plus an egress rule on its side, like brand's.
+- **Only `brand` among the agents.** Another pod gets access with a key and
+  a door in `networkpolicy.yaml` plus an egress rule on its side, like
+  brand's.
 - **No email.** No SMTP is configured, so there are no notification mails
   and no email sign-in; Pocket ID is the only way in.
 - **Sizes.** Postgres and the attachments volume are 5Gi each, expandable in
