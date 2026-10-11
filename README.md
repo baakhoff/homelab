@@ -56,7 +56,7 @@ exception: it keeps its own master password.
 | [CloudBeaver](https://github.com/dbeaver/cloudbeaver) | DBeaver in the browser: every database in the lab, read-only, with an SQL editor and result grids. |
 | [Mealie](https://mealie.io) | Recipes imported from any site by link, meal plans and shared shopping lists. |
 | [SparkyFitness](https://github.com/CodeWithCJ/SparkyFitness) | Calorie and macro tracking with an AI that logs meals from a photo, plus exercise and weight, with a phone app. |
-| [SilverBullet](https://silverbullet.md) | Notes in Markdown, edited in the browser, with every change kept in a history; an agent reads and writes them too. |
+| [Outline](https://www.getoutline.com) | Notes and documents in a polished web editor, organised in collections, with every edit kept in its history; an agent reads and writes them too. |
 | [Dawarich](https://github.com/Freika/dawarich) | Location history from the phone on a map: trips, visits, countries and stats, a self-hosted Google Timeline. |
 | [Photon](https://github.com/komoot/photon) | Turns Dawarich's coordinates into streets, cities and places, from OpenStreetMap, without sending them out of the lab. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
@@ -100,7 +100,7 @@ exception: it keeps its own master password.
   for calories, meals and exercise ([how](clusters/lab/sparkyfitness/README.md)), and
   Dawarich keeping the phones' location history ([how](clusters/lab/dawarich/README.md)), with
   Photon naming its streets and places ([how](clusters/lab/photon/README.md)), and
-  SilverBullet for notes ([how](clusters/lab/notes/README.md)), and n8n for
+  Outline for notes and documents ([how](clusters/lab/notes/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
   feeding ClickHouse, where every source's raw data is kept for querying
   ([how](clusters/lab/data/README.md)), and Airflow running the pipelines

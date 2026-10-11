@@ -1,13 +1,12 @@
-# SilverBullet's data folder: the server's own state (accounts, the Pocket ID
-# client in authentication.json, API tokens, space settings) and the notes
-# space itself - Markdown files plus the git repository Revisions keeps
-# beside them. One volume, so one snapshot is one consistent moment.
+# Outline's file storage: images and attachments added to documents, and
+# imports and exports while they are processed. The documents themselves are
+# in Postgres (postgres.yaml).
 #
-# 5Gi: notes are text. Expandable in place if pasted images ever add up.
+# 5Gi: a team wiki's images. Expandable in place.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: silverbullet-data
+  name: outline-data
   namespace: notes
 spec:
   accessModes:
