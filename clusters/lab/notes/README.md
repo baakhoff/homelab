@@ -147,8 +147,9 @@ pod reads its environment only when it starts:
 kubectl -n airflow rollout restart deployment/airflow-scheduler
 ```
 
-Then trigger `ingest_outline` in the Airflow UI, and after it the
-`warehouse` DAG. Until the key exists, that DAG's runs fail and nothing else
+Then, in the Airflow UI, switch `ingest_outline` on - Airflow pauses every
+new DAG until someone does - and trigger it, and after it the `warehouse`
+DAG. Until the key exists, that DAG's runs fail and nothing else
 is affected.
 
 ## Things to know
