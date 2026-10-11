@@ -32,7 +32,7 @@ Three identical used units, bought in September 2026.
 | Field | Value |
 |---|---|
 | CPU | Intel Core i5-12500T — 6 P-cores / 12 threads, 35 W; vPro, with Intel AMT present in the firmware |
-| RAM | 16 GB DDR5-4800 as a single SO-DIMM; two slots, 64 GB maximum |
+| RAM | 24 GB DDR5-4800: the original 16 GB SO-DIMM plus an 8 GB DDR5-5600 one added in October 2026, which runs at 4800. Mixed sizes run in Intel flex mode, so 16 GB of it is dual-channel. Two slots, both full; 64 GB maximum |
 | Disk | 512 GB NVMe 2280 — two units KIOXIA BG5 (TLC), one Solidigm P41 Plus (QLC), all DRAM-less client drives. A second M.2 2280 PCIe 4.0 ×4 slot is free. A 2.5″ SATA bay exists but takes HP's bracket kit, not fitted |
 | NIC | Intel I219-LM 1 GbE; one unit carries a second RJ-45 on a Flex-port module |
 | Power | 90 W external adapter each; about 7 W idle per HP's figures |
