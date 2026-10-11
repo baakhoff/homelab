@@ -222,6 +222,42 @@ def _seed(m):
     return "[seed phrase masked]"
 
 
+def _blob(m):
+    v = m.group("s")
+    # A long word made only of letters is not a payload; a payload mixes
+    # cases and digits.
+    if not (re.search(r"\d", v) and re.search(r"[a-z]", v) and re.search(r"[A-Z]", v)) \
+            and not re.fullmatch(r"(?i)(?:[0-9a-f]{2})+", v):
+        return None
+    size = len(v) * 3 // 4 if not re.fullmatch(r"(?i)(?:[0-9a-f]{2})+", v) else len(v) // 2
+    kind = "hex" if re.fullmatch(r"(?i)(?:[0-9a-f]{2})+", v) else "base64"
+    shown = f"{size / 1024:.1f} KB" if size >= 1024 else f"{size} B"
+    return _sub_group(m, "s", f"[{kind} blob, {shown}, masked]")
+
+
+# Instructions to an AI model, in the household's languages, and the markers
+# chat models use for roles - text a person writing to a person has no
+# reason to contain.
+_INJECTION = re.compile(
+    r"(?i)"
+    r"\b(?:ignore|disregard|forget|override|bypass)\s+(?:all\s+|any\s+|the\s+|your\s+|every\s+)*"
+    r"(?:previous|prior|above|earlier|preceding|existing|system|original)\s+"
+    r"(?:instructions?|prompts?|rules|directions|messages|guidelines|context)\b"
+    r"|\b(?:new|updated|real|actual)\s+(?:system\s+)?instructions?\s*:"
+    r"|\byou\s+are\s+now\s+(?:a|an|in|the|my|no\s+longer)\b"
+    r"|\b(?:reveal|print|show|repeat|output)\s+(?:your|the)\s+(?:system\s+)?(?:prompt|instructions)\b"
+    r"|\bsystem\s+prompt\b|\bdeveloper\s+mode\b|\bjailbreak\b"
+    r"|\bdo\s+not\s+(?:tell|inform|alert|mention\s+this\s+to)\s+the\s+user\b"
+    r"|\b(?:игнорируй|игнорируйте|проигнорируй|забудь|забудьте)\s+(?:все\s+)?(?:предыдущие|прошлые|прежние|старые|системные)?\s*(?:инструкции|указания|правила|промпты?)\b"
+    r"|\bновые\s+инструкции\s*:|\bты\s+теперь\b"
+    r"|\b(?:ignoriši|ignorisi|ignorišite|zaboravi|zaboravite)\s+(?:sve\s+)?(?:prethodne|prethodna|ranije|stare)?\s*(?:instrukcije|uputstva|naredbe|pravila)\b"
+    r"|\b(?:игнориши|игноришите|заборави|заборавите)\s+(?:све\s+)?(?:претходне|претходна|раније|старе)?\s*(?:инструкције|упутства|наредбе|правила)\b"
+    r"|\bалдыңғы\s+нұсқауларды\s+(?:елеме|елемеңіз|ұмыт|ұмытыңыз)\b"
+    r"|\bignorer\s+(?:alle\s+)?(?:tidligere|forrige)\s+(?:instruktioner|instrukser|regler)\b"
+    r"|<\|(?:im_start|im_end|system|endoftext)\|>|\[/?INST\]|<</?SYS>>|</?system>"
+)
+
+
 _PASSWORD_WORDS = (
     r"password|passwd|passphrase|pwd|пароль|лозинка|lozinka|šifra|sifra|шифра"
     r"|құпия\s+сөз|құпиясөз|parol|adgangskode"
@@ -285,6 +321,20 @@ DETECTORS = [
     ("national_id", re.compile(r"(?<![\d+])(?P<s>\d{13})(?!\d)"), _jmbg),
     ("national_id", re.compile(r"(?i)(?:\bcpr(?:-?nr\.?|-?nummer)?\s*[:.]?\s*)?(?<!\d)(?P<s>\d{6}-\d{4})(?!\d)"), _cpr),
     ("passport", re.compile(rf"(?i)\b(?:{_PASSPORT_WORDS})\b(?:\s*(?:no\.?|nr\.?|number|номер|broj|br\.?))?\s*[:#]?\s*(?P<s>[A-Z0-9]{{6,9}})\b"), _hide),
+    # Group D - text aimed at whoever reads it next, not at a person:
+    # encoded payloads and instructions to an AI model. The first is replaced
+    # by a note of what was there; the second by a marker saying something
+    # was removed. Neither is a defence against someone determined - a
+    # rephrased instruction passes - but it stops the copy-pasted ones and
+    # flags the record, so whatever reads it knows to distrust it.
+    ("encoded_blob", re.compile(r"(?i)data:[a-z0-9.+/-]+;base64,(?P<s>[A-Za-z0-9+/=]{40,})"), _blob),
+    ("encoded_blob", re.compile(r"(?is)(?P<s><script\b.*?</script\s*>)"), lambda m: "[script removed]"),
+    ("encoded_blob", re.compile(r"(?i)(?P<s>javascript:[^\s\"'<>]{4,})"), lambda m: "[javascript link removed]"),
+    ("encoded_blob", re.compile(r"(?i)-e(?:nc(?:odedcommand)?)?\s+(?P<s>[A-Za-z0-9+/=]{40,})"), _blob),
+    ("encoded_blob", re.compile(r"(?<![A-Za-z0-9+/=_-])(?P<s>[A-Za-z0-9+/]{120,}={0,2})(?![A-Za-z0-9+/=_-])"), _blob),
+    ("encoded_blob", re.compile(r"(?<![A-Za-z0-9_-])(?P<s>[A-Za-z0-9_-]{160,})(?![A-Za-z0-9_-])"), _blob),
+    ("encoded_blob", re.compile(r"(?i)(?<![0-9a-f])(?P<s>(?:[0-9a-f]{2}){64,})(?![0-9a-f])"), _blob),
+    ("prompt_injection", _INJECTION, lambda m: "[instruction to an AI removed]"),
 ]
 
 
@@ -300,8 +350,32 @@ def fingerprint(kind: str, value: str, key: bytes) -> str:
     return hmac.new(key, f"{kind}:{value}".encode(), hashlib.sha256).hexdigest()[:16]
 
 
+# Characters that are not shown but that a language model reads: the Unicode
+# tag block (ASCII smuggled invisibly), zero-width spaces and joiners other
+# than the emoji one, and the direction overrides that make text display
+# differently from what it says. Removed first, so a phrase split by them
+# cannot slip past the detectors below. U+200D, the zero-width joiner, stays:
+# family and flag emoji are built with it.
+_INVISIBLE = re.compile(
+    "[\U000E0000-\U000E007F\u200B\u200C\u2060-\u2064\u202A-\u202E\u2066-\u2069\u180E\u00AD]"
+    "|(?<=.)\uFEFF"
+)
+
+
+def _strip_invisible(text: str, found: list[tuple[str, str]]) -> str:
+    hidden = _INVISIBLE.findall(text)
+    if not hidden:
+        return text
+    # The smuggled tag characters spell ASCII; keep what they said as the
+    # "secret", so the fingerprint can find the same payload elsewhere.
+    smuggled = "".join(chr(ord(c) - 0xE0000) for c in hidden if 0xE0020 <= ord(c) <= 0xE007E)
+    found.append(("invisible_text", smuggled or "".join(hidden)))
+    return _INVISIBLE.sub("", text)
+
+
 def mask_text(text: str, found: list[tuple[str, str]]) -> str:
     """Every detector over one string, in order; appends (kind, secret)."""
+    text = _strip_invisible(text, found)
     for kind, pattern, replace in DETECTORS:
         if kind == "card" and not re.search(r"\d{4}", text):
             continue
