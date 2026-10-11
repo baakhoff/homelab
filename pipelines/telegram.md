@@ -7,7 +7,7 @@ then `ods.telegram_chats`, `ods.telegram_messages` and
 
 | Model | One row per |
 |---|---|
-| `ods.telegram_chats` | private chat: the person's name and username, whether they are a contact, unread count, last message; the account's own Saved Messages is one too |
+| `ods.telegram_chats` | person the account has ever had a private chat with, kept after the chat is deleted: their name, user id, username, profile link, phone number when Telegram shows it, every username and number seen for them before, whether they are a contact, unread count, last message; the account's own Saved Messages is one too |
 | `ods.telegram_messages` | message, in its newest version: when, which way, the text, a reply or forward, and media and calls as metadata |
 | `ads.telegram_daily` | day: messages sent and received, people written with, voice messages, calls, missed calls, call minutes |
 
@@ -93,9 +93,13 @@ restart from step 4.
   and the DAG only reads. Ending it under Settings -> Devices cuts the DAG
   off at once.
 - **Other people's words are in here.** Everyone who writes to the account
-  privately has their messages copied, in full. They sit in ClickHouse,
-  readable by its `admin` and `dbt` users, and in the nightly encrypted
-  backup of `data/data-clickhouse-0`.
+  privately has their messages copied, in full, with their usernames,
+  profile link and, when Telegram shows it, their phone number - kept so a
+  message can always be traced to a person. They sit in ClickHouse,
+  readable by its `admin` and `dbt` users, by CloudBeaver, and by the
+  `brand` agent, which reads the `ods`, `ads` and `dm` layers on purpose, to
+  help manage things; and in the nightly encrypted backup of
+  `data/data-clickhouse-0`.
 - **Telegram sets the pace.** When it says "wait", the client waits, up to
   five minutes at a time, and the run carries on. Reading one's own history
   this way is what every third-party Telegram app does.
