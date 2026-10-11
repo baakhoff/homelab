@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: silverbullet
+  namespace: notes
+spec:
+  # One replica on a ReadWriteOnce volume. Recreate: the RBD image maps to
+  # one node at a time, and two servers on one space would race each other's
+  # writes and Revisions' git commits.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: silverbullet
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: silverbullet
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # Started as root, the image's entrypoint looks up who owns /data,
+        # creates a user for that uid and drops to it with su. Started as a
+        # non-root uid it skips all of that and runs the server directly, so
+        # this is the whole story: uid 1000 owns the volume (fsGroup) and
+        # runs the server.
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: silverbullet
+          # -slim: without the Chromium the default image carries for the
+          # Runtime API, which drives a headless browser server-side. Nothing
+          # here uses it, and it is most of the image.
+          image: ghcr.io/silverbulletmd/silverbullet:2.12.0-slim
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Revisions commits with git, and git wants a writable HOME for
+            # its config. uid 1000 has no passwd entry and so no home; the
+            # volume is the one place that is writable and survives.
+            - name: HOME
+              value: /data/.home
+            - name: TZ
+              value: Europe/Copenhagen
+          # No SB_USER, SB_AUTH_TOKEN or SB_FOLDER: those configure the legacy
+          # single-space mode. A fresh data folder starts multi-space mode's
+          # setup wizard instead, and accounts, the Pocket ID login, API
+          # tokens and spaces are all configured in its Dashboard and kept on
+          # the volume - README, Setup.
+          ports:
+            - name: http
+              containerPort: 3000
+          # /.ping is one of the few paths that answers without a session.
+          readinessProbe:
+            httpGet:
+              path: /.ping
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /.ping
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              # The server is small; the headroom is for git, which Revisions
+              # runs as a child process for every commit and history view.
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: silverbullet-data
