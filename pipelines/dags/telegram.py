@@ -119,14 +119,32 @@ def message_record(chat_id: int, m) -> dict:
 
 
 def chat_record(d) -> dict:
-    """The warehouse's view of one private chat: the person, and the chat's state."""
+    """The warehouse's view of one private chat: the person, and the chat's state.
+
+    Enough to tell later who someone was, whatever they rename: the user id,
+    which never changes; every username, since a profile can hold several
+    and change them; a link that opens the profile; and the phone number
+    when Telegram shows it to this account - for contacts, and for people
+    whose privacy settings allow it, otherwise None. `name` is the name the
+    account saved the contact under, if it did, else the person's own.
+    """
     u = d.entity
+    usernames = [x.username for x in (u.usernames or []) if getattr(x, "active", True)]
+    if u.username and u.username not in usernames:
+        usernames.insert(0, u.username)
     return {
         "id": d.id,
+        "user_id": u.id,
         "name": d.name,
         "first_name": u.first_name,
         "last_name": u.last_name,
-        "username": u.username,
+        "username": u.username or (usernames[0] if usernames else None),
+        "usernames": usernames,
+        "phone": f"+{u.phone}" if u.phone else None,
+        # A username link works for anyone; the id link opens the profile in
+        # the Telegram app only for an account that has seen this person,
+        # which this one has.
+        "link": f"https://t.me/{usernames[0]}" if usernames else f"tg://user?id={u.id}",
         "is_self": bool(u.is_self),
         "is_contact": bool(u.contact),
         "is_mutual_contact": bool(u.mutual_contact),
