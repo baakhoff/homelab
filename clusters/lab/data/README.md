@@ -40,7 +40,7 @@ layers by hand.
 | Every pod's log lines | the Alloy collectors, `clusters/lab/logging/alloy.yaml` - OTLP JSON, the line plus its namespace, pod, container and node | `raw.logs` |
 | Kubernetes events | the same collectors, one of them at a time - OTLP JSON, the event as JSON in the body | `raw.k8s-events` |
 | Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
-| Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich` |
+| Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, SilverBullet | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's; SilverBullet's notes with their text), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich`, `raw.silverbullet` |
 | CloudBeaver's usage | Airflow's `ingest_cloudbeaver` DAG, `pipelines/dags/cloudbeaver.py` - its ClickHouse queries from `system.query_log`, its sessions and sign-ins from its own database. Its Postgres statements come in with the log lines | `raw.cloudbeaver` |
 
 ## What is here
@@ -76,7 +76,7 @@ only that range. `raw.logs` rows are deleted after 90 days; every other
 table keeps everything.
 
 The sources are `SOURCES` in `clickhouse-schema.yaml`:
-`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich`. Topic
+`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver silverbullet`. Topic
 `raw.<name>`, table `raw.<name>`, a dash becoming an underscore
 (`raw.k8s-events` -> `raw.k8s_events`). Adding a source is one word there:
 the next run creates its topic, its table and its consumer. Removing one is

@@ -27,3 +27,5 @@ sources:
         description: Dawarich API reads of one account's location history - visits and places as snapshots, points as the last week's, one record per message in the ingest envelope.
       - name: cloudbeaver
         description: CloudBeaver's usage - its ClickHouse queries from system.query_log, and its sessions, users and sign-ins as snapshots, one record per message in the ingest envelope. Its Postgres statements are in logs.
+      - name: silverbullet
+        description: SilverBullet's notes, every Markdown page with its text and file metadata, one page per message in the ingest envelope.
