@@ -82,6 +82,11 @@ spec:
       # No Kubernetes API access from inside: the token would be the first
       # thing a prompt-injected agent read. Nothing here needs it.
       automountServiceAccountToken: false
+      # The pause container becomes PID 1 and reaps orphans. Otherwise
+      # PID 1 is `claude remote-control`, which does not: every headless
+      # browser a session's tests start leaves its exited helpers behind as
+      # zombies until the pod restarts - slot-4 held 5979 after six days.
+      shareProcessNamespace: true
       # User namespaces (stable since Kubernetes 1.36): uid 1000 inside the pod
       # maps to an unprivileged range on the node, so a container escape is
       # worth little. If the pod never leaves ContainerCreating and the event

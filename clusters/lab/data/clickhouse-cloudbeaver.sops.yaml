@@ -1,0 +1,31 @@
+apiVersion: v1
+data:
+    CLOUDBEAVER_PASSWORD: ENC[AES256_GCM,data:Eh7wgDQwKuuakvJPMfxmeikdjeEWkYCZ0C8NTOTUEn3Z+R3Nn9K0TYLsedk7p0m7lCHDCVCRMtZ2sDNbNS7iIw==,iv:OU8uUeAFeN7wTinZc0rmymfIeJapD0q0gfd925vZDk0=,tag:ahSL+eHkb4pN2MWtwVQxfQ==,type:str]
+kind: Secret
+metadata:
+    name: clickhouse-cloudbeaver
+    namespace: data
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBaWDY1TzVRb3ZnbnZ6dE9C
+            MXJqd1ZSTUpMc1kxZXZ5dllpWjNYRnVIRkRVCjQrUnBRZkVIbEtXc1h5dmhvNEE5
+            SGRQcjlpNEhHYS8yUWFmU2crY3VxMkUKLS0tIERLS1dYcjM4Q2VSQ0R3bTJCZEVr
+            NkhNY0hPdkU2TXpCVWlHL0JiL2FWb2sKQ3wQjxykVkqtbasOk0qufcxxCWG22mD5
+            ZVE7Py5PWoBGBqFDRZqJ0HOZTVNSe8tIkor0tDED8mmMpLECpcIMcw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBESWRqbnY4S3dTalI3eHdj
+            TDZxWkRGT1ZPdk1ibGNSazc4Smhyc21pdGwwCjdPeDkyL2xraEVNdEtRbzlnQ1pP
+            aENHYVMrQWJGd1hzalFxN1ZaRkxmd1UKLS0tIEZjazQ1KzRlOE80RjU5aFU3czJP
+            NjVoaDREZEkwWE55NFh3Z1o2bTZFWDAKXEYPLq0fIkYY2rG02F7eM9dCH5p1cNdD
+            4QNHape1AnJCHwhFYpGw7Y9GgD6WreSUSz5ZWgSBVxY2dFADxvvZyg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-08T14:31:56Z"
+    mac: ENC[AES256_GCM,data:TTnrRdx20uLkxc780a8n+t8A3ycOpnilW6SVAnUobva5qDgUBWFOBfpUJXgZmaF1bPTWQhN0xaIGQ91GwF57zgcO8qpjeLwYJQZgINQExbawv/rtBMGhhuSUnDz/3+U3pZszQCoS3K6uafBjh47KeDL9xz5jH4vWKCqWG3doHLA=,iv:xwT8pbM44DV76ShNgI15z4suAUksHVRZoBrArp6w2Hg=,tag:Zv0QCf/liythgBuctk5R7A==,type:str]
+    version: 3.13.3

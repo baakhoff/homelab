@@ -81,6 +81,45 @@ spec:
           port: 9092
         - protocol: TCP
           port: 8123
+    # The dbt docs page (clusters/lab/airflow/dbt-docs.yaml): `dbt docs
+    # generate`, as the same `dbt` user, reading the warehouse's column types
+    # for the catalog. ClickHouse only.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: dbt-docs
+      ports:
+        - protocol: TCP
+          port: 8123
+    # The brand agent, as ClickHouse's read-only `brand` user
+    # (clickhouse-schema.yaml). HTTP only, not the native port; the other
+    # half is clusters/lab/agents/networkpolicy-brand.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agents
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: brand
+      ports:
+        - protocol: TCP
+          port: 8123
+    # CloudBeaver, as ClickHouse's read-only `cloudbeaver` user
+    # (clickhouse-schema.yaml). HTTP only; the other half is
+    # clusters/lab/cloudbeaver/networkpolicy.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudbeaver
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver
+      ports:
+        - protocol: TCP
+          port: 8123
   egress:
     # Cluster DNS, matched by the CoreDNS pods' labels as elsewhere.
     - to:

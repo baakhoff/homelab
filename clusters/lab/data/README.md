@@ -40,7 +40,8 @@ layers by hand.
 | Every pod's log lines | the Alloy collectors, `clusters/lab/logging/alloy.yaml` - OTLP JSON, the line plus its namespace, pod, container and node | `raw.logs` |
 | Kubernetes events | the same collectors, one of them at a time - OTLP JSON, the event as JSON in the body | `raw.k8s-events` |
 | Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
-| Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich` |
+| Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's; Outline's documents with their text), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich`, `raw.outline` |
+| CloudBeaver's usage | Airflow's `ingest_cloudbeaver` DAG, `pipelines/dags/cloudbeaver.py` - its ClickHouse queries from `system.query_log`, its sessions and sign-ins from its own database. Its Postgres statements come in with the log lines | `raw.cloudbeaver` |
 | Telegram | Airflow's `ingest_telegram` DAG, `pipelines/dags/telegram.py` - one account's private chats, logged in as the account; each message once, again when edited | `raw.telegram` |
 
 ## What is here
@@ -50,6 +51,7 @@ layers by hand.
 | `kafka.yaml` | One broker, KRaft mode (no ZooKeeper), 10Gi, one week of retention. Kafka is the buffer; ClickHouse is the archive |
 | `clickhouse.yaml` | One server, 30Gi, tuned for a 16 GB node it shares |
 | `clickhouse-schema.yaml` | An hourly job that creates the topics, the databases and the raw tables. Idempotent |
+| `kafka-reader-repair.yaml` | Every 10 minutes, reattaches a ClickHouse Kafka reader that has stopped reading after a Kafka blip - the stall that kept the warehouse empty for seven hours on 2026-10-03. Nothing is lost: the reader resumes from its last committed offset |
 | `networkpolicy.yaml` | Kafka has no login, so this is its access control: the list of everything allowed to write |
 | `ingress.yaml` | `https://clickhouse.lab.baakhoff.com/play`, behind the admin gate |
 | `kafka-ui.yaml` | [Kafbat UI](https://github.com/kafbat/kafka-ui) at `https://kafka.lab.baakhoff.com`, behind the admin gate: topics, messages and consumer lag. Read-only - it cannot delete, reset or produce |
@@ -75,7 +77,7 @@ only that range. `raw.logs` rows are deleted after 90 days; every other
 table keeps everything.
 
 The sources are `SOURCES` in `clickhouse-schema.yaml`:
-`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich telegram`. Topic
+`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver outline telegram`. Topic
 `raw.<name>`, table `raw.<name>`, a dash becoming an underscore
 (`raw.k8s-events` -> `raw.k8s_events`). Adding a source is one word there:
 the next run creates its topic, its table and its consumer. Removing one is
@@ -158,7 +160,49 @@ pod's own variable gives each Java process the broker's 512m heap, and a
 second one beside the broker can push the pod past its 1Gi limit - and the
 kernel then kills the broker, not the tool.
 
-## Things to know
+## The brand agent's user
+
+The brand agent (`clusters/lab/agents/brand.yaml`) reads the warehouse as
+the `brand` user: `SELECT` on `ods` and nothing else, over HTTP on 8123,
+with a settings profile capping each query at 1 GB, 60 seconds, two threads
+and a million result rows, two queries at a time. The schema job creates it;
+the two network policies (`networkpolicy.yaml` here, `networkpolicy-brand.yaml`
+in agents) open the path. Another layer is one `GRANT` line in the schema
+job; taking one away is a `REVOKE ... FROM brand` in /play as well.
+
+One password, generated on the workstation, from the repo root, into the
+Secret here and into a file on brand's pod - never on screen:
+
+```bash
+BPW=$(openssl rand -hex 24)
+kubectl create secret generic clickhouse-brand \
+  --namespace data \
+  --from-literal=BRAND_PASSWORD="$BPW" \
+  --dry-run=client -o yaml > clusters/lab/data/clickhouse-brand.sops.yaml
+sops --encrypt --in-place clusters/lab/data/clickhouse-brand.sops.yaml
+printf '%s' "$BPW" | kubectl -n agents exec -i deploy/brand -c claude -- \
+  sh -c 'umask 077 && cat > /home/node/.clickhouse-password'
+unset BPW
+```
+
+The file is on brand's home volume, so it outlives a restart. Rotating is
+the same block again, then the schema job (Setup, step 2).
+
+## CloudBeaver's user
+
+CloudBeaver (`clusters/lab/cloudbeaver/`) reads the warehouse as the
+`cloudbeaver` user: `SELECT` on every database, `system` included, and no
+writes or DDL (`readonly = 2`). Its profile caps a query at 1.5 GB and four
+threads, spills large `GROUP BY`s and sorts to disk at half that, and
+allows four queries at a time. The schema job creates it from the
+`clickhouse-cloudbeaver` Secret, whose value is also `READER_CLICKHOUSE` in
+CloudBeaver's own Secret - both made by the block in CloudBeaver's README.
+
+Every query it runs is in `system.query_log`, and the usage DAG copies its
+rows to `raw.cloudbeaver`. dbt may read those rows of `system.query_log`
+and no others: a row policy limits it to `user = 'cloudbeaver'`, and a
+second keeps the table whole for everyone else.
+
 
 - **Writing to Kafka** takes a rule in `networkpolicy.yaml` naming the
   producer's namespace and pods, and the source in `SOURCES`. Without both,
@@ -173,5 +217,11 @@ kernel then kills the broker, not the tool.
   be: a week's buffer of what ClickHouse already holds. The backup's restic
   pod reaches the bucket through `restic-backup-egress` in
   `networkpolicy.yaml`; nothing else here has the internet.
+- **A stalled reader** shows as `DataIngestionStalled` and a growing lag in
+  Kafbat UI or `kafka-consumer-groups.sh --describe --all-groups`, while
+  Kafka and ClickHouse both look healthy. `kafka-reader-repair` fixes it
+  within 20 minutes; `kubectl -n data logs job/<its latest run>` says which
+  tables it reattached. By hand it is `DETACH TABLE kafka.<source>_queue`,
+  then `ATTACH TABLE` the same.
 - **Memory:** Kafka is capped at 1Gi (512m heap), ClickHouse at 3Gi, and
   ClickHouse holds itself to 80% of that.

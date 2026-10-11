@@ -23,6 +23,14 @@ models:
     columns:
       - name: recipe_id
         tests: [not_null, unique]
+  - name: outline_documents
+    columns:
+      - name: document_id
+        tests: [not_null, unique]
+  - name: outline_collections
+    columns:
+      - name: collection_id
+        tests: [not_null, unique]
   - name: paperless_documents
     columns:
       - name: document_id
@@ -54,6 +62,22 @@ models:
   - name: dawarich_places
     columns:
       - name: place_id
+        tests: [not_null, unique]
+  - name: cloudbeaver_clickhouse_queries
+    columns:
+      - name: id
+        tests: [not_null, unique]
+  - name: cloudbeaver_sessions
+    columns:
+      - name: session_id
+        tests: [not_null, unique]
+  - name: cloudbeaver_users
+    columns:
+      - name: user_id
+        tests: [not_null, unique]
+  - name: cloudbeaver_auth_attempts
+    columns:
+      - name: auth_id
         tests: [not_null, unique]
   - name: telegram_chats
     columns:

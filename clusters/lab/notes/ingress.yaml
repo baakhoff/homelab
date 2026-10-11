@@ -1,0 +1,44 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Behind the oauth2-proxy gate as well as Outline's own Pocket ID login, the
+# one rule for every host here. In practice it is one passkey: the gate asks
+# for it, and Outline's sign-in finds the Pocket ID session already there.
+# The price is that Outline's desktop and mobile apps cannot get through it;
+# the web app is the way in.
+#
+# The brand agent and Airflow do not come through here: they use the
+# in-cluster address with an API key (networkpolicy.yaml).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: outline
+  namespace: notes
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Images and attachments dropped into a document.
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    # Editors hold a websocket open for live collaboration; nginx's default
+    # 60s read timeout would cut it whenever nobody types for a minute.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Outline
+    gethomepage.dev/group: Home
+    gethomepage.dev/icon: outline.png
+    gethomepage.dev/description: Notes and documents
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://notes.lab.baakhoff.com
+spec:
+  rules:
+    - host: notes.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: outline
+                port:
+                  number: 80

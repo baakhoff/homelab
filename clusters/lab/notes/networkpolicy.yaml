@@ -1,0 +1,73 @@
+# Three ways in to Outline, each with its own reason:
+#
+# - ingress-nginx, for browsers, through the gate in ingress.yaml.
+# - The brand agent pod, which reads and writes documents through Outline's
+#   API with an API key (README, step 3). The matching egress rule is in
+#   clusters/lab/agents/networkpolicy-brand.yaml.
+# - Airflow's scheduler, for the ingest_outline DAG, which copies documents
+#   into the warehouse (pipelines/dags/ingest.py; the egress rule is in
+#   clusters/lab/airflow/networkpolicy.yaml).
+#
+# The last two reach Outline ungated, which is safe because the API answers
+# nothing without a key, and keys are only made by signed-in users.
+#
+# And one way in to Postgres: Outline itself.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: outline
+  namespace: notes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: outline
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agents
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: brand
+      ports:
+        - protocol: TCP
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: outline-postgres
+  namespace: notes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: outline-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: outline
+      ports:
+        - protocol: TCP
+          port: 5432

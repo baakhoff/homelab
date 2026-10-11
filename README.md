@@ -53,8 +53,10 @@ exception: it keeps its own master password.
 | [ClickHouse](https://clickhouse.com) | The column store those events land in, queried in SQL. |
 | [Apache Airflow](https://airflow.apache.org) | Runs the data pipelines: API snapshots into Kafka, and the dbt models. |
 | [dbt](https://www.getdbt.com) | The SQL models that build the warehouse's layers from the raw data. |
+| [CloudBeaver](https://github.com/dbeaver/cloudbeaver) | DBeaver in the browser: every database in the lab, read-only, with an SQL editor and result grids. |
 | [Mealie](https://mealie.io) | Recipes imported from any site by link, meal plans and shared shopping lists. |
 | [SparkyFitness](https://github.com/CodeWithCJ/SparkyFitness) | Calorie and macro tracking with an AI that logs meals from a photo, plus exercise and weight, with a phone app. |
+| [Outline](https://www.getoutline.com) | Notes and documents in a polished web editor, organised in collections, with every edit kept in its history; an agent reads and writes them too. |
 | [Dawarich](https://github.com/Freika/dawarich) | Location history from the phone on a map: trips, visits, countries and stats, a self-hosted Google Timeline. |
 | [Photon](https://github.com/komoot/photon) | Turns Dawarich's coordinates into streets, cities and places, from OpenStreetMap, without sending them out of the lab. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
@@ -97,12 +99,14 @@ exception: it keeps its own master password.
   and shopping lists ([how](clusters/lab/mealie/README.md)), and SparkyFitness
   for calories, meals and exercise ([how](clusters/lab/sparkyfitness/README.md)), and
   Dawarich keeping the phones' location history ([how](clusters/lab/dawarich/README.md)), with
-  Photon naming its streets and places ([how](clusters/lab/photon/README.md)), and n8n for
+  Photon naming its streets and places ([how](clusters/lab/photon/README.md)), and
+  Outline for notes and documents ([how](clusters/lab/notes/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
   feeding ClickHouse, where every source's raw data is kept for querying
   ([how](clusters/lab/data/README.md)), and Airflow running the pipelines
   that pull the services' data in and the dbt models that shape it
-  ([how](clusters/lab/airflow/README.md)). Nightly restic backup of its volumes
+  ([how](clusters/lab/airflow/README.md)), and CloudBeaver reading every
+  database in the lab from the browser ([how](clusters/lab/cloudbeaver/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)

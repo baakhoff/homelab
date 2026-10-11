@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: outline
+  namespace: notes
+spec:
+  # One replica on a ReadWriteOnce volume. Recreate: the RBD image maps to
+  # one node at a time, so a rolling update's second pod could never start.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: outline
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: outline
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # nodejs, the image's own user.
+        runAsUser: 1001
+        runAsGroup: 1001
+        # kubelet hands the fresh volume's root to this group.
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: outline
+          image: docker.io/outlinewiki/outline:1.10.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Links, the OIDC callback and the websocket address are built
+            # from this.
+            - name: URL
+              value: https://notes.lab.baakhoff.com
+            - name: PORT
+              value: "3000"
+            # TLS ends at ingress-nginx. Outline's own redirect to https would
+            # also bounce the in-cluster API calls (brand, Airflow), which
+            # come in over plain http - networkpolicy.yaml.
+            - name: FORCE_HTTPS
+              value: "false"
+            # One web process: a household wiki, and each process is about
+            # half a gigabyte.
+            - name: WEB_CONCURRENCY
+              value: "1"
+            - name: DEFAULT_LANGUAGE
+              value: en_US
+            # No anonymous usage statistics to Outline's maintainers.
+            - name: ENABLE_UPDATES
+              value: "false"
+            - name: LOG_LEVEL
+              value: info
+            # --- Storage --------------------------------------------------
+            # Documents live in Postgres; images and attachments on the
+            # volume. The database as separate settings, not DATABASE_URL:
+            # Outline refuses to start when DATABASE_URL and DATABASE_PASSWORD
+            # are both set, and the password is the Secret's DATABASE_PASSWORD,
+            # the same one Postgres was created with, arriving through
+            # envFrom below.
+            - name: DATABASE_HOST
+              value: outline-postgres
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_NAME
+              value: outline
+            - name: DATABASE_USER
+              value: outline
+            # Postgres is in the namespace, on the cluster network; there is
+            # no certificate to verify against.
+            - name: PGSSLMODE
+              value: disable
+            # The sidecar below, on loopback.
+            - name: REDIS_URL
+              value: redis://127.0.0.1:6379
+            - name: FILE_STORAGE
+              value: local
+            - name: FILE_STORAGE_LOCAL_ROOT_DIR
+              value: /var/lib/outline/data
+            # 64 MiB per upload, matching the Ingress's body size.
+            - name: FILE_STORAGE_UPLOAD_MAX_SIZE
+              value: "67108864"
+            # --- Login: Pocket ID -------------------------------------------
+            # The browser goes to the public authorize page; Outline swaps the
+            # code and reads the profile over the cluster network, as Grafana
+            # and oauth2-proxy do. The first person to sign in creates the
+            # workspace and becomes its admin; later sign-ins join it as
+            # members. Who may sign in at all is the client's Allowed User
+            # Groups in Pocket ID.
+            - name: OIDC_AUTH_URI
+              value: https://id.lab.baakhoff.com/authorize
+            - name: OIDC_TOKEN_URI
+              value: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/token
+            - name: OIDC_USERINFO_URI
+              value: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/userinfo
+            - name: OIDC_LOGOUT_URI
+              value: https://id.lab.baakhoff.com/api/oidc/end-session
+            - name: OIDC_DISPLAY_NAME
+              value: Pocket ID
+            - name: OIDC_USERNAME_CLAIM
+              value: preferred_username
+            - name: OIDC_SCOPES
+              value: openid profile email
+          envFrom:
+            # SECRET_KEY, UTILS_SECRET, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET and
+            # DATABASE_PASSWORD, created by hand into secret.sops.yaml beside this file - README,
+            # step 1. Until it exists the pod waits in
+            # CreateContainerConfigError.
+            - secretRef:
+                name: outline
+          ports:
+            - name: http
+              containerPort: 3000
+          # Migrations run before the server listens; on a first start they
+          # build the whole schema. Five minutes before liveness gets a vote.
+          startupProbe:
+            httpGet:
+              path: /_health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /_health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /_health
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 384Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/outline/data
+        # Outline needs Redis for its queues and the live collaboration
+        # between editors. A cache with nothing worth keeping, so no
+        # persistence, and on loopback, so nothing outside the pod can reach
+        # it whatever the NetworkPolicy says.
+        - name: redis
+          image: docker.io/library/redis:8.10.2-alpine
+          args: ["redis-server", "--bind", "127.0.0.1", "--save", "", "--appendonly", "no"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: outline-data

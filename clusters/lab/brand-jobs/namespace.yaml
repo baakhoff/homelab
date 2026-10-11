@@ -1,0 +1,19 @@
+# Where the brand agent's scheduled work runs: CronJobs, and the Jobs and
+# pods they make. The brand pod (clusters/lab/agents/brand.yaml) creates and
+# manages them here through the Kubernetes API, and can do nothing anywhere
+# else - rbac.yaml. README.md beside this says why this is the one place in
+# the lab whose contents are not in this repository.
+#
+# `restricted` is the strictest Pod Security level, enforced: a pod here runs
+# as non-root, drops every capability, uses the runtime's seccomp profile and
+# mounts no host path, or it is refused at admission. That is what stops a
+# CronJob from being a way out of the namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: brand-jobs
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest

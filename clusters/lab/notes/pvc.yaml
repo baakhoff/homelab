@@ -1,0 +1,17 @@
+# Outline's file storage: images and attachments added to documents, and
+# imports and exports while they are processed. The documents themselves are
+# in Postgres (postgres.yaml).
+#
+# 5Gi: a team wiki's images. Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: outline-data
+  namespace: notes
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 5Gi

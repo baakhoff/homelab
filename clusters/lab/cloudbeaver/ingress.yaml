@@ -1,0 +1,40 @@
+# Behind the admin gate (lab-admins only): this reads every database in
+# the lab. No tls: block - the controller serves the lab wildcard as its
+# default certificate, like every other Ingress here.
+#
+# The gate is also the login. auth-response-headers makes ingress-nginx
+# copy oauth2-proxy's X-Auth-Request-Email onto the request it passes on,
+# overwriting any the browser sent, and CloudBeaver signs in whoever it
+# names (config.yaml). The NetworkPolicy lets nothing but ingress-nginx
+# reach the pod, so the header cannot arrive any other way.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudbeaver
+  namespace: cloudbeaver
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    nginx.ingress.kubernetes.io/auth-response-headers: X-Auth-Request-Email
+    # Long queries, and imports of a file into a table.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: CloudBeaver
+    gethomepage.dev/group: Data
+    gethomepage.dev/icon: cloudbeaver.png
+    gethomepage.dev/description: Every database, in SQL
+    gethomepage.dev/href: https://db.lab.baakhoff.com
+spec:
+  rules:
+    - host: db.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cloudbeaver
+                port:
+                  number: 80

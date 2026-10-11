@@ -14,7 +14,7 @@ How they got into service, and why each setting exists:
 | `00-hardening.conf` | `/etc/ssh/sshd_config.d/` | keys-only SSH, no root login. Named `00-` so it wins sshd's first-match rule against the image's own `50-cloud-init.conf` |
 | `99-inotify.conf` | `/etc/sysctl.d/` | raises the per-user inotify limits a k3s node exhausts; the symptom is "Too many open files" from anything that watches a directory |
 | `chrony.conf` | `/etc/chrony/chrony.conf` | keeps the clocks with chrony instead of timesyncd, all three from the same fixed servers, so the Ceph monitors stay within their 50 ms of each other |
-| `k3s-config.yaml` | `/etc/rancher/k3s/config.yaml` | the apiserver trusts Pocket ID as an OIDC issuer, which is what lets Headlamp log a person in. Merged with the flags the install line in the disaster-recovery runbook already passes; nothing there is repeated here |
+| `k3s-config.yaml` | `/etc/rancher/k3s/config.yaml` | the apiserver trusts Pocket ID as an OIDC issuer, which is what lets Headlamp log a person in; the kubelet deletes unused images from 65% disk use, under the Ceph monitor's 70% warning. Merged with the flags the install line in the disaster-recovery runbook already passes; nothing there is repeated here |
 
 `00-hardening.conf` is byte-identical to the Pi's copy in
 [`hosts/exitnode/`](../exitnode/). It is duplicated rather than referenced so
@@ -76,6 +76,16 @@ Ten to twenty seconds of API unavailability per node is normal while the
 apiserver on it comes back; nothing running on the node restarts. The check
 that it took is the Headlamp login working — until all three are done, a login
 succeeds one time in three, which is the lopsided symptom to expect midway.
+
+### Image clean-up thresholds, added later
+
+The same file and the same one-node-at-a-time restart as the OIDC change
+above. The kubelet reads its thresholds at start, so nothing changes until
+k3s restarts. The check that it took, on each node:
+
+```
+sudo journalctl -u k3s --since "5 min ago" | grep -o 'image-gc-high-threshold=[0-9]*' | head -1
+```
 
 ### chrony, added later
 
