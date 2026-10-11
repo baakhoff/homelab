@@ -18,7 +18,7 @@ FROM node:24-bookworm-slim
 # that changes without a commit is exactly what GitOps exists to prevent. The
 # CI workflow reads this line to tag the image, so the ARG line must keep this
 # exact shape.
-ARG CLAUDE_CODE_VERSION=2.1.284
+ARG CLAUDE_CODE_VERSION=2.1.293
 ARG GH_VERSION=2.101.0
 ARG GLAB_VERSION=1.119.0
 ARG KUBECTL_VERSION=1.37.0
