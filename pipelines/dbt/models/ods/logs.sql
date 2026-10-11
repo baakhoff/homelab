@@ -17,5 +17,9 @@ select
     match(body, '(?i)\\b(warn|warning)\\b'), 'warning',
     'info'
   ) as level,
+  -- Set by the collectors when they masked something in the line
+  -- (clusters/lab/logging/alloy.yaml, mask_secrets).
+  attrs['sensitive'] = 'true' as sensitive,
+  arrayFilter(k -> k != '', splitByChar(',', attrs['sensitive_kinds'])) as sensitive_kinds,
   ingested_at
 from ({{ otlp_records('logs') }})

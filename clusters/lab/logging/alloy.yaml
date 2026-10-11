@@ -16,7 +16,8 @@
 #
 # Two destinations: Loki, for reading logs in Grafana, and Kafka, for the
 # data warehouse (clusters/lab/data/) - the same lines, plus the cluster's
-# events, which go to Kafka only.
+# events, which go to Kafka only. Both get every line with its secrets
+# masked first (mask_secrets below; pipelines/sensitive.md).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -140,6 +141,142 @@ spec:
             }
           }
 
+          // Secrets and identity numbers masked out of every log line and
+          // event before they leave the collector, so neither Loki nor the
+          // warehouse ever holds them - the same idea as the ingest jobs'
+          // pipelines/dags/sensitive.py, with the patterns that need no
+          // checksum (RE2 has no way to run Luhn), and cards only when
+          // written in groups, which is how a person writes one.
+          //
+          // Each kind is first detected, then masked: the detection sets
+          // the labels `sensitive` ("true") and `sensitive_kinds` (a comma
+          // list), which reach the warehouse as attributes on the line.
+          // Both are bounded - a handful of kinds - so they cost Loki next
+          // to nothing in streams. What a mask keeps is what sensitive.py
+          // keeps: a key's first seven and last four characters, a card's
+          // last four digits, nothing of a password.
+          declare "mask_secrets" {
+            argument "forward_to" { }
+
+            loki.process "mask" {
+              stage.regex { expression = "(?P<sens_private_key>-----BEGIN [A-Z0-9 ]*PRIVATE KEY)" }
+              stage.regex { expression = "(?P<sens_age_key>AGE-SECRET-KEY-1[0-9A-Z]{58})" }
+              stage.regex { expression = "(?P<sens_github_token>\\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{60,}))" }
+              stage.regex { expression = "(?P<sens_gitlab_token>\\bglpat-[A-Za-z0-9_-]{20,})" }
+              stage.regex { expression = "(?P<sens_aws_access_key>\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b)" }
+              stage.regex { expression = "(?P<sens_google_api_key>\\bAIza[0-9A-Za-z_-]{35})" }
+              stage.regex { expression = "(?P<sens_google_oauth>\\b(?:1//0[0-9A-Za-z_-]{40,}|GOCSPX-[A-Za-z0-9_-]{28}|ya29\\.[0-9A-Za-z_-]{30,}))" }
+              stage.regex { expression = "(?P<sens_slack_token>\\bxox[abposr]-[A-Za-z0-9-]{10,})" }
+              stage.regex { expression = "(?P<sens_stripe_key>\\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{20,})" }
+              stage.regex { expression = "(?P<sens_anthropic_key>\\bsk-ant-[A-Za-z0-9_-]{20,})" }
+              stage.regex { expression = "(?P<sens_openai_key>\\bsk-(?:proj-|svcacct-)[A-Za-z0-9_-]{20,})" }
+              stage.regex { expression = "(?P<sens_npm_token>\\bnpm_[A-Za-z0-9]{36})" }
+              stage.regex { expression = "(?P<sens_telegram_bot_token>\\b\\d{8,10}:AA[A-Za-z0-9_-]{33})" }
+              stage.regex { expression = "(?P<sens_jwt>\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,})" }
+              stage.regex { expression = "(?P<sens_url_password>[a-z][a-z0-9+.-]*://[^\\s:/@]+:[^\\s@/]+@)" }
+              stage.regex { expression = "(?i)(?P<sens_password>(?:password|passwd|pwd|пароль|лозинка|lozinka)[\"']?\\s*[:=]\\s*[\"']?[^\\s\"',]{4,})" }
+              stage.regex { expression = "(?i)(?P<sens_bearer>authorization:\\s*bearer\\s+[A-Za-z0-9._~+/=-]{16,})" }
+              stage.regex { expression = "(?P<sens_card>\\b(?:4\\d{3}|5[1-5]\\d{2}|2[2-7]\\d{2}|6\\d{3}|3[47]\\d{2}|9891)[ -]\\d{4}[ -]\\d{4}[ -]\\d{1,4}\\b)" }
+
+              stage.template {
+                source   = "sensitive_kinds"
+                template = "{{ if .sens_private_key }}private_key,{{ end }}{{ if .sens_age_key }}age_key,{{ end }}{{ if .sens_github_token }}github_token,{{ end }}{{ if .sens_gitlab_token }}gitlab_token,{{ end }}{{ if .sens_aws_access_key }}aws_access_key,{{ end }}{{ if .sens_google_api_key }}google_api_key,{{ end }}{{ if .sens_google_oauth }}google_oauth,{{ end }}{{ if .sens_slack_token }}slack_token,{{ end }}{{ if .sens_stripe_key }}stripe_key,{{ end }}{{ if .sens_anthropic_key }}anthropic_key,{{ end }}{{ if .sens_openai_key }}openai_key,{{ end }}{{ if .sens_npm_token }}npm_token,{{ end }}{{ if .sens_telegram_bot_token }}telegram_bot_token,{{ end }}{{ if .sens_jwt }}jwt,{{ end }}{{ if .sens_url_password }}url_password,{{ end }}{{ if .sens_password }}password,{{ end }}{{ if .sens_bearer }}bearer_token,{{ end }}{{ if .sens_card }}card,{{ end }}"
+              }
+              stage.template {
+                source   = "sensitive_kinds"
+                template = "{{ TrimSuffix .Value \",\" }}"
+              }
+              stage.template {
+                source   = "sensitive"
+                template = "{{ if .sensitive_kinds }}true{{ end }}"
+              }
+              stage.labels {
+                values = { sensitive = "", sensitive_kinds = "" }
+              }
+
+              // The masks. Only the captured group is replaced; what is
+              // around it - the key's prefix and tail, the field name - stays.
+              stage.replace {
+                expression = "-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----([\\s\\S]*?)-----END"
+                replace    = " [masked] "
+              }
+              stage.replace {
+                expression = "AGE-SEC(RET-KEY-1[0-9A-Z]{47})[0-9A-Z]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\b(?:gh[pousr]_[A-Za-z0-9]{3}|github_pat_)([A-Za-z0-9_]{25,})[A-Za-z0-9]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\bglpat-[A-Za-z0-9_-]{1}([A-Za-z0-9_-]{15,})[A-Za-z0-9_-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\b(?:AKIA|ASIA)[0-9A-Z]{3}([0-9A-Z]{9})[0-9A-Z]{4}\\b"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\bAIzaSyA?([0-9A-Za-z_-]{24,})[0-9A-Za-z_-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\b(?:1//0[0-9A-Za-z_-]{3}|GOCSPX-|ya29\\.[0-9A-Za-z_-]{2})([0-9A-Za-z_-]{20,})[0-9A-Za-z_-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\bxox[abposr]-[A-Za-z0-9]{2}([A-Za-z0-9-]{4,})[A-Za-z0-9-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\b(?:sk|rk)_(?:live|test)([A-Za-z0-9_]{16,})[A-Za-z0-9]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\bsk-ant-([A-Za-z0-9_-]{16,})[A-Za-z0-9_-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\bsk-(?:proj-|svcacct-)([A-Za-z0-9_-]{16,})[A-Za-z0-9_-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\bnpm_[A-Za-z0-9]{3}([A-Za-z0-9]{29})[A-Za-z0-9]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\b\\d{8,10}:(AA[A-Za-z0-9_-]{29})[A-Za-z0-9_-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\beyJ[A-Za-z0-9_-]{4}([A-Za-z0-9_-]{6,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{6,})[A-Za-z0-9_-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "[a-z][a-z0-9+.-]*://[^\\s:/@]+:([^\\s@/]+)@"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "(?i)(?:password|passwd|pwd|пароль|лозинка|lozinka)[\"']?\\s*[:=]\\s*[\"']?([^\\s\"',]{4,})"
+                replace    = "********"
+              }
+              stage.replace {
+                expression = "(?i)authorization:\\s*bearer\\s+[A-Za-z0-9._~+/=-]{3}([A-Za-z0-9._~+/=-]{9,})[A-Za-z0-9._~+/=-]{4}"
+                replace    = "****"
+              }
+              stage.replace {
+                expression = "\\b((?:4\\d{3}|5[1-5]\\d{2}|2[2-7]\\d{2}|6\\d{3}|3[47]\\d{2}|9891)[ -]\\d{4}[ -]\\d{4})[ -]\\d{1,4}\\b"
+                replace    = "**** **** ****"
+              }
+
+              forward_to = argument.forward_to.value
+            }
+
+            export "receiver" {
+              value = loki.process.mask.receiver
+            }
+          }
+
           loki.source.kubernetes "pod_logs" {
             targets    = discovery.relabel.pod_logs.output
             forward_to = [loki.process.multiline.receiver]
@@ -161,6 +298,12 @@ spec:
                 max_lines     = 1000
               }
             }
+            forward_to = [mask_secrets.logs.receiver]
+          }
+
+          // Masked before the split, so Loki and the warehouse get the same
+          // masked line.
+          mask_secrets "logs" {
             forward_to = [loki.write.default.receiver, loki.process.to_kafka.receiver]
           }
 
@@ -203,10 +346,16 @@ spec:
           // rollout of the collectors may re-send a few as the watch moves.
           loki.source.kubernetes_events "events" {
             log_format = "json"
-            forward_to = [otelcol.receiver.loki.events.receiver]
+            forward_to = [mask_secrets.events.receiver]
             clustering {
               enabled = true
             }
+          }
+
+          // An event's message can quote a command line or an environment
+          // value; masked like the log lines.
+          mask_secrets "events" {
+            forward_to = [otelcol.receiver.loki.events.receiver]
           }
 
           otelcol.receiver.loki "events" {

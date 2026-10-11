@@ -11,5 +11,7 @@ select
   coalesce(nullIf(attrs['namespace'], ''), JSONExtractString(body, 'namespace')) as namespace,
   JSONExtractString(body, 'msg') as message,
   body,
+  attrs['sensitive'] = 'true' as sensitive,
+  arrayFilter(k -> k != '', splitByChar(',', attrs['sensitive_kinds'])) as sensitive_kinds,
   ingested_at
 from ({{ otlp_records('k8s_events') }})
