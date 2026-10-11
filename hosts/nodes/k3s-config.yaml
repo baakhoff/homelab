@@ -28,3 +28,17 @@ kube-apiserver-arg:
   - "oidc-username-prefix=oidc:"
   - oidc-groups-claim=groups
   - "oidc-groups-prefix=oidc:"
+
+# The kubelet deletes unused container images only once the disk holding them
+# is 85% full, and then only down to 80% - its defaults. That disk is also the
+# root filesystem the Ceph monitor keeps its data on, and a monitor warns at
+# 70% full (mon_data_avail_warn: 30% free). Between those lines the cluster
+# sat in HEALTH_WARN with nothing cleaning up: on 2026-10-11 node02 reached
+# 81%, 67GB of it images, mostly old versions superseded by updates.
+#
+# 65/55 starts the clean-up under the monitor's line with room to spare, and
+# leaves a margin after it. An image a pod still uses is never deleted;
+# anything deleted that is needed again is pulled again.
+kubelet-arg:
+  - image-gc-high-threshold=65
+  - image-gc-low-threshold=55
