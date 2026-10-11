@@ -108,7 +108,6 @@ spec:
                     data/data-clickhouse-0
                     agents/homelab
                     agents/brand
-                    agents/bid
                     agents/epicurus
                     agents/scratch
                     agents/slot-1
