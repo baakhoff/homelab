@@ -14,6 +14,7 @@
 #   paperless       8000 (Paperless has no policy of its own to match)
 #   sparkyfitness   3010, the server itself rather than its frontend
 #   dawarich        3000
+#   notes           3000, SilverBullet
 #   cloudbeaver     its Postgres 5432, for the usage DAG
 #
 # And one more way in: CloudBeaver to Postgres, as its read-only role - the
@@ -145,6 +146,16 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: dawarich
+      ports:
+        - protocol: TCP
+          port: 3000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: notes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: silverbullet
       ports:
         - protocol: TCP
           port: 3000

@@ -1,0 +1,72 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Behind the oauth2-proxy gate as well as SilverBullet's own Pocket ID login,
+# the one rule for every host here. In practice it is one passkey: the gate
+# asks for it, and SilverBullet's sign-in finds the Pocket ID session already
+# there. The gate also stands in front of the setup wizard, which creates the
+# first admin for whoever reaches it first (README, Setup).
+#
+# The brand agent and Airflow do not come through here: they use the
+# in-cluster address with an API token (networkpolicy.yaml).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: silverbullet
+  namespace: notes
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Images pasted or dropped into a note.
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: SilverBullet
+    gethomepage.dev/group: Home
+    gethomepage.dev/icon: silverbullet.png
+    gethomepage.dev/description: Notes in Markdown, in the browser
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://notes.lab.baakhoff.com
+spec:
+  rules:
+    - host: notes.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: silverbullet
+                port:
+                  number: 80
+---
+# The two paths SilverBullet's docs require outside any authentication proxy:
+# the service worker and the client's own code. Behind the gate, the service
+# worker cannot refresh once the gate's session lapses, and the offline copy
+# of the app breaks in ways that look like SilverBullet bugs. Both are the
+# same static files for everyone - no note is ever served from them.
+#
+# nginx picks the longest matching path, so these win over the gated `/`.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: silverbullet-static
+  namespace: notes
+spec:
+  rules:
+    - host: notes.lab.baakhoff.com
+      http:
+        paths:
+          - path: /service_worker.js
+            pathType: Exact
+            backend:
+              service:
+                name: silverbullet
+                port:
+                  number: 80
+          - path: /.client/
+            pathType: Prefix
+            backend:
+              service:
+                name: silverbullet
+                port:
+                  number: 80
