@@ -42,6 +42,7 @@ layers by hand.
 | Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
 | Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's; Outline's documents with their text), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich`, `raw.outline` |
 | CloudBeaver's usage | Airflow's `ingest_cloudbeaver` DAG, `pipelines/dags/cloudbeaver.py` - its ClickHouse queries from `system.query_log`, its sessions and sign-ins from its own database. Its Postgres statements come in with the log lines | `raw.cloudbeaver` |
+| Telegram | Airflow's `ingest_telegram` DAG, `pipelines/dags/telegram.py` - one account's private chats, logged in as the account; each message once, again when edited | `raw.telegram` |
 
 ## What is here
 
@@ -76,7 +77,7 @@ only that range. `raw.logs` rows are deleted after 90 days; every other
 table keeps everything.
 
 The sources are `SOURCES` in `clickhouse-schema.yaml`:
-`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver outline`. Topic
+`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver outline telegram`. Topic
 `raw.<name>`, table `raw.<name>`, a dash becoming an underscore
 (`raw.k8s-events` -> `raw.k8s_events`). Adding a source is one word there:
 the next run creates its topic, its table and its consumer. Removing one is

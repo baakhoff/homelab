@@ -9,6 +9,7 @@ model is live a minute later, with no restart.
 | DAG | What it does | When |
 |---|---|---|
 | `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, the rest every 6 hours |
+| `ingest_telegram` | One Telegram account's private chats into `raw.telegram`, logged in as the account: new messages, and the last 3 days again for edits; the history in 40-minute portions on the first runs ([how](../../../pipelines/telegram.md)) | hourly, at :20 |
 | `warehouse` | The dbt project: `raw` -> `ods` -> `ads` -> `dm`, one task per model and per model's tests, rendered by [Cosmos](https://github.com/astronomer/astronomer-cosmos) | hourly, at :45 |
 
 UI: <https://airflow.lab.baakhoff.com>, behind the admin gate. That gate is
@@ -30,7 +31,7 @@ container's log.
   (`parallelism`). The warehouse DAG's models queue behind each other; a
   full run takes a few minutes longer and never takes the scheduler down.
 - **Its own image** (`images/airflow/`): the official one plus Cosmos, the
-  Kafka client, and dbt in a separate virtualenv at `/opt/dbt` so that
+  Kafka client, Telethon for Telegram, and dbt in a separate virtualenv at `/opt/dbt` so that
   dbt's and Airflow's dependencies never meet.
 - **Its own Postgres** (`postgres.yaml`) for run history. Losing it loses
   history, not data.
@@ -44,8 +45,10 @@ container's log.
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
 Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline. Each of
 those admits the scheduler pod by name in its own policy. A new source needs
-a door on both sides. The dbt docs pod uses the same rules for ClickHouse and GitHub, and
-ClickHouse admits it by name as well.
+a door on both sides. Telegram is outside the lab, so `ingest_telegram` goes
+out through the same internet rule as git-sync, on 443. The dbt docs pod uses
+the same rules for ClickHouse and GitHub, and ClickHouse admits it by name as
+well.
 
 ## Setup, in this order
 
@@ -114,7 +117,8 @@ sops --encrypt --in-place clusters/lab/airflow/sources.sops.yaml
 Firefly needs no token here: the broker holds it. SparkyFitness's and
 Dawarich's keys are added later, into the same Secret - step 5 of
 `clusters/lab/sparkyfitness/README.md` and of `clusters/lab/dawarich/README.md` -
-and so is Outline's API key, step 4 of `clusters/lab/notes/README.md`.
+and so is Outline's API key, step 4 of `clusters/lab/notes/README.md`, and
+Telegram's login, by `pipelines/tools/telegram_login.py` (`pipelines/telegram.md`).
 So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
 `clusters/lab/cloudbeaver/README.md`.
 
