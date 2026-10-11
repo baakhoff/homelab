@@ -52,12 +52,29 @@ jobs only - RE2 in the collectors cannot compute one):
 | `national_id` | Serbian JMBG (13 digits, check digit), Danish CPR (`DDMMYY-XXXX`) | all |
 | `passport` | a number after `passport`, `пасош`/`pasoš`, `паспорт` | all |
 
+**Text aimed at a machine, not a person** (both places; the collectors
+without the per-language checks):
+
+| Kind | What | Becomes |
+|---|---|---|
+| `invisible_text` | characters that do not show but that a language model reads: the Unicode tag block (a known way to smuggle invisible instructions), zero-width spaces, direction overrides that make `invoice\u202Efdp.exe` display as `invoiceexe.pdf` | removed. The emoji joiner stays, or family and flag emoji would break |
+| `encoded_blob` | long base64 (120+ characters, mixed case and digits) or hex (128+), `data:` URIs, `<script>` blocks, `javascript:` links, PowerShell `-EncodedCommand` | `[base64 blob, 1.4 KB, masked]`, `[script removed]` |
+| `prompt_injection` | instructions to an AI: "ignore/disregard/forget previous instructions", "new instructions:", "you are now ...", "system prompt", "do not tell the user", in English, Russian, Serbian (both scripts), Kazakh and Danish; and chat-model role markers such as `<\|im_start\|>` and `[INST]` | `[instruction to an AI removed]` |
+
+These are a speed bump, not a defence. They stop the copy-pasted attack and
+the hidden one, and flag the record so whatever reads it can distrust it;
+someone who rephrases gets through. What actually limits a misled agent is
+what it is allowed to reach and send.
+
 **Not masked, on purpose:** phone numbers, e-mail addresses, usernames.
 They are how people are told apart across sources.
 
 The collectors carry the patterns that need no checksum: keys, tokens, JWTs,
-private keys, URL and `password:` values, bearer headers, and cards written
-in groups of four.
+private keys, URL and `password:` values, bearer headers, cards written in
+groups of four, invisible characters, scripts, base64 of 200+ characters,
+and the AI-instruction phrases in English, Russian and Serbian. A web
+request's path and User-Agent are written by whoever sends it, which is why
+logs get these too.
 
 ## The flags
 

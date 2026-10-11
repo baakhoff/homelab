@@ -143,7 +143,10 @@ spec:
 
           // Secrets and identity numbers masked out of every log line and
           // event before they leave the collector, so neither Loki nor the
-          // warehouse ever holds them - the same idea as the ingest jobs'
+          // warehouse ever holds them; with them invisible characters,
+          // scripts, long base64 and instructions aimed at an AI, since a
+          // request's path and User-Agent are written by whoever sends it.
+          // The same idea as the ingest jobs'
           // pipelines/dags/sensitive.py, with the patterns that need no
           // checksum (RE2 has no way to run Luhn), and cards only when
           // written in groups, which is how a person writes one.
@@ -159,6 +162,15 @@ spec:
             argument "forward_to" { }
 
             loki.process "mask" {
+              // Invisible characters out first - the Unicode tag block, zero-width
+              // spaces, direction overrides - so a phrase split by them cannot slip
+              // past the patterns below. The emoji joiner (U+200D) stays.
+              stage.regex { expression = "(?P<sens_invisible_text>[\\x{E0000}-\\x{E007F}\\x{200B}\\x{200C}\\x{2060}-\\x{2064}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}\\x{FEFF}\\x{00AD}])" }
+              stage.replace {
+                expression = "([\\x{E0000}-\\x{E007F}\\x{200B}\\x{200C}\\x{2060}-\\x{2064}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}\\x{FEFF}\\x{00AD}]+)"
+                replace    = ""
+              }
+
               stage.regex { expression = "(?P<sens_private_key>-----BEGIN [A-Z0-9 ]*PRIVATE KEY)" }
               stage.regex { expression = "(?P<sens_age_key>AGE-SECRET-KEY-1[0-9A-Z]{58})" }
               stage.regex { expression = "(?P<sens_github_token>\\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{60,}))" }
@@ -177,10 +189,12 @@ spec:
               stage.regex { expression = "(?i)(?P<sens_password>(?:password|passwd|pwd|пароль|лозинка|lozinka)[\"']?\\s*[:=]\\s*[\"']?[^\\s\"',]{4,})" }
               stage.regex { expression = "(?i)(?P<sens_bearer>authorization:\\s*bearer\\s+[A-Za-z0-9._~+/=-]{16,})" }
               stage.regex { expression = "(?P<sens_card>\\b(?:4\\d{3}|5[1-5]\\d{2}|2[2-7]\\d{2}|6\\d{3}|3[47]\\d{2}|9891)[ -]\\d{4}[ -]\\d{4}[ -]\\d{1,4}\\b)" }
+              stage.regex { expression = "(?P<sens_prompt_injection>(?i)(?:(?:ignore|disregard|forget|override|bypass)\\s+(?:(?:all|any|the|your|every)\\s+)*(?:previous|prior|above|earlier|preceding|existing|system|original)\\s+(?:instructions?|prompts?|rules|directions|messages|guidelines|context)|(?:new|updated|real|actual)\\s+(?:system\\s+)?instructions?\\s*:|you\\s+are\\s+now\\s+(?:a|an|in|the|my|no\\s+longer)\\s|system\\s+prompt\\b|developer\\s+mode|jailbreak|do\\s+not\\s+(?:tell|inform|alert)\\s+the\\s+user|(?:игнорируй|игнорируйте|забудь|забудьте)\\s+(?:все\\s+)?(?:предыдущие|прошлые|прежние|системные)?\\s*(?:инструкции|указания|правила)|(?:ignoriši|ignorisi|zaboravi)\\s+(?:sve\\s+)?(?:prethodne|prethodna|ranije)?\\s*(?:instrukcije|uputstva|pravila)|(?:игнориши|заборави)\\s+(?:све\\s+)?(?:претходне|претходна|раније)?\\s*(?:инструкције|упутства|правила)|<\\|(?:im_start|im_end|system|endoftext)\\|>|\\[/?INST\\]))" }
+              stage.regex { expression = "(?P<sens_encoded_blob>(?:[A-Za-z0-9+/]{200,}={0,2}|(?i)<script\\b[\\s\\S]*?</script\\s*>|(?i)javascript:[^\\s\"'<>]{4,}))" }
 
               stage.template {
                 source   = "sensitive_kinds"
-                template = "{{ if .sens_private_key }}private_key,{{ end }}{{ if .sens_age_key }}age_key,{{ end }}{{ if .sens_github_token }}github_token,{{ end }}{{ if .sens_gitlab_token }}gitlab_token,{{ end }}{{ if .sens_aws_access_key }}aws_access_key,{{ end }}{{ if .sens_google_api_key }}google_api_key,{{ end }}{{ if .sens_google_oauth }}google_oauth,{{ end }}{{ if .sens_slack_token }}slack_token,{{ end }}{{ if .sens_stripe_key }}stripe_key,{{ end }}{{ if .sens_anthropic_key }}anthropic_key,{{ end }}{{ if .sens_openai_key }}openai_key,{{ end }}{{ if .sens_npm_token }}npm_token,{{ end }}{{ if .sens_telegram_bot_token }}telegram_bot_token,{{ end }}{{ if .sens_jwt }}jwt,{{ end }}{{ if .sens_url_password }}url_password,{{ end }}{{ if .sens_password }}password,{{ end }}{{ if .sens_bearer }}bearer_token,{{ end }}{{ if .sens_card }}card,{{ end }}"
+                template = "{{ if .sens_private_key }}private_key,{{ end }}{{ if .sens_age_key }}age_key,{{ end }}{{ if .sens_github_token }}github_token,{{ end }}{{ if .sens_gitlab_token }}gitlab_token,{{ end }}{{ if .sens_aws_access_key }}aws_access_key,{{ end }}{{ if .sens_google_api_key }}google_api_key,{{ end }}{{ if .sens_google_oauth }}google_oauth,{{ end }}{{ if .sens_slack_token }}slack_token,{{ end }}{{ if .sens_stripe_key }}stripe_key,{{ end }}{{ if .sens_anthropic_key }}anthropic_key,{{ end }}{{ if .sens_openai_key }}openai_key,{{ end }}{{ if .sens_npm_token }}npm_token,{{ end }}{{ if .sens_telegram_bot_token }}telegram_bot_token,{{ end }}{{ if .sens_jwt }}jwt,{{ end }}{{ if .sens_url_password }}url_password,{{ end }}{{ if .sens_password }}password,{{ end }}{{ if .sens_bearer }}bearer_token,{{ end }}{{ if .sens_card }}card,{{ end }}{{ if .sens_invisible_text }}invisible_text,{{ end }}{{ if .sens_prompt_injection }}prompt_injection,{{ end }}{{ if .sens_encoded_blob }}encoded_blob,{{ end }}"
               }
               stage.template {
                 source   = "sensitive_kinds"
@@ -267,6 +281,23 @@ spec:
               stage.replace {
                 expression = "\\b((?:4\\d{3}|5[1-5]\\d{2}|2[2-7]\\d{2}|6\\d{3}|3[47]\\d{2}|9891)[ -]\\d{4}[ -]\\d{4})[ -]\\d{1,4}\\b"
                 replace    = "**** **** ****"
+              }
+
+              stage.replace {
+                expression = "((?i)(?:(?:ignore|disregard|forget|override|bypass)\\s+(?:(?:all|any|the|your|every)\\s+)*(?:previous|prior|above|earlier|preceding|existing|system|original)\\s+(?:instructions?|prompts?|rules|directions|messages|guidelines|context)|(?:new|updated|real|actual)\\s+(?:system\\s+)?instructions?\\s*:|you\\s+are\\s+now\\s+(?:a|an|in|the|my|no\\s+longer)\\s|system\\s+prompt\\b|developer\\s+mode|jailbreak|do\\s+not\\s+(?:tell|inform|alert)\\s+the\\s+user|(?:игнорируй|игнорируйте|забудь|забудьте)\\s+(?:все\\s+)?(?:предыдущие|прошлые|прежние|системные)?\\s*(?:инструкции|указания|правила)|(?:ignoriši|ignorisi|zaboravi)\\s+(?:sve\\s+)?(?:prethodne|prethodna|ranije)?\\s*(?:instrukcije|uputstva|pravila)|(?:игнориши|заборави)\\s+(?:све\\s+)?(?:претходне|претходна|раније)?\\s*(?:инструкције|упутства|правила)|<\\|(?:im_start|im_end|system|endoftext)\\|>|\\[/?INST\\]))"
+                replace    = "[instruction to an AI removed]"
+              }
+              stage.replace {
+                expression = "((?i)<script\\b[\\s\\S]*?</script\\s*>)"
+                replace    = "[script removed]"
+              }
+              stage.replace {
+                expression = "((?i)javascript:[^\\s\"'<>]{4,})"
+                replace    = "[javascript link removed]"
+              }
+              stage.replace {
+                expression = "([A-Za-z0-9+/]{200,}={0,2})"
+                replace    = "[base64 blob masked]"
               }
 
               forward_to = argument.forward_to.value
