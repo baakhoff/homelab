@@ -1,0 +1,31 @@
+# CloudBeaver (clusters/lab/cloudbeaver/) into Epicurus's Postgres, as the
+# read-only `cloudbeaver` role, and the job that keeps that role
+# (cloudbeaver-reader.yaml). Here and not in the chart for the reason
+# networkpolicy-metrics.yaml gives: the chart's data-plane policy admits
+# only the release's own pods and has no knob for another.
+# NetworkPolicies add up: this opens one more path and narrows nothing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cloudbeaver
+  namespace: epicurus
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: epicurus
+      app.kubernetes.io/component: postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudbeaver
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudbeaver-reader
+      ports:
+        - protocol: TCP
+          port: 5432

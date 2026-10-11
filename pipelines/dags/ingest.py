@@ -176,6 +176,22 @@ def _dawarich_pages(session: requests.Session, url: str, params: dict):
         page += 1
 
 
+def _outline_pages(session: requests.Session, url: str):
+    """Outline's RPC-style API: every list is a POST with offset and limit
+    in the body, answering {"data": [...], "pagination": {...}}. A page
+    shorter than the limit is the last one. Documents come with their
+    Markdown text.
+    """
+    offset = 0
+    while True:
+        r = session.post(url, json={"offset": offset, "limit": PAGE_SIZE}, timeout=TIMEOUT)
+        items = _json(r, "data", url)["data"]
+        yield from items
+        if len(items) < PAGE_SIZE:
+            return
+        offset += PAGE_SIZE
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -247,6 +263,15 @@ SOURCES = {
         "params": {"points_since": ""},
         "endpoints": ["points", "visits", "places"],
         "schedule": "40 3 * * *",
+    },
+    # Every document with its text, and the collections they sit in. The
+    # API key of an account of its own - clusters/lab/notes/README.md, step 4.
+    "outline": {
+        "base": "http://outline.notes.svc.cluster.local/api",
+        "auth": ("Bearer", "OUTLINE_API_KEY"),
+        "pages": _outline_pages,
+        "endpoints": ["documents.list", "collections.list"],
+        "schedule": "45 */6 * * *",
     },
 }
 

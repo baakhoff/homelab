@@ -1,0 +1,38 @@
+# A ceiling on what scheduled work can take from the cluster, which already
+# has no memory to spare if a node fails (the KubeMemoryOvercommit alert).
+# Enough for a handful of small jobs at once; a job that needs more is a
+# reason to raise this in a PR, not something brand can do from inside.
+#
+# A quota on cpu and memory makes every pod state them, so the LimitRange
+# below fills them in for a job that does not.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: brand-jobs
+  namespace: brand-jobs
+spec:
+  hard:
+    pods: "4"
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.memory: 2Gi
+    count/cronjobs.batch: "20"
+    count/jobs.batch: "40"
+    configmaps: "20"
+    secrets: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: brand-jobs
+  namespace: brand-jobs
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
+      default:
+        memory: 256Mi
+      max:
+        memory: 1Gi

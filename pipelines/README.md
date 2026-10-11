@@ -32,14 +32,14 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `telegram_chats`, `telegram_messages`, `ha_states`, `logs`, `k8s_events` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `telegram_chats`, `telegram_messages`, `ha_states`, `logs`, `k8s_events` |
 | `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
 Four patterns cover the sources:
 
 - **API snapshots** (Firefly, Vikunja, Mealie, Paperless, SparkyFitness,
-  Dawarich's visits and places) - `snapshot_records()` returns the newest
+  Dawarich's visits and places, Outline's documents) - `snapshot_records()` returns the newest
   run's records, so a record deleted at the source disappears from `ods`
   too. These models are tables, rebuilt every run.
 - **API windows** (Dawarich's points) - each run sends only the last week,
@@ -71,6 +71,11 @@ CLICKHOUSE_HOST=localhost CLICKHOUSE_USER=default CLICKHOUSE_PASSWORD= \
 Against the lab's ClickHouse, port-forward it first
 (`kubectl -n data port-forward svc/clickhouse 8123`) and use the `dbt`
 user's password.
+
+The rendered documentation - lineage, SQL, columns - is at
+<https://dbt.lab.baakhoff.com>, regenerated from `main` hourly
+(`clusters/lab/airflow/dbt-docs.yaml`). A model's `description` and its
+columns' descriptions in a `schema.yml` are what fill it in.
 
 ## Adding things
 

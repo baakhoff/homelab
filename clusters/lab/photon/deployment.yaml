@@ -1,9 +1,14 @@
-# How the index is built: the OpenStreetMap dumps GraphHopper publishes for
+# How the index is built - on the workstation, never in the cluster (README,
+# "Building the index"): the OpenStreetMap dumps GraphHopper publishes for
 # Photon, one per country or region, streamed one after another straight
 # into Photon's importer - decompressed on the way, nothing written to disk
 # but the index itself. Photon skips the second and later files' headers
 # with a warning, and -country-codes keeps only the countries asked for,
 # which trims the Central Asia dump to Kazakhstan.
+#
+# stream.py and import.sh are here for the workstation to fetch with the
+# settings below, so its build is this exact one; check.sh is what the pod
+# runs.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -71,10 +76,16 @@ data:
 
   import.sh: |
     #!/bin/bash
-    # Builds the index unless the one on the volume was built from exactly
-    # these settings. Any change to them - a country, a language, or
-    # IMPORT_STAMP - builds it again, into next/, and swaps it in only once
-    # the import has succeeded.
+    # The build, run on the workstation in this image (README, "Building the
+    # index"), with /photon/data and /build as folders there. Builds the
+    # index unless the one in /photon/data was built from exactly these
+    # settings, in /build, and swaps it in only once the import has
+    # succeeded.
+    #
+    # Not in the cluster: an hour of indexing tens of millions of places
+    # stalled OpenSearch past the importer's fixed 30-second timeout on the
+    # Ceph volume, and on a node's own NVMe - shared with etcd and the Ceph
+    # OSD - it starved the node and took the control plane down.
     set -euo pipefail
     cd /photon/data
     want="$IMPORT_STAMP | $DUMPS | $COUNTRIES | $LANGUAGES"
@@ -83,25 +94,48 @@ data:
       exit 0
     fi
     echo "Building the index: $want"
-    rm -rf next
-    mkdir next
+    rm -rf /build/next next
+    mkdir /build/next
     # shellcheck disable=SC2086 # DUMPS is a list
     python /scripts/stream.py $DUMPS \
       | java $JAVA_OPTS -jar /photon/photon.jar import \
           -import-file - \
-          -data-dir /photon/data/next \
+          -data-dir /build/next \
           -country-codes "$COUNTRIES" \
           -languages "$LANGUAGES"
+    echo "Copying the index to the volume: $(du -sh /build/next/photon_data | cut -f1)"
+    mkdir next
+    cp -a /build/next/photon_data next/
+    rm -rf /build/next
     rm -rf photon_data
     mv next/photon_data photon_data
     rmdir next
     printf '%s' "$want" > import-settings
     echo "Index built."
+
+  check.sh: |
+    #!/bin/bash
+    # Lets the server start only on an index built from exactly the
+    # settings below. Anything else - no index yet, or a country, language
+    # or IMPORT_STAMP changed - stops here instead of building one in the
+    # cluster, and says how.
+    set -euo pipefail
+    want="$IMPORT_STAMP | $DUMPS | $COUNTRIES | $LANGUAGES"
+    have="$(cat /photon/data/import-settings 2>/dev/null || true)"
+    if [ -d /photon/data/photon_data ] && [ "$have" = "$want" ]; then
+      echo "The index matches the settings: $want"
+      exit 0
+    fi
+    echo "No index built from these settings on the volume."
+    echo "  wanted: $want"
+    echo "  found:  ${have:-nothing}"
+    echo "Build it on the workstation and copy it in: clusters/lab/photon/README.md, \"Building the index\"."
+    exit 1
 ---
-# One pod: the import, when there is something to import, then the server.
-# Photon keeps its index in an OpenSearch it runs inside its own process,
-# on the volume, so one replica and Recreate: two would open the same
-# index.
+# One pod: a check that the volume holds the index these settings describe,
+# then the server. Photon keeps its index in an OpenSearch it runs inside
+# its own process, on the volume, so one replica and Recreate: two would
+# open the same index.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -132,13 +166,12 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # The first start downloads about 3.2GB and indexes it, some 40
-        # million places at about 9000 a second - an hour or two, longer on
-        # a busy node; the pod stays in Init until then. Later starts
-        # find the index already built and are through in a second.
-        - name: import
+        # Through in a second when the index matches the settings; otherwise
+        # the pod stops here, in Init:Error, and the log says what to do.
+        # The settings are also what the workstation's build reads.
+        - name: check
           image: docker.io/rtuszik/photon-docker:2.4.0
-          command: ["/bin/bash", "/scripts/import.sh"]
+          command: ["/bin/bash", "/scripts/check.sh"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -158,28 +191,31 @@ spec:
                 europe/slovenia europe/bulgaria europe/greece europe/romania
                 europe/turkey europe/georgia europe/russia
                 asia/china asia/central-asia
-            # What the index keeps. Central Asia comes as one dump; this
-            # keeps Kazakhstan from it.
+                asia/india asia/indonesia asia/thailand asia/arabian-peninsula
+            # What the index keeps. Central Asia and the Arabian Peninsula
+            # come as one dump each; this keeps Kazakhstan and the United
+            # Arab Emirates from them.
             - name: COUNTRIES
-              value: DK,RS,BA,ME,HR,XK,MK,AL,SI,BG,GR,RO,TR,GE,RU,CN,KZ
+              value: DK,RS,BA,ME,HR,XK,MK,AL,SI,BG,GR,RO,TR,GE,RU,CN,KZ,IN,ID,TH,AE
             # Names are always kept in the local language; these are the
             # translations kept besides, the household's languages.
             # Serbian covers both scripts where OpenStreetMap has them.
             - name: LANGUAGES
               value: en,ru,sr,kk
-            # Russia is one country, so the importer's cache of its
-            # addresses is the largest it holds at once.
+            # The workstation build's heap. Russia is one country, so the
+            # importer's cache of its addresses is the largest it holds.
             - name: JAVA_OPTS
               value: -Xmx4g
           resources:
             requests:
-              cpu: 500m
-              memory: 5Gi
+              cpu: 10m
+              memory: 16Mi
             limits:
-              memory: 6Gi
+              memory: 64Mi
           volumeMounts:
             - name: data
               mountPath: /photon/data
+              readOnly: true
             - name: scripts
               mountPath: /scripts
       containers:
@@ -222,11 +258,13 @@ spec:
             periodSeconds: 30
           # The heap above, plus OpenSearch's memory outside it; the index
           # itself is read through the page cache, which is not counted
-          # here.
+          # here. The request is what it uses serving the household - 450Mi
+          # on its first night - with room; the heap grows into the limit
+          # if it ever needs to.
           resources:
             requests:
               cpu: 100m
-              memory: 3Gi
+              memory: 1Gi
             limits:
               memory: 4Gi
           volumeMounts:

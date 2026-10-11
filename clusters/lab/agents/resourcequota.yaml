@@ -7,11 +7,12 @@ spec:
   hard:
     # Raised from node01's numbers, which is what that copy's comment said to
     # do once the three-node cluster existed. Raised again for eight pods when
-    # the general slots landed, and to nine for slot-4.
+    # the general slots landed, to nine for slot-4, and back to eight when the
+    # BiD pod went.
     #
-    # The arithmetic is deliberately NINE times the per-pod shape in
-    # homelab.yaml - 250m and 512Mi requested, 3Gi limit - so nine pods can run
-    # at once and the quota is what stops a tenth, rather than a node quietly
+    # The arithmetic is deliberately EIGHT times the per-pod shape in
+    # homelab.yaml - 250m and 512Mi requested, 3Gi limit - so eight pods can run
+    # at once and the quota is what stops a ninth, rather than a node quietly
     # filling up. There is no headroom in that on purpose: a pod that wants more
     # than the per-pod shape should have to come here and say so.
     #
@@ -19,36 +20,36 @@ spec:
     # sidecar that proxies its one VPN-only remote, and a NATIVE sidecar's
     # requests are ADDED to the pod's total rather than max()'d like an ordinary
     # initContainer's - so the quota has to know about it or the pod is rejected
-    # at admission. Hence 50m / 64Mi / 256Mi on top of nine times the shape:
-    #   cpu     9 x 250m  + 50m   = 2300m
-    #   memory  9 x 512Mi + 64Mi  = 4672Mi
-    #   limits  9 x 3Gi   + 256Mi = 27904Mi
+    # at admission. Hence 50m / 64Mi / 256Mi on top of eight times the shape:
+    #   cpu     8 x 250m  + 50m   = 2050m
+    #   memory  8 x 512Mi + 64Mi  = 4160Mi
+    #   limits  8 x 3Gi   + 256Mi = 24832Mi
     # `pods` is unchanged: a sidecar is another container, not another pod.
     #
     # slot-4 came here too. Its limit is 6Gi rather than 3Gi, after four
     # OOM kills at 3Gi in one day - its file records the measurement - so
     # limits.memory carries 3Gi (3072Mi) more on top of the line above:
-    #   limits  27904Mi + 3072Mi = 30976Mi
+    #   limits  24832Mi + 3072Mi = 27904Mi
     # Requests are unchanged: the limit is for build spikes, and idle use is
     # under the per-pod request.
     #
     # The nightly backup came here last. Its restic pod runs in this namespace
     # (beside the volume it reads, clusters/lab/backup/) one volume at a time,
-    # and with nine agent pods using every slot above it was rejected at
+    # and with the agent pods using every slot above it was rejected at
     # admission. One pod's room for it, at the restic Job's own shape - 100m
     # and 256Mi requested, 1Gi limit:
-    #   pods    9 + 1               = 10
-    #   cpu     2300m   + 100m      = 2400m
-    #   memory  4672Mi  + 256Mi     = 4928Mi
-    #   limits  30976Mi + 1024Mi    = 32000Mi
-    # It is a slot for the backup, not a tenth agent: a tenth agent pod would
+    #   pods    8 + 1               = 9
+    #   cpu     2050m   + 100m      = 2150m
+    #   memory  4160Mi  + 256Mi     = 4416Mi
+    #   limits  27904Mi + 1024Mi    = 28928Mi
+    # It is a slot for the backup, not a ninth agent: a ninth agent pod would
     # take it, and that night's backup of the agents would fail at admission.
     #
     # requests.cpu was previously "3" against a stated six times 250m, which is
     # 1.5 - the comment and the number disagreed. Corrected here rather than
     # scaled up, so the arithmetic above is the arithmetic in the file.
     #
-    # limits.memory exceeds what the nodes can actually back: ~27Gi across three
+    # limits.memory exceeds what the nodes can actually back: ~28Gi across three
     # machines that also carry etcd, the Ceph OSDs and the mons. That
     # overcommit is safe HERE and would not be anywhere else in this cluster,
     # because agent pods are the only workload at negative priority - under
@@ -62,7 +63,7 @@ spec:
     # rejected at admission rather than scheduled unbounded. limits.cpu is
     # deliberately absent so containers need no CPU limit: throttling an
     # agent's build causes more mystery latency than it prevents.
-    requests.cpu: "2400m"
-    requests.memory: 4928Mi
-    limits.memory: 32000Mi
-    pods: "10"
+    requests.cpu: "2150m"
+    requests.memory: 4416Mi
+    limits.memory: 28928Mi
+    pods: "9"

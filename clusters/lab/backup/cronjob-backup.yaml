@@ -100,13 +100,16 @@ spec:
                     sparkyfitness/sparkyfitness-data
                     dawarich/data-dawarich-postgres-0
                     dawarich/dawarich-storage
+                    notes/data-outline-postgres-0
+                    notes/outline-data
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     minecraft/minecraft-data
+                    cloudbeaver/data-cloudbeaver-postgres-0
+                    cloudbeaver/cloudbeaver-workspace
                     data/data-clickhouse-0
                     agents/homelab
                     agents/brand
-                    agents/bid
                     agents/epicurus
                     agents/scratch
                     agents/slot-1

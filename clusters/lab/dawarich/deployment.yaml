@@ -1,5 +1,9 @@
 # Settings both halves read. A ConfigMap rather than env on each container,
 # so the web server and Sidekiq cannot drift apart.
+#
+# Every edit here also bumps dawarich.lab/config-revision in the Deployment
+# below, or the running pod keeps the old values: a pod reads envFrom once,
+# at start. PHOTON_API_HOST sat unused for hours that way on 2026-10-03.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -40,6 +44,11 @@ data:
   # keep their country and get no street.
   PHOTON_API_HOST: photon.photon.svc.cluster.local:2322
   PHOTON_API_USE_HTTPS: "false"
+  # Lookups in flight at once. Dawarich's default is a third of the
+  # workers - one, here - because a rate-limited outside provider gains
+  # nothing from more. The lab's Photon answers in under 10ms with no limit;
+  # two leaves the third worker for imports and the phone's points.
+  REVERSE_GEOCODING_CONCURRENCY: "2"
   # Keep the reverse-geocoded address on each point.
   STORE_GEODATA: "true"
   PROMETHEUS_EXPORTER_ENABLED: "false"
@@ -82,6 +91,11 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: dawarich
+      annotations:
+        # Bump with every edit to the dawarich-env ConfigMap above: envFrom
+        # is read only when a pod starts, and a changed pod template is how
+        # Flux makes a new pod without a `rollout restart` by hand.
+        dawarich.lab/config-revision: "2"
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false
