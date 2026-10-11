@@ -23,9 +23,13 @@ models:
     columns:
       - name: recipe_id
         tests: [not_null, unique]
-  - name: silverbullet_pages
+  - name: outline_documents
     columns:
-      - name: page
+      - name: document_id
+        tests: [not_null, unique]
+  - name: outline_collections
+    columns:
+      - name: collection_id
         tests: [not_null, unique]
   - name: paperless_documents
     columns:
