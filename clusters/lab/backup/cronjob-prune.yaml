@@ -43,6 +43,24 @@ spec:
                   rc=0
                   trap 'hc "/$rc"' EXIT
 
+                  echo "==> removing stale locks"
+                  # A restic that dies without exiting cleanly - a backup pod
+                  # killed mid-run - leaves its lock in the repository, and
+                  # restic never skips one on its own: the exclusive lock that
+                  # forget needs below fails on it. That happened on
+                  # 2026-10-11, on a lock a Vikunja backup pod had left a week
+                  # earlier. Without --remove-all, unlock removes only locks
+                  # nobody has refreshed for 30 minutes. A running restic
+                  # refreshes its own every five, so a live backup is never
+                  # touched. The count it prints is worth a glance: one is a
+                  # killed pod, many means something keeps leaving them.
+                  restic unlock || rc=$?
+
+                  if [ "$rc" -ne 0 ]; then
+                    echo "==> restic unlock FAILED with exit $rc"
+                    exit "$rc"
+                  fi
+
                   echo "==> applying retention policy"
                   # GROUPED BY host AND paths - the DEFAULT - which is the
                   # opposite of what hosts/node01/backup/restic-prune.sh does,
