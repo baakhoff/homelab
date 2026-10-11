@@ -162,9 +162,10 @@ kernel then kills the broker, not the tool.
 ## The brand agent's user
 
 The brand agent (`clusters/lab/agents/brand.yaml`) reads the warehouse as
-the `brand` user: `SELECT` on `ods` and nothing else, over HTTP on 8123,
-with a settings profile capping each query at 1 GB, 60 seconds, two threads
-and a million result rows, two queries at a time. The schema job creates it;
+the `brand` user: `SELECT` on `ods`, `ads` and `dm` - the modelled layers,
+so it can help manage what they describe - and nothing else, not `raw`.
+Over HTTP on 8123, with a settings profile capping each query at 1 GB, 60
+seconds, two threads and a million result rows, two queries at a time. The schema job creates it;
 the two network policies (`networkpolicy.yaml` here, `networkpolicy-brand.yaml`
 in agents) open the path. Another layer is one `GRANT` line in the schema
 job; taking one away is a `REVOKE ... FROM brand` in /play as well.
