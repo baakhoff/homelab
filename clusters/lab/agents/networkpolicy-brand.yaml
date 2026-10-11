@@ -5,7 +5,7 @@
 # may manage CronJobs in brand-jobs and nothing else
 # (clusters/lab/brand-jobs/rbac.yaml); ClickHouse's HTTP port, where
 # its `brand` user reads the ods layer (clusters/lab/data/clickhouse-schema.yaml);
-# and SilverBullet's HTTP API, where its own account reads and writes notes
+# and Outline's API, where its own account reads and writes documents
 # (clusters/lab/notes/README.md).
 #
 # Each in-cluster door has a matching ingress rule on the far side - in
@@ -63,7 +63,7 @@ spec:
               kubernetes.io/metadata.name: notes
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: silverbullet
+              app.kubernetes.io/name: outline
       ports:
         - protocol: TCP
           port: 3000

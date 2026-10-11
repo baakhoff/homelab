@@ -314,7 +314,8 @@ roleRef:
   kind: ClusterRole
   name: backup-driver
 ---
-# SilverBullet: the notes and the server's own settings, one volume.
+# Outline: the documents in its Postgres, and the images and attachments on
+# the app's volume - two targets, one namespace.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

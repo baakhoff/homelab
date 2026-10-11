@@ -176,26 +176,20 @@ def _dawarich_pages(session: requests.Session, url: str, params: dict):
         page += 1
 
 
-def _silverbullet_pages(session: requests.Session, url: str):
-    """Every Markdown page in the space, its text included.
-
-    SilverBullet has no paged API: GET /.fs lists every file with its
-    metadata, and GET /.fs/<name> reads one. The endpoint name in SOURCES is
-    only a label, so the listing is found next to it. X-Sync-Mode is what
-    the server expects from its own client; without it, a GET of a page is
-    answered as a browser's navigation and redirected to the editor.
+def _outline_pages(session: requests.Session, url: str):
+    """Outline's RPC-style API: every list is a POST with offset and limit
+    in the body, answering {"data": [...], "pagination": {...}}. A page
+    shorter than the limit is the last one. Documents come with their
+    Markdown text.
     """
-    root = url.rsplit("/", 1)[0]
-    r = session.get(root, timeout=TIMEOUT)
-    for entry in _json(r, None, root):
-        name = entry.get("name", "")
-        if not name.endswith(".md"):
-            continue
-        page = session.get(f"{root}/{requests.utils.quote(name)}", timeout=TIMEOUT)
-        page.raise_for_status()
-        if page.history:
-            raise RuntimeError(f"{root}/{name} redirected to {page.url} - the login was lost")
-        yield {**entry, "content": page.content.decode("utf-8", errors="replace")}
+    offset = 0
+    while True:
+        r = session.post(url, json={"offset": offset, "limit": PAGE_SIZE}, timeout=TIMEOUT)
+        items = _json(r, "data", url)["data"]
+        yield from items
+        if len(items) < PAGE_SIZE:
+            return
+        offset += PAGE_SIZE
 
 
 # Per source: where its API is, how it authenticates, how it pages, and the
@@ -270,15 +264,13 @@ SOURCES = {
         "endpoints": ["points", "visits", "places"],
         "schedule": "40 3 * * *",
     },
-    # The notes, as pages with their text. Read-only token of its own
-    # account - clusters/lab/notes/README.md, step 4.
-    "silverbullet": {
-        "base": "http://silverbullet.notes.svc.cluster.local/.fs",
-        "auth": ("Bearer", "SILVERBULLET_TOKEN"),
-        "headers": {"X-Sync-Mode": "true"},
-        "pages": _silverbullet_pages,
-        "endpoints": ["pages"],
-        "ids": {"pages": "name"},
+    # Every document with its text, and the collections they sit in. The
+    # API key of an account of its own - clusters/lab/notes/README.md, step 4.
+    "outline": {
+        "base": "http://outline.notes.svc.cluster.local/api",
+        "auth": ("Bearer", "OUTLINE_API_KEY"),
+        "pages": _outline_pages,
+        "endpoints": ["documents.list", "collections.list"],
         "schedule": "45 */6 * * *",
     },
 }
