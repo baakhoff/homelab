@@ -7,6 +7,7 @@ data:
     SPARKYFITNESS_API_KEY: ENC[AES256_GCM,data:+7LSrcMRtKizGtK64jfhmLCFqlm1uUQ7Xa8bqdPGzP5tbC3D1Ei5SB4yuHLDZS0uFEYQ/hcv+IORpwOSbZjeYQ8Ud8IJ9N0NiMRYnsZuCL5FVMRBG0rwvg==,iv:dGC8kp+tor4kDJkj+k3DZbKmAD6zuUKq37kmvF2SubE=,tag:BP6jWtiPVVFtS3YmBY5yaw==,type:str]
     DAWARICH_API_KEY: ENC[AES256_GCM,data:Lh4Ot8/qps9H0EmIDzK29wgjU23allRMhYQZuUVcBpXllS4uUKAML7GomvDlFVNCuUgh+Vcus0PAd2GooMnNxh5CMmIKgZ+fkv8bpKwLlQhRHEz6s02f2Q==,iv:ZgstbxKXPP7xtlH6hAYjLQI2smumS8bSgaIuUy8LCug=,tag:0TTyJJaakOeUQ5MhyvQKzA==,type:str]
     CLOUDBEAVER_INGEST_PASSWORD: ENC[AES256_GCM,data:7uKO4vock3Iv2w5+g02HEPnNSRotqJoLFwyrbO+Yk/K6rV/ol6GZkI4iJupcbDr6296Ya+SjwjuFOTOioimgfA==,iv:b7tr7OKHpIDCnls5AL0+S+tTZBwDiyT4YOejOnkvkrk=,tag:njjYpmNX+OWRP2EEy0GiQQ==,type:str]
+    OUTLINE_API_KEY: ENC[AES256_GCM,data:lXCBtIc39EEiF9zKPs7ycudNAJ/qDG3OJcBFBinyHTCNeBgdSZPPl9Oyy1YMMGE8rHDXJSDNjqZbneRs,iv:WYqtxZaQV2FlTbfW7LyFziguWXAMiQdlbsFppgA1pp0=,tag:3OB46AllMSe/Xr5l+c8zBw==,type:str]
 kind: Secret
 metadata:
     name: airflow-sources
@@ -32,6 +33,6 @@ sops:
             -----END AGE ENCRYPTED FILE-----
           recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-10-08T14:31:56Z"
-    mac: ENC[AES256_GCM,data:4/VC61D/pkARNxlkJKX2en/9jQeS/lwvlcuKClrimpBnxVZatd92rAh6J535qfpYYsKlj8dKmJlWq+RYxaRIQ5GvLCtdGuKe4Txevwzg3c+TVXLh9rAdsKhBfGqIBReTFqLgd8Md/nErVpYs+xGp1/Iyknt7ztuBIa02X4CxCxI=,iv:l46apg2rs4n3NETUa1+8alCV3c1M1ojbTxVktHZBRGE=,tag:M/CTLwJzCgCFiPKR6z99Yw==,type:str]
+    lastmodified: "2026-10-11T21:24:51Z"
+    mac: ENC[AES256_GCM,data:yxPAL5OdEQgiRr4I+j+uG032tZ14qaoXq/fwAoRTmAl1gVbkDSGMP8hwoNdUAQXRiadDRyuA47pNQxnzdxDhBShr9OGsjCU8HbOh8bK1/v+ZESkb7GbS0rl8wHsp2NGJH87MAForHzfL2qo8D46wDtrs1mUneK5AtK2IAqLn6Bg=,iv:LS06jsbnOtc+8bCzURo/NAyFdBGfx9mHeipj8C2BxqY=,tag:BEg2iSz4GQ8kInWY7a5xQQ==,type:str]
     version: 3.13.3
