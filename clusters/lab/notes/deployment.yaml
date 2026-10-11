@@ -61,14 +61,19 @@ spec:
               value: info
             # --- Storage --------------------------------------------------
             # Documents live in Postgres; images and attachments on the
-            # volume. Same password from the Secret Postgres was created with.
-            - name: DATABASE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: outline
-                  key: DATABASE_PASSWORD
-            - name: DATABASE_URL
-              value: postgres://outline:$(DATABASE_PASSWORD)@outline-postgres:5432/outline
+            # volume. The database as separate settings, not DATABASE_URL:
+            # Outline refuses to start when DATABASE_URL and DATABASE_PASSWORD
+            # are both set, and the password is the Secret's DATABASE_PASSWORD,
+            # the same one Postgres was created with, arriving through
+            # envFrom below.
+            - name: DATABASE_HOST
+              value: outline-postgres
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_NAME
+              value: outline
+            - name: DATABASE_USER
+              value: outline
             # Postgres is in the namespace, on the cluster network; there is
             # no certificate to verify against.
             - name: PGSSLMODE
@@ -105,8 +110,8 @@ spec:
             - name: OIDC_SCOPES
               value: openid profile email
           envFrom:
-            # SECRET_KEY, UTILS_SECRET, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET,
-            # created by hand into secret.sops.yaml beside this file - README,
+            # SECRET_KEY, UTILS_SECRET, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET and
+            # DATABASE_PASSWORD, created by hand into secret.sops.yaml beside this file - README,
             # step 1. Until it exists the pod waits in
             # CreateContainerConfigError.
             - secretRef:
