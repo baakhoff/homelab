@@ -36,8 +36,12 @@ import requests
 from airflow.sdk import dag, task
 
 # Secrets and identity numbers masked before anything leaves for Kafka -
-# sensitive.py beside this file.
-from sensitive import mask_record
+# sensitive.py beside this file. Airflow puts the DAG folder, pipelines/, on
+# the import path, not dags/, so the directory this file is in goes on first.
+import sys  # noqa: E402
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sensitive import mask_record  # noqa: E402
 
 KAFKA_BOOTSTRAP = "kafka.data.svc.cluster.local:9092"
 PAGE_SIZE = 100
