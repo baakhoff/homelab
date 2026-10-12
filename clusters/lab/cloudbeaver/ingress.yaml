@@ -22,7 +22,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "500m"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: CloudBeaver
-    gethomepage.dev/group: Data
+    gethomepage.dev/group: Tools
     gethomepage.dev/icon: cloudbeaver.png
     gethomepage.dev/description: Every database, in SQL
     gethomepage.dev/href: https://db.lab.baakhoff.com

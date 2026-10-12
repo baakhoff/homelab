@@ -5,7 +5,7 @@ version of [DBeaver](https://dbeaver.io): a tree of every database, schema
 and table, an SQL editor with completion, result grids, ER diagrams and
 exports, in the browser.
 
-At <https://db.lab.baakhoff.com>, and on Homepage under Data.
+At <https://db.lab.baakhoff.com>, and on Homepage under Tools.
 
 ## What it reaches
 
