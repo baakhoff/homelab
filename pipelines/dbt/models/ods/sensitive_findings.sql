@@ -22,7 +22,13 @@ select
   JSONExtractString(payload, 'id') as record_id,
   JSONExtract(payload, 'sensitive_kinds', 'Array(String)') as kinds,
   JSONExtract(payload, 'sensitive_fingerprints', 'Array(String)') as fingerprints,
-  parseDateTime64BestEffortOrNull(JSONExtractString(payload, 'extracted_at'), 3, 'UTC') as found_at,
+  -- Not Nullable: found_at is in the sorting key, which ClickHouse refuses
+  -- to build from a Nullable column. A record without a readable
+  -- extracted_at sorts first, at the epoch.
+  coalesce(
+    parseDateTime64BestEffortOrNull(JSONExtractString(payload, 'extracted_at'), 3, 'UTC'),
+    toDateTime64(0, 3, 'UTC')
+  ) as found_at,
   '' as namespace,
   '' as pod
 from {{ source('raw', s) }}
