@@ -373,9 +373,32 @@ def _strip_invisible(text: str, found: list[tuple[str, str]]) -> str:
     return _INVISIBLE.sub("", text)
 
 
+# Beside a card, its expiry and security code are often written bare, the
+# way they are printed on the card: the number, the name, then `02/26` and
+# `123` on lines of their own, with no "exp" or "CVV" to find them by. Once a
+# text holds a card, a bare month/year and a lone 3-4 digit number on its own
+# line are taken for those.
+_BARE_EXPIRY = re.compile(r"(?<![\d/])(?P<s>(?:0[1-9]|1[0-2])\s*/\s*(?:\d{2}|20\d{2}))(?![\d/])")
+_BARE_CODE = re.compile(r"(?m)^[ \t]*(?P<s>\d{3,4})[ \t]*$")
+
+
+def _card_details(text: str, found: list[tuple[str, str]]) -> str:
+    def expiry(m):
+        found.append(("card_expiry", m.group("s")))
+        return "**/**"
+
+    def code(m):
+        found.append(("card_security_code", m.group("s")))
+        return m.group(0).replace(m.group("s"), STAR * len(m.group("s")))
+
+    text = _BARE_EXPIRY.sub(expiry, text)
+    return _BARE_CODE.sub(code, text)
+
+
 def mask_text(text: str, found: list[tuple[str, str]]) -> str:
     """Every detector over one string, in order; appends (kind, secret)."""
     text = _strip_invisible(text, found)
+    cards_before = sum(1 for k, _ in found if k == "card")
     for kind, pattern, replace in DETECTORS:
         if kind == "card" and not re.search(r"\d{4}", text):
             continue
@@ -389,6 +412,8 @@ def mask_text(text: str, found: list[tuple[str, str]]) -> str:
             return out
 
         text = pattern.sub(sub, text)
+    if sum(1 for k, _ in found if k == "card") > cards_before:
+        text = _card_details(text, found)
     return text
 
 
