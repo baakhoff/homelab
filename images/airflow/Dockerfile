@@ -5,7 +5,7 @@
 
 # Renovate's dockerfile manager watches this line, and the workflow reads
 # the Airflow version out of it for the tag - keep its shape.
-FROM apache/airflow:3.2.2-python3.12
+FROM apache/airflow:3.3.2-python3.12
 
 # Into Airflow's own environment, under the official constraints for this
 # Airflow and Python, so nothing here can move a package Airflow pins.
