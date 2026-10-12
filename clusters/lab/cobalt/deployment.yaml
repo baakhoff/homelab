@@ -18,7 +18,7 @@ spec:
         # The nginx config is read at start only; a changed ConfigMap alone
         # would sit unused until something else restarted the pod. Bump this
         # with any edit to nginx.yaml.
-        cobalt/nginx-config: "1"
+        cobalt/nginx-config: "2"
     spec:
       enableServiceLinks: false
       securityContext:
