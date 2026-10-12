@@ -228,3 +228,21 @@ LEFT_ALONE_D = [
 def test_group_d_left_alone(text):
     out, kinds = m(text)
     assert kinds == [], (out, kinds)
+
+
+def test_card_as_printed_on_the_card():
+    text = "4111 1111 1111 1111\nIVAN PETROVIC\n02/26\n123"
+    out, kinds = m(text)
+    assert {"card", "card_expiry", "card_security_code"} <= set(kinds), (out, kinds)
+    assert "02/26" not in out and "\n123" not in out and "1111 1111 1111 1111" not in out
+    assert "IVAN PETROVIC" in out and "1111" in out
+
+
+def test_card_details_on_one_line():
+    out, kinds = m("4111111111111111 02/2026 cvc")
+    assert "card_expiry" in kinds and "02/2026" not in out
+
+
+def test_bare_date_and_number_without_a_card_left_alone():
+    text = "Meeting moved to 02/26\n123\nsee you"
+    assert m(text) == (text, [])
