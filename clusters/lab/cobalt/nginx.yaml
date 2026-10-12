@@ -31,12 +31,23 @@ data:
         # which needs cross-origin isolation for its shared memory.
         add_header Cross-Origin-Opener-Policy same-origin always;
         add_header Cross-Origin-Embedder-Policy require-corp always;
+        # `/` is two resources told apart by Accept (the map above), and a
+        # browser cache keys on the URL alone unless told otherwise. Without
+        # this, the page's server-info fetch was answered from cache with the
+        # index.html the browser had just loaded, never reached the API, and
+        # every download failed as "couldn't connect to the processing
+        # instance".
+        add_header Vary Accept always;
 
         location = / {
             error_page 418 = @api;
             if ($cobalt_root_is_api) {
                 return 418;
             }
+            # Revalidate the index every time, so a copy cached before the
+            # Vary above cannot answer the API's fetch either. `expires`, not
+            # add_header, which would drop the server-level headers here.
+            expires -1;
             try_files /index.html =404;
         }
 
