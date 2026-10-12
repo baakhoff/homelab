@@ -7,7 +7,12 @@ raw.<source>. The record is sent exactly as the API returned it, inside a
 small envelope that says where and when it came from:
 
     {"source": "firefly", "endpoint": "accounts", "extracted_at": "...",
-     "run_id": "...", "id": "12", "record": {...the API's JSON...}}
+     "run_id": "...", "id": "12", "record": {...the API's JSON...},
+     "sensitive": false, "sensitive_kinds": [], "sensitive_fingerprints": []}
+
+The record is as the API returned it except for secrets and identity
+numbers - a card, a key, a password - which are masked first, and listed in
+the three `sensitive` fields (sensitive.py, ../sensitive.md).
 
 Full snapshots rather than "what changed since": the household's data is
 small, every API here can list everything, and a snapshot also records
@@ -29,6 +34,10 @@ from datetime import datetime, timedelta, timezone
 import pendulum
 import requests
 from airflow.sdk import dag, task
+
+# Secrets and identity numbers masked before anything leaves for Kafka -
+# sensitive.py beside this file.
+from sensitive import mask_record
 
 KAFKA_BOOTSTRAP = "kafka.data.svc.cluster.local:9092"
 PAGE_SIZE = 100
@@ -342,6 +351,7 @@ def _make_dag(source: str, cfg: dict):
             count = 0
             for record in cfg["pages"](session, f"{cfg['base']}/{endpoint}", **extra):
                 rid = str(record.get(id_field, "")) if isinstance(record, dict) else ""
+                record, flags = mask_record(record)
                 envelope = {
                     "source": source,
                     "endpoint": endpoint,
@@ -349,6 +359,7 @@ def _make_dag(source: str, cfg: dict):
                     "run_id": run_id,
                     "id": rid,
                     "record": record,
+                    **flags,
                 }
                 producer.produce(
                     topic,

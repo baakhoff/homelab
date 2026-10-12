@@ -11,6 +11,7 @@ data:
     TELEGRAM_API_ID: ENC[AES256_GCM,data:8+biMZte672bFcYB,iv:EymGtbBho0IexIqA9mHYbV3g6R0RDI6a+rTB1eHZrK8=,tag:/lcUJqho5fL3TFLbuoWUAw==,type:str]
     TELEGRAM_API_HASH: ENC[AES256_GCM,data:AjHQvy0rdjFx4NDe8lTlh1MJ9PkQDIHX0vt2qTnen5/KhvxeQ9g5XAJANkE=,iv:dPEL9uO7CEX1NV17rBul25/lldecnBAhcC7rKpTkeL8=,tag:AZUc1T0o0WFBlVxjXaRn5g==,type:str]
     TELEGRAM_SESSION: ENC[AES256_GCM,data:bth6vldUKYunt7fHyXh9kDOBxk/h4dD2QChPN89s/z75nDmL8ytFIceBz3jN7AGAkdNQGbug+twp1DBHt1Q/RdRTnPYmdonf35kdD3oQkONc4zYYaFHssaKaUUrXStIoFOQx4r2zmcImXpoTkXudjeKPyOyaVhvWbCPelBqoyrjRd6mlDQm1P+gIYQCo1zhj8FGubt+DXMgl6gm7kGMycjzQDB5FClsitjBorQa8/eYnPkOL+BA2ozqzfPyunmD8GmoABLjTxL5UrcdCHWzDxte4s1L+9UWsB3HIdpOkcR/v3PK9duDbVkiesVy4+AbaEPznarmnLHPcKYaznzvXFf3YrNsn3CA84hk+8HfHtos6vewckdmHnduBCQQJDOka760OpDvff1ijWlSh8YtqTpiil+nM33Rl5bFb/GPaWtkH2Zw6Mw3wVno3/ImlPl8WkcZrWoptKT2lp9wF368ZkONcPzQPCCSMbeGVWaYYhDzjP2lH1I4iHv6x/BZArE8uFgGIfwDAhFfZ7RIPtXZH1xEwX1VyUli0ym5Y5hGogcFzkogPovN4PnUvzvTLBAADuw+lHtD62KXMXnCVDla0kyxhxcAcL2d+Wycp1sYM9cAHto7HIfAInQ==,iv:H0x3MkkgvJ95T22KiGBC2BscbcEJkU7/6We8EpLvTcw=,tag:ddNs19zPCah68OcjxLM+Pw==,type:str]
+    SENSITIVE_FINGERPRINT_KEY: ENC[AES256_GCM,data:Z3acrLKDrp63Ocgzzs/HkO4DZz9Uh/5eSF9SZ8+gUmOejXSKuuCUSaR+loA8DX72kFrNMvztNXgxn7vgSjxlKWx4TBOI/n4fOgeVOh/GCYK/r8QcMDAmHg==,iv:JZWFBFGpDA4Wj/8JOzOyLcLAb2ewRwzx/3LmBnRIbAc=,tag:Ru26A5TWANAajxFQcM5yPQ==,type:str]
 kind: Secret
 metadata:
     name: airflow-sources
@@ -36,6 +37,6 @@ sops:
             -----END AGE ENCRYPTED FILE-----
           recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-10-11T22:15:48Z"
-    mac: ENC[AES256_GCM,data:MjvZR+50SDMEPFHRnaGDa3x7xrwuw8gBxMDf9ao+AlsPMBqZS8mZt0AG33IU5M8NepqGafh1eyzn8Q0puv9A0UO5EsaJ0bl+zlXJ0yxrobdyy7SpZ7sh3iKcizcd1oGSKTjmZ605/jfDrh6dy4D6xCYA2JyhCgL4BncrvpzNKbU=,iv:/6bNa5C/hd155sd88e3wttVOcFFUAoTHDS2OKPBZdbI=,tag:Tn30HkNJwbsqhW521j84/A==,type:str]
+    lastmodified: "2026-10-12T08:17:44Z"
+    mac: ENC[AES256_GCM,data:5t9MVt4l4di5bQgYIq6B4nVq6hBGtujYRqhHeLO9qGFf6Yd8SxCnsxXQzfC62qzVTrKEaH7zt2pw5MEbHnAbd135bURoK/CdlDcW2S7rBXetqBCe7CPtc5H0sNlWX/E79ZVxP7n/qc59hMMEtyXvtfyQlmm/K5GcvFCx9G2Mt1k=,iv:lisbvlcVnba4zeOROIkzjD7YuqtEbnewWYQ4hpt8KXU=,tag:c9R6HNwaY2T+FUZ70RLXnw==,type:str]
     version: 3.13.3
