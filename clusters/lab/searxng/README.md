@@ -70,16 +70,17 @@ in `deployment.yaml`. The stylesheet is cached for a day, so also bump
 commented there:
 
 - **More engines.** Upstream's General tab asks DuckDuckGo, Brave, Google's
-  custom-search API, Wikipedia and Wikidata. Added: Google's own results page
-  (repaired upstream, left off by default), Yandex for Russian and Kazakh
-  queries, and npm and Hugging Face on the IT tab.
+  custom-search API, Wikipedia and Wikidata. Added: Yandex for Russian and
+  Kazakh queries, and npm and Hugging Face on the IT tab. Google's own
+  results page stays off: it denies the house's address.
 - **Sites reordered.** Wikipedia, GitHub, the Stack Exchange sites, Reddit,
   the Arch wiki, MDN, the Python and Kubernetes docs and Read the Docs move
   up; Quora, GeeksforGeeks, W3Schools, Medium and MSN move down; Pinterest
   is dropped. Add to the lists when a site keeps showing up where it
   should not.
 - **A second more per engine,** so slower answers from the house's
-  connection still make it onto the page.
+  connection still make it onto the page. Except Wikidata, which only
+  fills the info box and is capped at 1.5 s so pages don't wait for it.
 - **Site icons** beside results, and the query in the tab title.
 - **Free copies of papers:** a DOI link goes to an open-access copy when
   there is one.
@@ -88,8 +89,9 @@ Every user can still switch engines and plugins on and off for their own
 browser on the Preferences page.
 
 **An engine that keeps failing** shows in *Engine stats* (the link at the
-bottom of a results page). Yandex and Google are the likely ones: both ask
-scrapers for a captcha now and then. SearXNG rests a failing engine for an
+bottom of a results page). Brave and Yandex are the likely ones: Brave
+limits scrapers ("too many requests") and Yandex asks for a captcha now
+and then. SearXNG rests a failing engine for an
 hour on its own, so there is nothing to do unless it never recovers. Then
 switch it off in `settings.yaml`.
 
