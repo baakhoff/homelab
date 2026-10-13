@@ -16,7 +16,8 @@
 #
 # And the public internet, every port: databases outside the lab, directly
 # or through an SSH tunnel, the AI chat's provider (README, "The AI chat"),
-# and a driver CloudBeaver offers to download. No host is named - outside
+# a driver CloudBeaver offers to download, and the VPN server the xray
+# sidecar connects to (deployment.yaml). No host is named - outside
 # addresses stay out of this repository.
 #
 # Nothing private: no LAN, no tailnet, no node, no other pod by address.

@@ -57,7 +57,67 @@ needs no tunnel: the NetworkPolicy lets CloudBeaver reach the whole public
 internet, on any port, and nothing private - no LAN, no tailnet, no node.
 Which hosts is not written down here. Queries over such a tunnel do not reach the warehouse: the
 usage feed reads the lab servers' own logs, and only CloudBeaver's
-sessions show the visit.
+sessions show the visit. The two behind a VPN are the next section.
+
+## Databases behind the VPN
+
+Two databases are reachable only through the VPN that slot-3 uses. The pod
+runs the same client, xray, as a sidecar (`deployment.yaml`), with one local
+forward per database: CloudBeaver connects to `127.0.0.1:15432` and
+`127.0.0.1:15433`, and xray carries each connection through the VPN to its
+database. The database's name is resolved on the far side, so internal
+names work.
+
+The two connections are your own (*New connection*, host `127.0.0.1`, the
+port above), not shared ones in `config.yaml`, so no database name or
+address is in this repository. Nothing about them reaches the warehouse:
+the usage feed reads the lab servers' logs only.
+
+**The config** is the Secret `cloudbeaver-vpn`, made from slot-3's own
+config with its inbounds replaced by the two forwards. On the workstation,
+from the repo root, on the branch. First check slot-3's outbounds: the
+first one must be the VPN, not `freedom`:
+
+```bash
+kubectl -n agents exec deploy/slot-3 -c claude -- cat /home/node/.config/xray/config.json \
+  | jq -c '[.outbounds[] | {tag, protocol}]'
+```
+
+Then, with a space before each line so the names stay out of the shell
+history:
+
+```bash
+ DB1=db-one.example.internal:5432
+ DB2=db-two.example.internal:5432
+ kubectl -n agents exec deploy/slot-3 -c claude -- cat /home/node/.config/xray/config.json \
+  | jq --arg a "${DB1%:*}" --argjson ap "${DB1##*:}" --arg b "${DB2%:*}" --argjson bp "${DB2##*:}" '
+      .inbounds = [
+        {tag: "db1", listen: "127.0.0.1", port: 15432, protocol: "tunnel",
+         settings: {address: $a, port: $ap, network: "tcp"}},
+        {tag: "db2", listen: "127.0.0.1", port: 15433, protocol: "tunnel",
+         settings: {address: $b, port: $bp, network: "tcp"}}
+      ]
+      | .routing.rules = [{type: "field", inboundTag: ["db1", "db2"], outboundTag: .outbounds[0].tag}]
+                         + (.routing.rules // [])' \
+  | kubectl create secret generic cloudbeaver-vpn --namespace cloudbeaver \
+      --from-file=config.json=/dev/stdin --dry-run=client -o yaml \
+  > clusters/lab/cloudbeaver/vpn.sops.yaml
+ sops --encrypt --in-place clusters/lab/cloudbeaver/vpn.sops.yaml
+ unset DB1 DB2
+```
+
+Commit and push the file. The pod waits in `ContainerCreating` until the
+Secret exists.
+
+**A connection that will not open:** the sidecar's log says whether the
+VPN is up and what each forward did:
+
+```bash
+kubectl -n cloudbeaver logs deploy/cloudbeaver -c xray --tail=50
+```
+
+If slot-3's server or credentials change, this Secret has to be remade the
+same way; it is a copy, not a link.
 
 ## The AI chat
 
