@@ -1,0 +1,241 @@
+# Karakeep: links, notes, images and PDFs saved from the browser or the
+# phone's share menu, with a copy of each page kept here, AI tags and a
+# summary, and full-text search across all of it.
+#
+# Upstream's image starts its three processes - the database migration, the
+# web server and the background workers - under s6-overlay, which wants
+# root. Here they are separate containers from the same image, each started
+# the way s6 would start it (docker/root/etc/s6-overlay in upstream's
+# repository), as the image's own `node` user. Meilisearch, the search
+# index, rides along on loopback. The browser the crawler drives is a pod of
+# its own, chrome.yaml, for its network policy.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karakeep
+  namespace: karakeep
+spec:
+  # One replica on ReadWriteOnce volumes, and SQLite. Recreate, so the old
+  # pod has let go of both before the new one mounts them.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: karakeep
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: karakeep
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # `node`, the image's user, which owns the app's files.
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # s6's init-db-migration: bring the SQLite schema up to this
+        # version before either process opens it.
+        - name: migrate
+          image: ghcr.io/karakeep-app/karakeep:0.33.2
+          workingDir: /db_migrations
+          command: ["node", "index.js"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DATA_DIR
+              value: /data
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: web
+          image: ghcr.io/karakeep-app/karakeep:0.33.2
+          workingDir: /app/apps/web
+          command: ["node", "server.js"]
+          # Not read-only: Next.js writes its image cache under the app's
+          # own directory, which the image hands to `node` for that.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - configMapRef:
+                name: karakeep
+            # NEXTAUTH_SECRET, MEILI_MASTER_KEY, OAUTH_CLIENT_ID,
+            # OAUTH_CLIENT_SECRET and OPENAI_API_KEY, created by hand into
+            # secret.sops.yaml beside this file - README, step 2. Until it
+            # exists the pod waits in CreateContainerConfigError.
+            - secretRef:
+                name: karakeep
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+        # Crawling, AI tagging and summaries, OCR, video downloads, search
+        # indexing, feeds: everything that happens after a link is saved.
+        - name: workers
+          image: ghcr.io/karakeep-app/karakeep:0.33.2
+          workingDir: /app/apps/workers
+          command: ["node", "dist/index.js"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          # The same settings and Secret as the web server.
+          envFrom:
+            - configMapRef:
+                name: karakeep
+            - secretRef:
+                name: karakeep
+          env:
+            # yt-dlp and tesseract keep caches under $HOME; the image's
+            # `node` home would do, but is not where anyone looks.
+            - name: HOME
+              value: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              # The HTML parser is a subprocess capped at 512 MB
+              # (CRAWLER_PARSER_MEM_LIMIT_MB), and a video download runs
+              # ffmpeg beside it.
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+        # Full-text search. On loopback: only Karakeep talks to it, so
+        # nothing outside the pod can, whatever the NetworkPolicy says.
+        - name: meilisearch
+          image: docker.io/getmeili/meilisearch:v1.41.0
+          args: ["meilisearch", "--http-addr", "127.0.0.1:7700", "--db-path", "/meili_data/data.ms"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: MEILI_ENV
+              value: production
+            - name: MEILI_NO_ANALYTICS
+              value: "true"
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: karakeep
+                  key: MEILI_MASTER_KEY
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: meilisearch
+              mountPath: /meili_data
+            - name: meili-tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: karakeep-data
+        - name: meilisearch
+          persistentVolumeClaim:
+            claimName: karakeep-meilisearch
+        - name: tmp
+          emptyDir:
+            sizeLimit: 4Gi
+        - name: meili-tmp
+          emptyDir:
+            sizeLimit: 512Mi
+---
+# Everything that is not a secret, shared by the web server and the
+# workers. Read at start only: a change here needs
+# `kubectl -n karakeep rollout restart deploy/karakeep`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: karakeep
+  namespace: karakeep
+data:
+  DATA_DIR: /data
+  NEXTAUTH_URL: https://links.lab.baakhoff.com
+  LOG_LEVEL: info
+  DB_WAL_MODE: "true"
+  DISABLE_NEW_RELEASE_CHECK: "true"
+  MEILI_ADDR: http://127.0.0.1:7700
+  BROWSER_WEB_URL: http://karakeep-chrome.karakeep.svc.cluster.local:9222
+
+  # --- Login: Pocket ID -----------------------------------------------
+  # Pocket ID only, straight to it with no login page in between. An
+  # account is made at its first sign-in; who may sign in at all is the
+  # client's Allowed User Groups in Pocket ID. Signups stay "on" because
+  # turning them off would refuse those first sign-ins too.
+  OAUTH_WELLKNOWN_URL: https://id.lab.baakhoff.com/.well-known/openid-configuration
+  OAUTH_PROVIDER_NAME: Pocket ID
+  OAUTH_AUTO_REDIRECT: "true"
+  DISABLE_PASSWORD_AUTH: "true"
+
+  # --- AI: tags and summaries, through OpenRouter ----------------------
+  # One model for text and images; it reads the page, or the picture, and
+  # answers with tags and a short summary, in English whatever the page's
+  # language. Embeddings stay off: with a base URL set Karakeep does not
+  # turn them on, and full-text search covers finding things.
+  OPENAI_BASE_URL: https://openrouter.ai/api/v1
+  INFERENCE_TEXT_MODEL: openai/gpt-5-mini
+  INFERENCE_IMAGE_MODEL: openai/gpt-5-mini
+  INFERENCE_LANG: english
+  INFERENCE_ENABLE_AUTO_SUMMARIZATION: "true"
+  INFERENCE_CONTEXT_LENGTH: "4096"
+  INFERENCE_JOB_TIMEOUT_SEC: "120"
+
+  # --- What is kept of a link ------------------------------------------
+  # A full copy of the page, so a link that dies is still readable here,
+  # and the video, if the page has one, up to 200 MB.
+  CRAWLER_FULL_PAGE_ARCHIVE: "true"
+  CRAWLER_VIDEO_DOWNLOAD: "true"
+  CRAWLER_VIDEO_DOWNLOAD_MAX_SIZE: "200"
+  CRAWLER_JOB_TIMEOUT_SEC: "180"
+  CRAWLER_NAVIGATE_TIMEOUT_SEC: "60"
+  MAX_ASSET_SIZE_MB: "64"
+
+  # --- Text in images and PDFs ------------------------------------------
+  # The household's languages (Serbian in both scripts). The models are
+  # downloaded on first use and kept on the volume, not re-fetched at
+  # every start.
+  OCR_LANGS: eng,rus,srp,srp_latn,kaz
+  OCR_CACHE_DIR: /data/ocr-cache
