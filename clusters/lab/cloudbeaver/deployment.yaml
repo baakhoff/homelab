@@ -65,6 +65,40 @@ spec:
               mountPath: /config
             - name: init
               mountPath: /init
+        # The two databases that are reachable only through the VPN slot-3
+        # uses. A NATIVE SIDECAR (restartPolicy: Always), so it is up before
+        # CloudBeaver starts - the same client and pattern as slot-3, see
+        # docs/runbooks/agent-pods.md. Userspace: no tun device, no
+        # capability. Its own connection goes to the VPN server on a public
+        # address, which networkpolicy.yaml already allows.
+        #
+        # Not a SOCKS proxy here but one fixed forward per database: a
+        # `tunnel` inbound listening on 127.0.0.1, so a connection in
+        # CloudBeaver is plain 127.0.0.1:<port> and needs no proxy support
+        # from the driver. The far side resolves the database's name. Which
+        # ports go where, the server and its credentials are all in the
+        # Secret, made by hand (README, "Databases behind the VPN") and
+        # never in this repository, which is public.
+        - name: xray
+          restartPolicy: Always
+          image: ghcr.io/xtls/xray-core:26.9.9
+          imagePullPolicy: IfNotPresent
+          args: ["run", "-c", "/etc/xray/config.json"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: vpn
+              mountPath: /etc/xray
+              readOnly: true
       containers:
         - name: cloudbeaver
           image: docker.io/dbeaver/cloudbeaver:26.2.2
@@ -145,3 +179,8 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 2Gi
+        # Until the Secret exists the pod waits in ContainerCreating.
+        - name: vpn
+          secret:
+            secretName: cloudbeaver-vpn
+            defaultMode: 0440
