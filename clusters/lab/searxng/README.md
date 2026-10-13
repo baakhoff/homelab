@@ -46,6 +46,24 @@ Settings live in `settings.yaml`, holding only what differs from upstream's
 defaults. Bump `searxng/settings` in `deployment.yaml` with any edit, so
 the pod restarts and reads it.
 
+## The look
+
+Google's results layout in its dark palette: a pill-shaped search box, the
+site line above a large blue title, a grey snippet, answer boxes as raised
+cards. Dark for everyone, whatever the theme setting on the Preferences
+page says.
+
+SearXNG ships one theme and no setting for a custom stylesheet. So the pod
+has a small nginx in front of SearXNG (the `skin` container), which adds one
+`<link>` to every page's `<head>` loading `skin.css` from `skin.yaml`.
+SearXNG listens on loopback only, behind it. The skin only overrides the
+theme's colour variables and a few sizes, so an upgrade that restyles
+something shows upstream's look there rather than breaking the page.
+
+To change the look, edit `skin.css` in `skin.yaml` and bump `searxng/skin`
+in `deployment.yaml`. The stylesheet is cached for a day, so also bump
+`?v=` in the `sub_filter` line, or browsers keep the old one.
+
 ## How the results are tuned
 
 `settings.yaml` changes five things from upstream's defaults, each
