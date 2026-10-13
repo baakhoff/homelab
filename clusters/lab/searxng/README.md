@@ -77,8 +77,14 @@ switch it off in `settings.yaml`.
 
 ## What goes to the warehouse
 
-Every search, as `ods.searxng_searches`: the query, categories, language,
-page, whether it came from a browser or the API, and how long it took.
+Every search, as `ods.searxng_searches`: who searched, the query,
+categories, language, page, whether it came from a browser or the API, and
+how long it took.
+
+**Who** is `user_email`, the Pocket ID address of the person signed in at
+the gate. ingress-nginx passes it on as `X-Auth-Request-Email`, and the
+access log records it. It is empty for the agent pods, which come in
+without the gate.
 SearXNG keeps no history of its own. Its web server logs each request with
 its query string, the collectors carry that line to `raw.logs` like any
 other, and the model keeps the searches past `ods.logs`'s 90 days. That is
