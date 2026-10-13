@@ -205,6 +205,27 @@ def _outline_pages(session: requests.Session, url: str):
         offset += PAGE_SIZE
 
 
+def _karakeep_pages(session: requests.Session, url: str):
+    """Karakeep's REST API: each list answers {"<what>": [...]} under the
+    endpoint's own name, and the long ones add "nextCursor", null on the
+    last page. Bookmarks come with their content - the page's text as HTML,
+    or the note's text.
+    """
+    key = url.rsplit("/", 1)[-1]
+    params: dict = {"limit": PAGE_SIZE}
+    if key == "bookmarks":
+        params["includeContent"] = "true"
+    paged = key in ("bookmarks", "highlights", "tags")
+    while True:
+        r = session.get(url, params=params if paged else None, timeout=TIMEOUT)
+        body = _json(r, key, url)
+        yield from body[key]
+        cursor = body.get("nextCursor")
+        if not paged or not cursor:
+            return
+        params["cursor"] = cursor
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -285,6 +306,17 @@ SOURCES = {
         "pages": _outline_pages,
         "endpoints": ["documents.list", "collections.list"],
         "schedule": "45 */6 * * *",
+    },
+    # Saved links with their text, the highlights made in them, and the
+    # tags, lists and feeds that sort them. Karakeep's bookmarks are each
+    # account's own, so this is the key of the account whose bookmarks the
+    # warehouse should see - clusters/lab/karakeep/README.md, step 4.
+    "karakeep": {
+        "base": "http://karakeep.karakeep.svc.cluster.local/api/v1",
+        "auth": ("Bearer", "KARAKEEP_API_KEY"),
+        "pages": _karakeep_pages,
+        "endpoints": ["bookmarks", "highlights", "tags", "lists", "feeds"],
+        "schedule": "50 */6 * * *",
     },
 }
 
