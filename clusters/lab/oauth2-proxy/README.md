@@ -10,7 +10,8 @@ nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/st
 ```
 
 Behind it today, for anyone the client admits: Homepage, ConvertX,
-Stirling-PDF, cobalt, SearXNG, IT-Tools, Firefly III, n8n, Mealie, Outline. Behind it for
+Stirling-PDF, cobalt, SearXNG, IT-Tools, Firefly III, n8n, Mealie, Outline,
+Karakeep (its web app; the API paths its phone app uses are not). Behind it for
 `lab-admins` only: Prometheus and Alertmanager (the admin gate, below).
 Firefly is the one host that also takes *who* from the gate, not just yes or
 no: its Ingress asks for `X-Auth-Request-Email`, which this answers with

@@ -29,5 +29,7 @@ sources:
         description: CloudBeaver's usage - its ClickHouse queries from system.query_log, and its sessions, users and sign-ins as snapshots, one record per message in the ingest envelope. Its Postgres statements are in logs.
       - name: outline
         description: Outline API snapshots - every document with its Markdown text, and the collections - one record per message in the ingest envelope.
+      - name: karakeep
+        description: Karakeep API snapshots - saved links with their text, highlights, tags, lists and feeds, one record per message in the ingest envelope.
       - name: telegram
         description: One Telegram account's private chats - the chats as snapshots, the messages as sent once and again when edited, one record per message in the ingest envelope.

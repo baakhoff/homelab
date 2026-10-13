@@ -1,0 +1,89 @@
+# Karakeep, its search index and the browser its crawler drives.
+#
+# In, to Karakeep (3000):
+# - ingress-nginx, for browsers through the gate and for the phone app and
+#   extension on the API paths (ingress.yaml).
+# - Airflow's scheduler, for the ingest_karakeep DAG, with an API key
+#   (pipelines/dags/ingest.py; the egress rule is in
+#   clusters/lab/airflow/networkpolicy.yaml).
+#
+# Karakeep's own way out is not limited here, like the other apps that
+# sign in through Pocket ID by its public address: its outbound calls are
+# Pocket ID, OpenRouter, feeds, and the crawler's first plain fetch of a
+# link, which Karakeep itself refuses for private addresses.
+#
+# The browser is the part that follows redirects and runs a page's
+# scripts, so it gets the hard line: in, only from Karakeep, on the
+# DevTools port; out, DNS and the public internet, any port, nothing
+# private - not the house, the tailnet, the nodes, or another pod.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: karakeep
+  namespace: karakeep
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: karakeep
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: karakeep-chrome
+  namespace: karakeep
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: karakeep-chrome
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: karakeep
+      ports:
+        - protocol: TCP
+          port: 9222
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
