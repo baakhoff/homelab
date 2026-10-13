@@ -7,7 +7,13 @@
 -- searches for good.
 --
 -- A line looks like
---   searxng-access ::ffff:10.42.0.18 "GET /search?q=rust+lifetimes&categories=general" 200 912
+--   searxng-access ::ffff:10.42.0.18 someone@example.org "GET /search?q=rust+lifetimes&categories=general" 200 912
+-- Lines from before the address was logged lack that field.
+--
+-- user_email: the Pocket ID address the gate passed on. Empty for the
+-- agent pods, which reach SearXNG without the gate, and for searches from
+-- before it was logged. A pod in agents could send the header itself, so
+-- for via = 'api' it is not evidence of anything.
 --
 -- via:
 --   browser  a person, through the gate and the results page
@@ -21,7 +27,7 @@ with lines as (
     ts,
     sensitive,
     ingested_at,
-    extractGroups(body, '^searxng-access (\\S+) "(\\S+) (\\S+)" (\\d+) (\\d+)') as g
+    extractGroups(body, '^searxng-access (\\S+) (?:([^\\s"]+) )?"(\\S+) (\\S+)" (\\d+) (\\d+)') as g
   from {{ ref('logs') }}
   where namespace = 'searxng'
     and container = 'searxng'
@@ -32,17 +38,18 @@ with lines as (
 )
 select
   ts,
-  decodeURLFormComponent(extractURLParameter(g[3], 'q')) as query,
-  decodeURLFormComponent(extractURLParameter(g[3], 'categories')) as categories,
-  extractURLParameter(g[3], 'language') as language,
-  greatest(toUInt16OrZero(extractURLParameter(g[3], 'pageno')), 1) as pageno,
-  if(extractURLParameter(g[3], 'format') = 'json', 'api', 'browser') as via,
+  if(g[2] in ('', '-'), '', g[2]) as user_email,
+  decodeURLFormComponent(extractURLParameter(g[4], 'q')) as query,
+  decodeURLFormComponent(extractURLParameter(g[4], 'categories')) as categories,
+  extractURLParameter(g[4], 'language') as language,
+  greatest(toUInt16OrZero(extractURLParameter(g[4], 'pageno')), 1) as pageno,
+  if(extractURLParameter(g[4], 'format') = 'json', 'api', 'browser') as via,
   g[1] as client_addr,
-  toUInt16OrZero(g[4]) as status,
-  toUInt32OrZero(g[5]) as duration_ms,
+  toUInt16OrZero(g[5]) as status,
+  toUInt32OrZero(g[6]) as duration_ms,
   sensitive,
   ingested_at
 from lines
-where length(g) = 5
-  and startsWith(g[3], '/search?')
-  and extractURLParameter(g[3], 'q') != ''
+where length(g) = 6
+  and startsWith(g[4], '/search?')
+  and extractURLParameter(g[4], 'q') != ''

@@ -10,6 +10,11 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
     nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Who is searching: the gate's answer, passed on as a request header
+    # for the access log (deployment.yaml) and from there the warehouse.
+    # ingress-nginx sets it from the gate's response, overwriting whatever
+    # the browser sent. SearXNG itself ignores it.
+    nginx.ingress.kubernetes.io/auth-response-headers: X-Auth-Request-Email
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: SearXNG
     gethomepage.dev/group: Tools
