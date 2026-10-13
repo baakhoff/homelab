@@ -22,7 +22,7 @@ spec:
         # Settings and the skin are read at start only. Bump with any edit
         # to settings.yaml or skin.yaml, or the change waits for an
         # unrelated restart.
-        searxng/settings: "3"
+        searxng/settings: "4"
         searxng/skin: "1"
     spec:
       enableServiceLinks: false
