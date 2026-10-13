@@ -1,0 +1,14 @@
+# For the Ingress, and for the agent pods, which call it here directly
+# (README, "From the agent pods").
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng
+  namespace: searxng
+spec:
+  selector:
+    app.kubernetes.io/name: searxng
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
