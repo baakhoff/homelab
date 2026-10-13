@@ -132,6 +132,11 @@ data:
       # (search.suspended_times) and the others carry on.
       - name: yandex
         disabled: false
+      # Only the info box beside the results, and the slowest engine by far
+      # (about 3 s against 1 s for the rest), so every page waited for it.
+      # Capped: when it is slow the box comes from Wikipedia alone.
+      - name: wikidata
+        timeout: 1.5
       # Package and model lookups, for the IT tab and the agents.
       - name: npm
         disabled: false

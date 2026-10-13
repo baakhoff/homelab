@@ -79,7 +79,8 @@ commented there:
   is dropped. Add to the lists when a site keeps showing up where it
   should not.
 - **A second more per engine,** so slower answers from the house's
-  connection still make it onto the page.
+  connection still make it onto the page. Except Wikidata, which only
+  fills the info box and is capped at 1.5 s so pages don't wait for it.
 - **Site icons** beside results, and the query in the tab title.
 - **Free copies of papers:** a DOI link goes to an open-access copy when
   there is one.
