@@ -4,6 +4,9 @@
 # arbitrary commands on behalf of a model; this boundary is what makes that
 # acceptable next to a password vault and the Flux decryption key.
 #
+# Every pod also reaches SearXNG, the lab's search engine, through its JSON
+# API: the third policy below.
+#
 # One exception, in networkpolicy-brand.yaml beside this: the brand pod also
 # reaches the Firefly API broker, Vikunja's API and the Kubernetes API, where
 # it may manage CronJobs in the brand-jobs namespace and nothing else.
@@ -58,3 +61,27 @@ spec:
               - 192.168.0.0/16
               - 100.64.0.0/10
               - 169.254.0.0/16
+---
+# Web search for every agent, at http://searxng.searxng.svc.cluster.local/
+# (clusters/lab/searxng/README.md). The other half of the door is that
+# namespace's policy. Policies are evaluated after the Service DNAT, so the
+# port is the pod's, 8080, not the Service's 80.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-searxng
+  namespace: agents
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: searxng
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: searxng
+      ports:
+        - protocol: TCP
+          port: 8080

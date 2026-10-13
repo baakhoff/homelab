@@ -87,13 +87,21 @@
       dependencyDashboardApproval: true,
     },
     {
-      // IT-Tools tags are `<date>-<commit>`. Renovate's docker versioning
+      // IT-Tools and SearXNG tags are `<date>-<commit>`. Renovate's docker versioning
       // reads everything after the hyphen as a variant, like `-alpine`, and
       // only offers tags of the same variant - so with a new hash on every
       // release, it would never offer one. The date alone is the version.
-      description: "IT-Tools: the date is the version, the commit hash is not a variant",
-      matchPackageNames: ["ghcr.io/corentinth/it-tools"],
+      description: "IT-Tools and SearXNG: the date is the version, the commit hash is not a variant",
+      matchPackageNames: ["ghcr.io/corentinth/it-tools", "searxng/searxng", "docker.io/searxng/searxng"],
       versioning: "regex:^(?<major>\\d{4})\\.(?<minor>\\d+)\\.(?<patch>\\d+)-[0-9a-f]+$",
+    },
+    {
+      // SearXNG publishes a build most days. A monthly offer is plenty for a
+      // search page; a search engine that breaks in between is the reason to
+      // bump by hand (clusters/lab/searxng/README.md).
+      description: "SearXNG: one update a month, not one a day",
+      matchPackageNames: ["searxng/searxng", "docker.io/searxng/searxng"],
+      schedule: ["* * 1 * *"],
     },
     {
       // Majors get read, not merged. kube-prometheus-stack in particular

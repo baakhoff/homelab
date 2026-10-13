@@ -1,0 +1,31 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Behind Pocket ID through the household gate. SearXNG has no login.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: searxng
+  namespace: searxng
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: SearXNG
+    gethomepage.dev/group: Tools
+    gethomepage.dev/icon: searxng.png
+    gethomepage.dev/description: Private web search
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://search.lab.baakhoff.com
+spec:
+  rules:
+    - host: search.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: searxng
+                port:
+                  number: 80

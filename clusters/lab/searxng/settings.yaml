@@ -1,0 +1,44 @@
+# SearXNG's settings.yml. Only what differs from upstream's defaults: with
+# use_default_settings the rest, the engine list included, comes from the
+# image and moves with it.
+#
+# The secret key is not here. It signs the image proxy's links, and
+# deployment.yaml makes a fresh one at every start; a restart only breaks
+# image links on a results page that was already open.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: searxng
+  namespace: searxng
+data:
+  settings.yml: |
+    use_default_settings: true
+
+    general:
+      instance_name: lab search
+
+    server:
+      base_url: https://search.lab.baakhoff.com/
+      # The bot limiter needs Valkey and guards a public instance against
+      # scrapers. Here every caller is past Pocket ID or is one of the agent
+      # pods, so it would only ever limit the household.
+      limiter: false
+      # Result thumbnails come through the pod rather than straight from
+      # each site, so opening a results page tells those sites nothing.
+      image_proxy: true
+      # GET, not upstream's POST: the query in the URL is what puts it in
+      # the access log, and the access log is how searches reach the
+      # warehouse (README, "What goes to the warehouse"). It also makes a
+      # results page a link that can be shared or bookmarked.
+      method: GET
+
+    search:
+      # json for the agents (README, "From the agent pods").
+      formats:
+        - html
+        - json
+      autocomplete: duckduckgo
+
+    ui:
+      theme_args:
+        simple_style: auto
