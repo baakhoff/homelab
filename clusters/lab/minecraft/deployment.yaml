@@ -55,7 +55,7 @@ spec:
           # which is exactly right until Mojang moves to a newer JDK again.
           # When that happens the symptom is the same error in `kubectl logs`,
           # and the fix is this suffix.
-          image: itzg/minecraft-server:2026.9.1-java25
+          image: itzg/minecraft-server:2026.10.0-java25
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
