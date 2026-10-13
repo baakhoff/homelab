@@ -121,19 +121,22 @@ data:
     # for General is DuckDuckGo, Brave, Google (through its custom-search
     # API), Wikipedia and Wikidata; the additions below fill the gaps the
     # household and the agents hit.
+    #
+    # Not Google's own results page (engine `google`): from the house's
+    # address it answers "access denied", which is why upstream leaves it
+    # off. Google's results still come in through `google cse`.
     engines:
-      # Google's own results page, besides the custom-search one. Upstream
-      # repaired it in August 2026 and left it off by default. Google ranks
-      # best for most queries, and a second way in keeps Google in the
-      # results when one is throttled.
-      - name: google
-        disabled: false
       # The best index for Russian- and Kazakh-language queries, which the
       # Western engines answer poorly. Yandex asks scrapers for a captcha
       # now and then; SearXNG then rests it for an hour by itself
       # (search.suspended_times) and the others carry on.
       - name: yandex
         disabled: false
+      # Only the info box beside the results, and the slowest engine by far
+      # (about 3 s against 1 s for the rest), so every page waited for it.
+      # Capped: when it is slow the box comes from Wikipedia alone.
+      - name: wikidata
+        timeout: 1.5
       # Package and model lookups, for the IT tab and the agents.
       - name: npm
         disabled: false
