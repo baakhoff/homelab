@@ -21,7 +21,7 @@ spec:
       annotations:
         # Settings are read at start only. Bump with any edit to
         # settings.yaml, or the change waits for an unrelated restart.
-        searxng/settings: "1"
+        searxng/settings: "2"
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false

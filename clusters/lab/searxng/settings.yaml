@@ -38,7 +38,102 @@ data:
         - html
         - json
       autocomplete: duckduckgo
+      # A site icon beside each result, fetched through this pod like the
+      # thumbnails. Results are scanned by eye much faster with them.
+      favicon_resolver: duckduckgo
 
     ui:
       theme_args:
         simple_style: auto
+      # The query in the tab's title, so a tab and the browser's history
+      # say what was searched.
+      query_in_title: true
+
+    outgoing:
+      # How long the pod waits for each engine. Upstream's 3 s is tuned for
+      # public instances on datacentre links; from the house's connection
+      # Brave and Google sometimes miss it, and a missed engine is simply
+      # absent from the results. One more second, at most ten for engines
+      # that ask for more.
+      request_timeout: 4.0
+      max_request_timeout: 10.0
+
+    # Replaces upstream's list rather than merging into it, so this is all
+    # of them: upstream's defaults, with oa_doi_rewrite turned on.
+    plugins:
+      searx.plugins.calculator.SXNGPlugin:
+        active: true
+      searx.plugins.infinite_scroll.SXNGPlugin:
+        active: false
+      searx.plugins.hash_plugin.SXNGPlugin:
+        active: true
+      searx.plugins.self_info.SXNGPlugin:
+        active: true
+      searx.plugins.unit_converter.SXNGPlugin:
+        active: true
+      searx.plugins.ahmia_filter.SXNGPlugin:
+        active: true
+      searx.plugins.hostnames.SXNGPlugin:
+        active: true
+      searx.plugins.time_zone.SXNGPlugin:
+        active: true
+      # A paywalled paper's DOI link goes to a free copy where one exists.
+      searx.plugins.oa_doi_rewrite.SXNGPlugin:
+        active: true
+      searx.plugins.tor_check.SXNGPlugin:
+        active: false
+      searx.plugins.tracker_url_remover.SXNGPlugin:
+        active: true
+
+    # Reordering by site. The biggest single lever on result quality: the
+    # engines rank by their own idea of relevance, which is often SEO.
+    # Patterns are regular expressions on the hostname.
+    hostnames:
+      # Sources that are usually the answer itself, moved up.
+      high_priority:
+        - '(.*\.)?wikipedia\.org$'
+        - '(.*\.)?github\.com$'
+        - '(.*\.)?stackoverflow\.com$'
+        - '(.*\.)?stackexchange\.com$'
+        - '(.*\.)?(superuser|serverfault|askubuntu)\.com$'
+        - '(.*\.)?reddit\.com$'
+        - '^wiki\.archlinux\.org$'
+        - '^developer\.mozilla\.org$'
+        - '^docs\.python\.org$'
+        - '^kubernetes\.io$'
+        - '(.*\.)?readthedocs\.io$'
+      # Sources that rank well and answer badly, moved down - still there
+      # if nothing better exists.
+      low_priority:
+        - '(.*\.)?quora\.com$'
+        - '(.*\.)?geeksforgeeks\.org$'
+        - '(.*\.)?w3schools\.com$'
+        - '(.*\.)?medium\.com$'
+        - '(.*\.)?msn\.com$'
+      # Never a useful result: image boards that need an account to see the
+      # image the search was for.
+      remove:
+        - '(.*\.)?pinterest\.[a-z.]+$'
+
+    # Merged into upstream's engines by name. What upstream ships enabled
+    # for General is DuckDuckGo, Brave, Google (through its custom-search
+    # API), Wikipedia and Wikidata; the additions below fill the gaps the
+    # household and the agents hit.
+    engines:
+      # Google's own results page, besides the custom-search one. Upstream
+      # repaired it in August 2026 and left it off by default. Google ranks
+      # best for most queries, and a second way in keeps Google in the
+      # results when one is throttled.
+      - name: google
+        disabled: false
+      # The best index for Russian- and Kazakh-language queries, which the
+      # Western engines answer poorly. Yandex asks scrapers for a captcha
+      # now and then; SearXNG then rests it for an hour by itself
+      # (search.suspended_times) and the others carry on.
+      - name: yandex
+        disabled: false
+      # Package and model lookups, for the IT tab and the agents.
+      - name: npm
+        disabled: false
+      - name: huggingface
+        disabled: false
