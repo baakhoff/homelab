@@ -1,0 +1,31 @@
+apiVersion: v1
+data:
+    config.json: ENC[AES256_GCM,data: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,iv:uqxIHy1wYgibRrJkLkGUP6q5eEVPkTmZSKPCMvgtsK0=,tag:3cBXCpGZl6v1P9hVINiwUw==,type:str]
+kind: Secret
+metadata:
+    name: cloudbeaver-vpn
+    namespace: cloudbeaver
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA3QTZPdEh1RHVtOE5wOGpx
+            cklvMU1WUGJqUGFWSy8rSklFQi9QUTFIcjJvCmIzbEwrOUJZU0RTcTluTDZ3WWJn
+            Q3NRc0VRUzNMU1VGQVY2bEQvaXYzNGcKLS0tIDBjZzlLZnczRW5wOWpFcUx0dkxo
+            ZllDUlY3QkkzMVdXRWxkeS92L1FvbUEKPJTywBun7q+bnKYezbZ8LaJe6H1vVpd0
+            a5EIz28NCTQkCIP8JLqAQE9zaaAux6mfhI0ILwqH/C2GKHKWxTKHCA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrVHI3aWhrT1M0eEZYN0xh
+            K3ZFUUtHYWZmOWhIK0NnNGlrU3ViTVJiS3lFCmZvSXJKNkxRUXlhY0xWK24zSzVG
+            RGhNb1M0ZmJRZ21pTkpRbnNKbW9KSVkKLS0tIFgwa0l1aHltSkJCOEc5QmhOVWEw
+            RWk0cE5JaGtXT3JUUmpQdmROWkdzNGsKqxJsdHO+9iNJTssOWNCtZaTErgTK0asT
+            1CeI8rE9TSD7Ifrp0Bmrv3iPEKB40vAacwhlRrcMcSE1wZuYkDzH4Q==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-13T12:12:35Z"
+    mac: ENC[AES256_GCM,data:gWyWL7kPrOiavnnLPYivPwGyL80nPwrwT7gsyJxKxMRROtfeNHFj+X3Y2psf00c31G6MU9eypqEC70zIu8DaTh8G6tIy31ETHbunB+HpP+vwsMHRqdPC5Pr5mFDzfrVh229kkXkCK7roeROsiXUttzZIp3HagKWEaa3E7t7vp/k=,iv:syMsD2dzirj13rxy5R6dJwOHF9Pcxx3h1hfeKiYpJdQ=,tag:kHEYxrCJnxDe80e6nhvmEw==,type:str]
+    version: 3.13.3
