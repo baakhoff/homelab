@@ -44,7 +44,9 @@ data:
 
     ui:
       theme_args:
-        simple_style: auto
+        # Dark, to match the lab's skin (skin.yaml), which is dark whatever
+        # this says; this only picks the theme's own dark icons.
+        simple_style: dark
       # The query in the tab's title, so a tab and the browser's history
       # say what was searched.
       query_in_title: true

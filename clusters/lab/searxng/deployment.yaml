@@ -19,9 +19,11 @@ spec:
       labels:
         app.kubernetes.io/name: searxng
       annotations:
-        # Settings are read at start only. Bump with any edit to
-        # settings.yaml, or the change waits for an unrelated restart.
-        searxng/settings: "2"
+        # Settings and the skin are read at start only. Bump with any edit
+        # to settings.yaml or skin.yaml, or the change waits for an
+        # unrelated restart.
+        searxng/settings: "3"
+        searxng/skin: "1"
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false
@@ -36,6 +38,48 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
+        # The pod's front door: passes everything to SearXNG on loopback,
+        # and adds the lab's stylesheet to each page on the way out
+        # (skin.yaml says why it takes a proxy).
+        - name: skin
+          image: docker.io/nginxinc/nginx-unprivileged:1.31.6-alpine
+          securityContext:
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 8080
+          # Through nginx to SearXNG, so ready means both answer.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /lab-skin.css
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: skin
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+            - name: skin
+              mountPath: /etc/searxng-skin/skin.css
+              subPath: skin.css
+              readOnly: true
+            - name: skin-tmp
+              mountPath: /tmp
         - name: searxng
           # Upstream builds daily; the tag is date-and-commit, and a rule in
           # renovate.json5 makes Renovate compare the dates.
@@ -64,18 +108,24 @@ spec:
               value: 'searxng-access %(addr)s %(header{x-auth-request-email})s "%(method)s %(path)s?%(query_string)s" %(status)d %(dt_ms).0f'
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
-          ports:
-            - name: http
-              containerPort: 8080
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
+            # Loopback only, behind the skin's nginx: nothing reaches
+            # SearXNG around it, the agents included. The access log's
+            # address is therefore always nginx's; via and user_email say
+            # who it was.
+            - name: GRANIAN_HOST
+              value: 127.0.0.1
+            - name: GRANIAN_PORT
+              value: "8888"
+          # No ports: section - loopback is not a container port. Readiness
+          # is the skin container's, which goes through to here.
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
+            exec:
+              command:
+                - /usr/local/searxng/.venv/bin/python
+                - -c
+                - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/healthz', timeout=5)
             periodSeconds: 30
+            timeoutSeconds: 10
           resources:
             requests:
               cpu: 20m
@@ -94,6 +144,12 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: skin
+          configMap:
+            name: searxng-skin
+        - name: skin-tmp
+          emptyDir:
+            sizeLimit: 16Mi
         - name: settings
           configMap:
             name: searxng
