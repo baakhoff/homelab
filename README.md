@@ -45,6 +45,7 @@ exception: it keeps its own master password.
 | [ConvertX](https://github.com/C4illin/ConvertX) | Converts files between most formats: images, documents, e-books, audio and video. |
 | [Stirling-PDF](https://www.stirlingpdf.com) | Merges, splits, reorders and edits PDFs, and turns a stack of images into one PDF. |
 | [cobalt](https://github.com/imputnet/cobalt) | Saves video and audio from a link, streamed straight to the device with nothing kept on the server. |
+| [SearXNG](https://github.com/searxng/searxng) | Private web search: one query to dozens of engines, results merged, nothing tracked; the agents search through it too. |
 | [IT-Tools](https://github.com/CorentinTh/it-tools) | About eighty small browser-side tools: encoders, formatters, generators and converters. |
 | [Firefly III](https://github.com/firefly-iii/firefly-iii) | Household finances: accounts in any currency, budgets, recurring bills and reports. |
 | [n8n](https://n8n.io) | Visual automations: schedules, emails and webhooks wired to any service in or outside the lab. |
@@ -92,7 +93,8 @@ exception: it keeps its own master password.
   merging, splitting and reordering PDFs
   ([how](clusters/lab/stirling-pdf/README.md)), and cobalt, which saves video
   and audio from a link straight to the device
-  ([how](clusters/lab/cobalt/README.md)), and IT-Tools, a page of small
+  ([how](clusters/lab/cobalt/README.md)), and SearXNG, private web search for
+  the household and the agents ([how](clusters/lab/searxng/README.md)), and IT-Tools, a page of small
   browser-side utilities ([how](clusters/lab/it-tools/README.md)), and
   Firefly III for the household's finances in every currency
   ([how](clusters/lab/firefly/README.md)), and Mealie for recipes, meal plans

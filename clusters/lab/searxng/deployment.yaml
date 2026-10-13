@@ -1,0 +1,103 @@
+# SearXNG, a metasearch engine: one query goes out to Google, Bing,
+# DuckDuckGo, Wikipedia and the rest from this pod, and the results come
+# back merged, with no account, cookie or profile at any of them.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+  namespace: searxng
+spec:
+  # Stateless: settings come from the ConfigMap, the cache is an emptyDir,
+  # and nothing a search does is kept here. The access log is the record
+  # (README).
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: searxng
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: searxng
+      annotations:
+        # Settings are read at start only. Bump with any edit to
+        # settings.yaml, or the change waits for an unrelated restart.
+        searxng/settings: "1"
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's searxng user. Not root, so the entrypoint skips its
+        # chown and only warns that the two mounted directories are not
+        # owned by searxng - they are readable and writable through fsGroup.
+        runAsUser: 977
+        runAsGroup: 977
+        fsGroup: 977
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: searxng
+          # Upstream builds daily; the tag is date-and-commit, and a rule in
+          # renovate.json5 makes Renovate compare the dates.
+          image: docker.io/searxng/searxng:2026.10.13-22c64b8d3
+          # A fresh secret key per start, so there is no Secret to keep
+          # (settings.yaml says what that costs). Then upstream's entrypoint.
+          command:
+            - sh
+            - -c
+            - SEARXNG_SECRET="$(head -c 32 /dev/urandom | base64 | tr -dc a-zA-Z0-9)" exec /usr/local/searxng/entrypoint.sh
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            # The web server's access log, off by default. One line per
+            # request, with the query string: the searches, for the
+            # warehouse. The `searxng-access` tag is what the ods model
+            # matches on.
+            - name: GRANIAN_LOG_ACCESS_ENABLED
+              value: "true"
+            - name: GRANIAN_LOG_ACCESS_FMT
+              value: 'searxng-access %(addr)s "%(method)s %(path)s?%(query_string)s" %(status)d %(dt_ms).0f'
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              # Idle it is a Python process of about 150 MB. A search fans
+              # out to a few dozen engines at once, which is threads, not
+              # memory.
+              memory: 512Mi
+          volumeMounts:
+            - name: settings
+              mountPath: /etc/searxng
+              readOnly: true
+            - name: cache
+              mountPath: /var/cache/searxng
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: settings
+          configMap:
+            name: searxng
+        - name: cache
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
