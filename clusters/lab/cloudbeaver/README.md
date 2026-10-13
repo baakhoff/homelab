@@ -74,9 +74,11 @@ address is in this repository. Nothing about them reaches the warehouse:
 the usage feed reads the lab servers' logs only.
 
 **The config** is the Secret `cloudbeaver-vpn`, made from slot-3's own
-config with its inbounds replaced by the two forwards. On the workstation,
-from the repo root, on the branch. First check slot-3's outbounds: the
-first one must be the VPN, not `freedom`:
+config with its inbounds replaced by the two forwards. xray sends
+everything that no routing rule claims through the first outbound, so the
+forwards need no rule of their own as long as that one is the VPN. On the
+workstation, from the repo root, on the branch. First check slot-3's
+outbounds: the first must be the VPN, not `freedom`:
 
 ```bash
 kubectl -n agents exec deploy/slot-3 -c claude -- cat /home/node/.config/xray/config.json \
@@ -96,9 +98,7 @@ history:
          settings: {address: $a, port: $ap, network: "tcp"}},
         {tag: "db2", listen: "127.0.0.1", port: 15433, protocol: "tunnel",
          settings: {address: $b, port: $bp, network: "tcp"}}
-      ]
-      | .routing.rules = [{type: "field", inboundTag: ["db1", "db2"], outboundTag: .outbounds[0].tag}]
-                         + (.routing.rules // [])' \
+      ]' \
   | kubectl create secret generic cloudbeaver-vpn --namespace cloudbeaver \
       --from-file=config.json=/dev/stdin --dry-run=client -o yaml \
   > clusters/lab/cloudbeaver/vpn.sops.yaml
