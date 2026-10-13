@@ -53,13 +53,15 @@ spec:
               drop: [ALL]
           env:
             # The web server's access log, off by default. One line per
-            # request, with the query string: the searches, for the
-            # warehouse. The `searxng-access` tag is what the ods model
-            # matches on.
+            # request, with the query string and who sent it: the
+            # searches, for the warehouse. The `searxng-access` tag is what
+            # the ods model matches on. The second field is the Pocket ID
+            # address the gate passes on (ingress.yaml), `-` for the agent
+            # pods, which do not come through the gate.
             - name: GRANIAN_LOG_ACCESS_ENABLED
               value: "true"
             - name: GRANIAN_LOG_ACCESS_FMT
-              value: 'searxng-access %(addr)s "%(method)s %(path)s?%(query_string)s" %(status)d %(dt_ms).0f'
+              value: 'searxng-access %(addr)s %(header{x-auth-request-email})s "%(method)s %(path)s?%(query_string)s" %(status)d %(dt_ms).0f'
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
           ports:
