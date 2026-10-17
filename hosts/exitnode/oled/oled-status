@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 #
-# oled-status — the lab's state on the four OLED screens in the rack.
+# oled-status — the lab's state on the two OLED screens in the rack.
 #
 # Runs on the Pi and writes to the Pico over USB serial in the protocol main.py
 # documents. Every decision about what to show is made here; the Pico only
 # draws. Standard library only, so the Pi needs nothing installed for it.
 #
-#   1  lab health   nodes up and firing alerts, inverted on any problem
-#   2  nodes        CPU, RAM and temperature, one row per node
-#   3  network      internet, and Pi-hole's last 24 hours
-#   4  slow things  last backup, Ceph health, certificate expiry, open PRs
+#   1  is anything wrong?  LAB OK, or inverted with every problem from every
+#                          source: alerts, nodes, network, backups, Ceph, certs
+#   2  the detail          nodes, network and jobs in turn, ten seconds each
 #
 # The Pi sits outside the cluster on purpose: when the lab is down, screen 1
 # says so instead of going dark with it.
@@ -181,9 +180,10 @@ def open_prs(repo):
         return len(json.load(r))
 
 
-# --- screens -----------------------------------------------------------------
-# Each returns one protocol line. Text is ASCII, 16 characters a line, or 8
-# when the line is double size.
+# --- pages -------------------------------------------------------------------
+# Each page returns (lines, problems): up to four lines of 16 ASCII characters,
+# and the short strings that should put screen 1 into alarm. Pages raise when
+# Prometheus is unreachable; screen 1 reports that once, for all of them.
 
 QUIET_ALERTS = "Watchdog|InfoInhibitor"
 
@@ -192,74 +192,42 @@ def short_node(name):
     return "n" + name[4:] if name.startswith("node") else name[:3]
 
 
-def screen_health(prom):
-    try:
-        up = prom.query('up{job="node-exporter"}')
-        alerts = prom.query(
-            'ALERTS{alertstate="firing",alertname!~"%s"}' % QUIET_ALERTS
-        )
-        log_ok("prometheus")
-    except Exception as e:
-        log_error("prometheus", e)
-        return "1!|LAB UNREACHABLE|prometheus api|" + str(e)[:16]
+def page_nodes(prom):
+    def by_instance(expr):
+        return {l["instance"]: v for l, v in prom.query(expr)}
 
-    total = len(up)
-    nodes_up = sum(1 for _, v in up if v == 1)
-    if not alerts and total and nodes_up == total:
-        return "1*|LAB OK|%d/%d up" % (nodes_up, total)
+    names = {l["instance"]: l.get("nodename", "?") for l, _ in prom.query("node_uname_info")}
+    up = by_instance('up{job="node-exporter"}')
+    cpu = by_instance('100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])))')
+    mem = by_instance("100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)")
+    temp = by_instance("max by (instance) (node_hwmon_temp_celsius)")
 
-    # Critical first, then by name, each alert once however many series fire.
-    rank = {"critical": 0, "warning": 1}
-    names = {}
-    for labels, _ in alerts:
-        n = labels.get("alertname", "?")
-        names[n] = min(names.get(n, 9), rank.get(labels.get("severity"), 2))
-    ordered = sorted(names, key=lambda n: (names[n], n))
-    lines = ["NODES %d/%d  AL %d" % (nodes_up, total, len(ordered))]
-    lines += [n[:16] for n in ordered[:3]]
-    return "1!|" + "|".join(lines)
-
-
-def screen_nodes(prom):
-    try:
-        names = {l["instance"]: l.get("nodename", "?") for l, _ in prom.query("node_uname_info")}
-        up = {l["instance"]: v for l, v in prom.query('up{job="node-exporter"}')}
-        cpu = {l["instance"]: v for l, v in prom.query(
-            '100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])))')}
-        mem = {l["instance"]: v for l, v in prom.query(
-            "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)")}
-        temp = {l["instance"]: v for l, v in prom.query(
-            "max by (instance) (node_hwmon_temp_celsius)")}
-    except Exception:
-        return "2|nodes|prometheus|unreachable"
-
-    rows, alarm = [], False
+    rows, problems = [], []
     for inst in sorted(up, key=lambda i: names.get(i, i)):
         name = short_node(names.get(inst, inst))
         if up[inst] != 1:
             rows.append("%s DOWN" % name)
-            alarm = True
+            problems.append(rows[-1])
             continue
         t = temp.get(inst)
-        alarm |= t is not None and t >= 85
         rows.append("%s %2d%% %2d%% %sC" % (
             name,
             min(cpu.get(inst, 0), 99),
             min(mem.get(inst, 0), 99),
             "--" if t is None else "%2d" % t,
         ))
-    return ("2!|" if alarm else "2|") + "|".join(rows[:4] or ["no nodes"])
+        if t is not None and t >= 85:
+            problems.append("%s hot %dC" % (name, t))
+    return rows[:4] or ["no nodes"], problems
 
 
-def screen_network(dns, wan_host):
-    lines, alarm = [], False
+def page_network(dns, wan_host):
+    lines, problems = [], []
     if wan_host:
         ms = wan_latency(wan_host)
+        lines.append("WAN DOWN" if ms is None else "WAN ok %dms" % ms)
         if ms is None:
-            lines.append("WAN DOWN")
-            alarm = True
-        else:
-            lines.append("WAN ok %dms" % ms)
+            problems.append("WAN DOWN")
     try:
         s = dns.get()
         log_ok("pihole")
@@ -271,36 +239,29 @@ def screen_network(dns, wan_host):
     except Exception as e:
         log_error("pihole", e)
         lines.append("PI-HOLE DOWN")
-        alarm = True
-    return ("3!|" if alarm else "3|") + "|".join(lines[:4])
+        problems.append("PI-HOLE DOWN")
+    return lines[:4], problems
 
 
-def screen_slow(prom, prs):
-    lines, alarm = [], False
-    try:
-        age = prom.scalar(
-            'time() - kube_cronjob_status_last_successful_time{namespace="backup",cronjob="backup"}'
-        )
-        if age is None:
-            lines.append("backup never")
-            alarm = True
-        else:
-            lines.append("backup %dh ago" % (age // 3600))
-            alarm |= age > 26 * 3600  # nightly at 02:00, plus its retry hour
+def page_jobs(prom, prs):
+    lines, problems = [], []
+    age = prom.scalar(
+        'time() - kube_cronjob_status_last_successful_time{namespace="backup",cronjob="backup"}'
+    )
+    lines.append("backup never" if age is None else "backup %dh ago" % (age // 3600))
+    if age is None or age > 26 * 3600:  # nightly at 02:00, plus its retry hour
+        problems.append(lines[-1])
 
-        health = prom.scalar("ceph_health_status")
-        word = {0: "OK", 1: "WARN", 2: "ERR"}.get(health, "?")
-        lines.append("ceph %s" % word)
-        alarm |= health is None or health >= 2
+    health = prom.scalar("ceph_health_status")
+    lines.append("ceph %s" % {0: "OK", 1: "WARN", 2: "ERR"}.get(health, "?"))
+    if health is None or health >= 2:
+        problems.append(lines[-1])
 
-        left = prom.scalar(
-            "min(certmanager_certificate_expiration_timestamp_seconds) - time()"
-        )
-        if left is not None:
-            lines.append("certs %dd" % (left // 86400))
-            alarm |= left < 7 * 86400
-    except Exception:
-        return "4|slow checks|prometheus|unreachable"
+    left = prom.scalar("min(certmanager_certificate_expiration_timestamp_seconds) - time()")
+    if left is not None:
+        lines.append("certs %dd" % (left // 86400))
+        if left < 7 * 86400:
+            problems.append("cert in %dd" % (left // 86400))
 
     if prs is not None:
         try:
@@ -308,7 +269,55 @@ def screen_slow(prom, prs):
             log_ok("github")
         except Exception as e:
             log_error("github", e)
-    return ("4!|" if alarm else "4|") + "|".join(lines[:4])
+    return lines[:4], problems
+
+
+def alerts(prom):
+    """Firing alert names, critical first, each once however many series fire."""
+    rank = {"critical": 0, "warning": 1}
+    names = {}
+    for labels, _ in prom.query('ALERTS{alertstate="firing",alertname!~"%s"}' % QUIET_ALERTS):
+        n = labels.get("alertname", "?")
+        names[n] = min(names.get(n, 9), rank.get(labels.get("severity"), 2))
+    return sorted(names, key=lambda n: (names[n], n))
+
+
+# --- screens -----------------------------------------------------------------
+# Two screens. 1 answers "is anything wrong?" from every source at once; 2
+# rotates through the detail. Lines are in the protocol main.py documents.
+
+ROTATE = 2  # cycles each page stays on screen 2
+
+
+def render(prom, dns, prs, wan_host, cycle):
+    network, net_problems = page_network(dns, wan_host)
+    try:
+        up = [v for _, v in prom.query('up{job="node-exporter"}')]
+        firing = alerts(prom)
+        nodes, node_problems = page_nodes(prom)
+        jobs, job_problems = page_jobs(prom, prs)
+        log_ok("prometheus")
+    except Exception as e:
+        log_error("prometheus", e)
+        # Network still has something true to say; the others do not.
+        screen1 = "1!|LAB UNREACHABLE|prometheus api|" + str(e)[:16]
+        return [screen1, "2|" + "|".join(network)]
+
+    nodes_up = sum(1 for v in up if v == 1)
+    problems = []
+    for p in firing + node_problems + net_problems + job_problems:
+        if p not in problems:
+            problems.append(p)
+
+    if problems or not up or nodes_up < len(up):
+        summary = "%d/%d up  %d bad" % (nodes_up, len(up), len(problems))
+        screen1 = "1!|" + "|".join([summary] + [p[:16] for p in problems[:3]])
+    else:
+        screen1 = "1*|LAB OK|%d/%d up" % (nodes_up, len(up))
+
+    pages = [nodes, network, jobs]
+    screen2 = "2|" + "|".join(pages[(cycle // ROTATE) % len(pages)])
+    return [screen1, screen2]
 
 
 def contrast(conf):
@@ -360,15 +369,11 @@ def main():
     prs = Every(600, lambda: open_prs(conf["GITHUB_REPO"])) if conf["GITHUB_REPO"] else None
     pico = Pico(conf["DEVICE"])
 
+    cycle = 0
     while True:
         started = time.monotonic()
-        pico.send([
-            "C|%d" % contrast(conf),
-            screen_health(prom),
-            screen_nodes(prom),
-            screen_network(dns, conf["WAN_HOST"]),
-            screen_slow(prom, prs),
-        ])
+        pico.send(["C|%d" % contrast(conf)] + render(prom, dns, prs, conf["WAN_HOST"], cycle))
+        cycle += 1
         time.sleep(max(0.5, INTERVAL - (time.monotonic() - started)))
 
 
