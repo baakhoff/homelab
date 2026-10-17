@@ -45,6 +45,7 @@ def load_config():
         "NIGHT": "22-7",
         "DAY_CONTRAST": "128",
         "NIGHT_CONTRAST": "1",
+        "FLIP": "0",
     }
     with open(path) as f:
         for line in f:
@@ -372,7 +373,8 @@ def main():
     cycle = 0
     while True:
         started = time.monotonic()
-        pico.send(["C|%d" % contrast(conf)] + render(prom, dns, prs, conf["WAN_HOST"], cycle))
+        settings = ["C|%d" % contrast(conf), "R|%s" % conf["FLIP"]]
+        pico.send(settings + render(prom, dns, prs, conf["WAN_HOST"], cycle))
         cycle += 1
         time.sleep(max(0.5, INTERVAL - (time.monotonic() - started)))
 

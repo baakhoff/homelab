@@ -27,3 +27,6 @@ GITHUB_REPO=baakhoff/homelab
 NIGHT=22-7
 DAY_CONTRAST=128
 NIGHT_CONTRAST=1
+
+# 1 turns both screens 180 degrees, for a mount that holds them upside down.
+FLIP=0
