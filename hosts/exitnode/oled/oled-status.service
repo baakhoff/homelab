@@ -1,0 +1,27 @@
+# /etc/systemd/system/oled-status.service — see README.md in this directory.
+[Unit]
+Description=Lab status on the rack's OLED screens
+Wants=network-online.target
+After=network-online.target pihole-FTL.service
+
+[Service]
+ExecStart=/usr/local/bin/oled-status
+# Restart=always rather than on-failure: the loop never exits on its own, so
+# any exit at all is something to recover from.
+Restart=always
+RestartSec=10
+
+# A throwaway user that can open the serial port and nothing else. The config
+# holds two passwords and stays root-only on disk; systemd hands the service a
+# private copy.
+DynamicUser=yes
+SupplementaryGroups=dialout
+LoadCredential=conf:/etc/oled-status.conf
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
