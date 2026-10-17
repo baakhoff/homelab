@@ -9,6 +9,7 @@
 #   3*|DNS 12k|blk 18%                  trailing * is double-size text, two lines
 #   1!*|DOWN                            the flags combine
 #   C|40                                contrast for every screen, 0-255
+#   R|1                                 every screen turned 180 degrees; R|0 back
 #
 # A screen with no update for STALE_MS says so. A host that has died must not
 # leave its last healthy-looking numbers up for days.
@@ -64,6 +65,7 @@ class Screen:
         self.n = n
         self.bus = bus
         self.oled = None
+        self.flipped = False
         self.lines = []
         self.invert = False
         self.big = False
@@ -71,13 +73,35 @@ class Screen:
         self.stale = False
         self.dirty = True
 
-    def connect(self, contrast):
+    def connect(self, state):
         try:
             if ADDR not in self.bus.scan():
                 return
             self.oled = ssd1306.SSD1306_I2C(W, H, self.bus, ADDR)
-            self.oled.contrast(contrast)
+            self.flipped = False  # init puts it upright
             self.dirty = True
+        except OSError:
+            self.oled = None
+            return
+        self.apply(state)
+
+    def apply(self, state):
+        # Display-wide settings, sent again whenever a display is (re)connected:
+        # its own init resets them.
+        if self.oled is None:
+            return
+        try:
+            self.oled.contrast(state["contrast"])
+            # Turning 180 degrees is mirroring both ways: column order
+            # (segment remap, 0xA0/0xA1) and row scan direction (0xC0/0xC8).
+            # The driver's init sets 0xA1 and 0xC8, the upright orientation.
+            self.oled.write_cmd(0xA0 if state["flip"] else 0xA1)
+            self.oled.write_cmd(0xC0 if state["flip"] else 0xC8)
+            # Column order applies as pixels are written, so what is already
+            # on the glass only comes out right after a redraw.
+            if self.flipped != state["flip"]:
+                self.flipped = state["flip"]
+                self.dirty = True
         except OSError:
             self.oled = None
 
@@ -130,14 +154,13 @@ class Screen:
 
 def handle(line, screens, state, now):
     head, _, rest = line.partition("|")
-    if head == "C":
-        state["contrast"] = max(0, min(255, int(rest)))
+    if head in ("C", "R"):
+        if head == "C":
+            state["contrast"] = max(0, min(255, int(rest)))
+        else:
+            state["flip"] = rest.strip() == "1"
         for s in screens:
-            if s.oled is not None:
-                try:
-                    s.oled.contrast(state["contrast"])
-                except OSError:
-                    s.oled = None
+            s.apply(state)
         return
     invert = "!" in head
     big = "*" in head
@@ -148,10 +171,10 @@ def handle(line, screens, state, now):
 
 
 def main():
-    state = {"contrast": 128}
+    state = {"contrast": 128, "flip": False}
     screens = [Screen(i + 1, b) for i, b in enumerate(buses())]
     for s in screens:
-        s.connect(state["contrast"])
+        s.connect(state)
 
     led = Pin("LED", Pin.OUT)
     poll = select.poll()
@@ -189,7 +212,7 @@ def main():
             reconnect_at = now
             for s in screens:
                 if s.oled is None:
-                    s.connect(state["contrast"])
+                    s.connect(state)
 
         for s in screens:
             s.check_stale(now)
