@@ -1,0 +1,29 @@
+# Template for /etc/oled-status.conf, which is NOT tracked: it holds passwords.
+#   sudo install -m 0600 oled-status.conf.example /etc/oled-status.conf
+
+# The Pico. /dev/serial/by-id/... survives other USB serial devices appearing,
+# but the name carries the board's serial number, so it is not written here.
+DEVICE=/dev/ttyACM0
+
+# The password-only door into Prometheus,
+# clusters/lab/monitoring/prometheus-api-ingress.yaml.
+PROM_URL=https://prometheus-api.lab.baakhoff.com
+PROM_USER=exitnode
+PROM_PASSWORD=
+
+# Pi-hole v6 on this machine. An app password (Settings > Web interface / API,
+# expert mode), not the admin one: it can be revoked on its own.
+PIHOLE_URL=http://127.0.0.1
+PIHOLE_PASSWORD=
+
+# Something on the internet that answers TCP on port 53 — the upstream
+# resolver from the runbook's network table. Empty leaves the WAN line out.
+WAN_HOST=
+
+# Open PRs on the jobs page. Empty leaves the line out.
+GITHUB_REPO=baakhoff/homelab
+
+# Hours as START-END, local time, and the contrast for each (0-255).
+NIGHT=22-7
+DAY_CONTRAST=128
+NIGHT_CONTRAST=1

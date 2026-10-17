@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+#
+# oled-demo — made-up numbers for the Pico's four screens, to check the
+# firmware from any Linux machine before the real data exists.
+#
+#   ./oled-demo [/dev/ttyACM0]
+#
+# Close Thonny first: it holds the port, and connecting stops main.py.
+# Every 30 seconds screen 1 raises a fake alert for ten, to show inversion.
+
+import os
+import random
+import sys
+import time
+import tty
+
+port = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyACM0"
+fd = os.open(port, os.O_RDWR | os.O_NOCTTY)
+# Raw mode, or the tty layer echoes and rewrites the bytes on the way out.
+tty.setraw(fd)
+
+
+def send(line):
+    os.write(fd, (line + "\n").encode("ascii", "replace"))
+
+
+send("C|128")
+start = time.monotonic()
+print("sending to %s, Ctrl-C to stop" % port)
+
+try:
+    while True:
+        t = int(time.monotonic() - start)
+        if t % 30 >= 20:
+            send("1!*|ALERT|node02")
+        else:
+            send("1|LAB  OK|3/3 nodes up|alerts 0|flux synced")
+        rows = ["n%d %2d%% %2d%% %dC" % (i, random.randint(5, 60), random.randint(45, 80), random.randint(40, 60)) for i in (1, 2, 3)]
+        send("2|" + "|".join(rows))
+        send("3*|DNS %dk|blk %d%%" % (12 + t // 60, random.randint(15, 22)))
+        send("4|backup ok 02:00|airflow 14/14|PRs 7")
+        time.sleep(2)
+except KeyboardInterrupt:
+    pass

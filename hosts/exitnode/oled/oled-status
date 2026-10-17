@@ -1,0 +1,381 @@
+#!/usr/bin/env python3
+#
+# oled-status — the lab's state on the two OLED screens in the rack.
+#
+# Runs on the Pi and writes to the Pico over USB serial in the protocol main.py
+# documents. Every decision about what to show is made here; the Pico only
+# draws. Standard library only, so the Pi needs nothing installed for it.
+#
+#   1  is anything wrong?  LAB OK, or inverted with every problem from every
+#                          source: alerts, nodes, network, backups, Ceph, certs
+#   2  the detail          nodes, network and jobs in turn, ten seconds each
+#
+# The Pi sits outside the cluster on purpose: when the lab is down, screen 1
+# says so instead of going dark with it.
+#
+# Configuration is KEY=VALUE lines, see oled-status.conf.example. Under
+# systemd it arrives through LoadCredential, so the file can stay root-only.
+
+import base64
+import json
+import os
+import socket
+import sys
+import time
+import tty
+import urllib.error
+import urllib.parse
+import urllib.request
+
+INTERVAL = 5  # seconds between screen updates; the Pico calls 60 s stale
+
+
+def load_config():
+    creds = os.environ.get("CREDENTIALS_DIRECTORY")
+    path = os.path.join(creds, "conf") if creds else "/etc/oled-status.conf"
+    conf = {
+        "DEVICE": "/dev/ttyACM0",
+        "PROM_URL": "",
+        "PROM_USER": "",
+        "PROM_PASSWORD": "",
+        "PIHOLE_URL": "http://127.0.0.1",
+        "PIHOLE_PASSWORD": "",
+        "WAN_HOST": "",
+        "GITHUB_REPO": "",
+        "NIGHT": "22-7",
+        "DAY_CONTRAST": "128",
+        "NIGHT_CONTRAST": "1",
+    }
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                conf[k.strip()] = v.strip()
+    return conf
+
+
+_last_errors = {}
+
+
+def log_error(source, err):
+    # Once per change, not once per cycle: a Prometheus outage would
+    # otherwise write the same line to the journal every five seconds.
+    msg = str(err)
+    if _last_errors.get(source) != msg:
+        _last_errors[source] = msg
+        print("%s: %s" % (source, msg), file=sys.stderr, flush=True)
+
+
+def log_ok(source):
+    if _last_errors.pop(source, None) is not None:
+        print("%s: recovered" % source, file=sys.stderr, flush=True)
+
+
+class Every:
+    """Caches a slow source so it is only fetched every `seconds`.
+
+    A failure is cached like a value and re-raised until the next fetch, so a
+    source that is down is not retried every cycle — GitHub's anonymous limit
+    would be gone in five minutes.
+    """
+
+    def __init__(self, seconds, fn):
+        self.seconds, self.fn = seconds, fn
+        self.at, self.value = None, None
+
+    def get(self):
+        now = time.monotonic()
+        if self.at is None or now - self.at >= self.seconds:
+            self.at = now
+            try:
+                self.value = self.fn()
+            except Exception as e:
+                self.value = e
+        if isinstance(self.value, Exception):
+            raise self.value
+        return self.value
+
+
+# --- sources -----------------------------------------------------------------
+
+
+class Prometheus:
+    def __init__(self, conf):
+        self.url = conf["PROM_URL"].rstrip("/") + "/api/v1/query"
+        token = "%s:%s" % (conf["PROM_USER"], conf["PROM_PASSWORD"])
+        self.auth = "Basic " + base64.b64encode(token.encode()).decode()
+
+    def query(self, expr):
+        """Instant query -> list of (labels, value)."""
+        url = self.url + "?" + urllib.parse.urlencode({"query": expr})
+        req = urllib.request.Request(url, headers={"Authorization": self.auth})
+        with urllib.request.urlopen(req, timeout=4) as r:
+            body = json.load(r)
+        if body.get("status") != "success":
+            raise RuntimeError(body.get("error", "query failed"))
+        return [(s["metric"], float(s["value"][1])) for s in body["data"]["result"]]
+
+    def scalar(self, expr):
+        rows = self.query(expr)
+        return rows[0][1] if rows else None
+
+
+class PiHole:
+    """Pi-hole v6's API. Sessions are reused until one is refused."""
+
+    def __init__(self, conf):
+        self.url = conf["PIHOLE_URL"].rstrip("/")
+        self.password = conf["PIHOLE_PASSWORD"]
+        self.sid = None
+
+    def _login(self):
+        req = urllib.request.Request(
+            self.url + "/api/auth",
+            data=json.dumps({"password": self.password}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=4) as r:
+            session = json.load(r)["session"]
+        if not session.get("valid"):
+            raise RuntimeError("login refused")
+        self.sid = session.get("sid")
+
+    def summary(self):
+        for attempt in (1, 2):
+            if self.sid is None and self.password:
+                self._login()
+            headers = {"X-FTL-SID": self.sid} if self.sid else {}
+            req = urllib.request.Request(self.url + "/api/stats/summary", headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=4) as r:
+                    return json.load(r)
+            except urllib.error.HTTPError as e:
+                if e.code != 401 or attempt == 2:
+                    raise
+                self.sid = None  # expired; log in again once
+
+
+def wan_latency(host):
+    """Milliseconds to open a TCP connection to host:53, or None.
+
+    A TCP handshake rather than ping: no raw socket, so nothing the service
+    needs privileges for, and a resolver answers on 53 by definition.
+    """
+    start = time.monotonic()
+    try:
+        socket.create_connection((host, 53), timeout=2).close()
+    except OSError:
+        return None
+    return (time.monotonic() - start) * 1000
+
+
+def open_prs(repo):
+    # Unauthenticated: 60 requests an hour, and this asks six times.
+    req = urllib.request.Request(
+        "https://api.github.com/repos/%s/pulls?state=open&per_page=100" % repo,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "oled-status"},
+    )
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return len(json.load(r))
+
+
+# --- pages -------------------------------------------------------------------
+# Each page returns (lines, problems): up to four lines of 16 ASCII characters,
+# and the short strings that should put screen 1 into alarm. Pages raise when
+# Prometheus is unreachable; screen 1 reports that once, for all of them.
+
+QUIET_ALERTS = "Watchdog|InfoInhibitor"
+
+
+def short_node(name):
+    return "n" + name[4:] if name.startswith("node") else name[:3]
+
+
+def page_nodes(prom):
+    def by_instance(expr):
+        return {l["instance"]: v for l, v in prom.query(expr)}
+
+    names = {l["instance"]: l.get("nodename", "?") for l, _ in prom.query("node_uname_info")}
+    up = by_instance('up{job="node-exporter"}')
+    cpu = by_instance('100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])))')
+    mem = by_instance("100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)")
+    temp = by_instance("max by (instance) (node_hwmon_temp_celsius)")
+
+    rows, problems = [], []
+    for inst in sorted(up, key=lambda i: names.get(i, i)):
+        name = short_node(names.get(inst, inst))
+        if up[inst] != 1:
+            rows.append("%s DOWN" % name)
+            problems.append(rows[-1])
+            continue
+        t = temp.get(inst)
+        rows.append("%s %2d%% %2d%% %sC" % (
+            name,
+            min(cpu.get(inst, 0), 99),
+            min(mem.get(inst, 0), 99),
+            "--" if t is None else "%2d" % t,
+        ))
+        if t is not None and t >= 85:
+            problems.append("%s hot %dC" % (name, t))
+    return rows[:4] or ["no nodes"], problems
+
+
+def page_network(dns, wan_host):
+    lines, problems = [], []
+    if wan_host:
+        ms = wan_latency(wan_host)
+        lines.append("WAN DOWN" if ms is None else "WAN ok %dms" % ms)
+        if ms is None:
+            problems.append("WAN DOWN")
+    try:
+        s = dns.get()
+        log_ok("pihole")
+        q = s["queries"]
+        total = q["total"]
+        lines.append("DNS %s/24h" % ("%.1fk" % (total / 1000) if total >= 1000 else total))
+        lines.append("blocked %.1f%%" % q["percent_blocked"])
+        lines.append("clients %d" % s["clients"]["active"])
+    except Exception as e:
+        log_error("pihole", e)
+        lines.append("PI-HOLE DOWN")
+        problems.append("PI-HOLE DOWN")
+    return lines[:4], problems
+
+
+def page_jobs(prom, prs):
+    lines, problems = [], []
+    age = prom.scalar(
+        'time() - kube_cronjob_status_last_successful_time{namespace="backup",cronjob="backup"}'
+    )
+    lines.append("backup never" if age is None else "backup %dh ago" % (age // 3600))
+    if age is None or age > 26 * 3600:  # nightly at 02:00, plus its retry hour
+        problems.append(lines[-1])
+
+    health = prom.scalar("ceph_health_status")
+    lines.append("ceph %s" % {0: "OK", 1: "WARN", 2: "ERR"}.get(health, "?"))
+    if health is None or health >= 2:
+        problems.append(lines[-1])
+
+    left = prom.scalar("min(certmanager_certificate_expiration_timestamp_seconds) - time()")
+    if left is not None:
+        lines.append("certs %dd" % (left // 86400))
+        if left < 7 * 86400:
+            problems.append("cert in %dd" % (left // 86400))
+
+    if prs is not None:
+        try:
+            lines.append("PRs open %d" % prs.get())
+            log_ok("github")
+        except Exception as e:
+            log_error("github", e)
+    return lines[:4], problems
+
+
+def alerts(prom):
+    """Firing alert names, critical first, each once however many series fire."""
+    rank = {"critical": 0, "warning": 1}
+    names = {}
+    for labels, _ in prom.query('ALERTS{alertstate="firing",alertname!~"%s"}' % QUIET_ALERTS):
+        n = labels.get("alertname", "?")
+        names[n] = min(names.get(n, 9), rank.get(labels.get("severity"), 2))
+    return sorted(names, key=lambda n: (names[n], n))
+
+
+# --- screens -----------------------------------------------------------------
+# Two screens. 1 answers "is anything wrong?" from every source at once; 2
+# rotates through the detail. Lines are in the protocol main.py documents.
+
+ROTATE = 2  # cycles each page stays on screen 2
+
+
+def render(prom, dns, prs, wan_host, cycle):
+    network, net_problems = page_network(dns, wan_host)
+    try:
+        up = [v for _, v in prom.query('up{job="node-exporter"}')]
+        firing = alerts(prom)
+        nodes, node_problems = page_nodes(prom)
+        jobs, job_problems = page_jobs(prom, prs)
+        log_ok("prometheus")
+    except Exception as e:
+        log_error("prometheus", e)
+        # Network still has something true to say; the others do not.
+        screen1 = "1!|LAB UNREACHABLE|prometheus api|" + str(e)[:16]
+        return [screen1, "2|" + "|".join(network)]
+
+    nodes_up = sum(1 for v in up if v == 1)
+    problems = []
+    for p in firing + node_problems + net_problems + job_problems:
+        if p not in problems:
+            problems.append(p)
+
+    if problems or not up or nodes_up < len(up):
+        summary = "%d/%d up  %d bad" % (nodes_up, len(up), len(problems))
+        screen1 = "1!|" + "|".join([summary] + [p[:16] for p in problems[:3]])
+    else:
+        screen1 = "1*|LAB OK|%d/%d up" % (nodes_up, len(up))
+
+    pages = [nodes, network, jobs]
+    screen2 = "2|" + "|".join(pages[(cycle // ROTATE) % len(pages)])
+    return [screen1, screen2]
+
+
+def contrast(conf):
+    start, _, end = conf["NIGHT"].partition("-")
+    hour = time.localtime().tm_hour
+    start, end = int(start), int(end)
+    night = (start <= hour or hour < end) if start > end else (start <= hour < end)
+    return int(conf["NIGHT_CONTRAST"] if night else conf["DAY_CONTRAST"])
+
+
+# --- serial ------------------------------------------------------------------
+
+
+class Pico:
+    """The serial port, reopened whenever the Pico is unplugged and back."""
+
+    def __init__(self, device):
+        self.device = device
+        self.fd = None
+
+    def send(self, lines):
+        if self.fd is None:
+            try:
+                self.fd = os.open(self.device, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                # Raw, or the tty layer rewrites newlines on the way out.
+                tty.setraw(self.fd)
+                log_ok("serial")
+            except OSError as e:
+                log_error("serial", e)
+                self.fd = None
+                return
+        try:
+            os.write(self.fd, "".join(l + "\n" for l in lines).encode("ascii", "replace"))
+            # The Pico writes nothing, but a traceback would fill the buffer.
+            try:
+                os.read(self.fd, 4096)
+            except BlockingIOError:
+                pass
+        except OSError as e:
+            log_error("serial", e)
+            os.close(self.fd)
+            self.fd = None
+
+
+def main():
+    conf = load_config()
+    prom = Prometheus(conf)
+    dns = Every(30, PiHole(conf).summary)
+    prs = Every(600, lambda: open_prs(conf["GITHUB_REPO"])) if conf["GITHUB_REPO"] else None
+    pico = Pico(conf["DEVICE"])
+
+    cycle = 0
+    while True:
+        started = time.monotonic()
+        pico.send(["C|%d" % contrast(conf)] + render(prom, dns, prs, conf["WAN_HOST"], cycle))
+        cycle += 1
+        time.sleep(max(0.5, INTERVAL - (time.monotonic() - started)))
+
+
+if __name__ == "__main__":
+    main()
