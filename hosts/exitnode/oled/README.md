@@ -40,7 +40,8 @@ says `LAB UNREACHABLE` with the reason instead of going dark with it — a
 screen in the cluster could not — and screen 2 keeps the network page, the
 one thing the Pi can still see.
 
-Contrast drops to `NIGHT_CONTRAST` overnight.
+Contrast drops to `NIGHT_CONTRAST` overnight. `FLIP=1` turns both screens
+180 degrees, for a mount that holds them upside down.
 
 The Pico also needs `ssd1306.py` from
 [micropython-lib](https://github.com/micropython/micropython-lib/tree/master/micropython/drivers/display/ssd1306).
@@ -87,6 +88,7 @@ One line per update, ASCII only — the built-in font has no Cyrillic:
 3*|DNS 12k|blk 18%                  trailing * is double size: two lines of 8
 1!*|DOWN                            the flags combine
 C|40                                contrast for every screen, 0-255
+R|1                                 every screen turned 180 degrees; R|0 back
 ```
 
 Malformed lines are dropped. Until a screen's first update it shows its own
