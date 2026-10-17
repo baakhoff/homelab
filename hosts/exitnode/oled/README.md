@@ -1,13 +1,31 @@
 # OLED status screens
 
-Four 0.91" 128×32 SSD1306 modules on a Raspberry Pi Pico, which takes what to
-show over USB serial. The Pico only draws; the host on the other end of the
-cable decides everything, so changing a screen never means re-flashing it.
+Four 0.91" 128×32 SSD1306 modules on a Raspberry Pi Pico in the rack, plugged
+into the Pi by USB. The Pico only draws; the Pi decides everything, so changing
+a screen never means re-flashing it.
 
 | File | Goes to | Does |
 |---|---|---|
 | `main.py` | the Pico, as `main.py` | the firmware: reads lines from USB, draws them |
+| `oled-status` | `/usr/local/bin/` on the Pi | collects the numbers and sends them every 5 seconds |
+| `oled-status.service` | `/etc/systemd/system/` | runs it |
+| `oled-status.conf.example` | — | template for `/etc/oled-status.conf`, which is **not** tracked |
 | `oled-demo` | anywhere with Python 3 | sends made-up numbers, to check the screens without real data |
+
+## The screens
+
+| | Shows | Inverts when |
+|---|---|---|
+| 1 | `LAB OK` and nodes up, in large text; otherwise nodes up, the alert count and the first three firing alerts, critical first | a node is down, any alert other than Watchdog fires, or Prometheus cannot be reached |
+| 2 | one row per node: CPU %, RAM %, hottest sensor | a node is down or at 85 °C |
+| 3 | WAN latency, Pi-hole's queries and share blocked over 24 h, active clients | the internet or Pi-hole is down |
+| 4 | hours since the last good backup, Ceph health, days to the first certificate expiry, open PRs | the backup is over 26 h old, Ceph reports an error, or a certificate is within 7 days |
+
+The Pi is outside the cluster on purpose. When the lab goes down, screen 1
+says `LAB UNREACHABLE` with the reason instead of going dark with it — a
+screen in the cluster could not.
+
+Contrast drops to `NIGHT_CONTRAST` overnight.
 
 The Pico also needs `ssd1306.py` from
 [micropython-lib](https://github.com/micropython/micropython-lib/tree/master/micropython/drivers/display/ssd1306).
@@ -75,3 +93,31 @@ disturbing the other three.
 
 Thonny has to be closed while anything else talks to the Pico: it holds the
 port, and connecting interrupts `main.py` to get a prompt.
+
+## Install on the Pi
+
+Prometheus is reached through `prometheus-api.lab.baakhoff.com`, a second
+Ingress that takes a password instead of the Pocket ID login and opens only the
+query endpoint — `clusters/lab/monitoring/prometheus-api-ingress.yaml` says
+why it is a password and not an IP allow-list. Its htpasswd line is
+`clusters/lab/monitoring/prometheus-api-auth.sops.yaml`.
+
+From a checkout of this directory on the Pi:
+
+```
+sudo install -m 0755 oled-status /usr/local/bin/oled-status
+sudo install -m 0644 oled-status.service /etc/systemd/system/oled-status.service
+sudo install -m 0600 oled-status.conf.example /etc/oled-status.conf
+```
+
+Fill in `/etc/oled-status.conf` — the Prometheus password, a Pi-hole app
+password, `WAN_HOST` — then:
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable --now oled-status
+journalctl -u oled-status -f
+```
+
+The journal stays quiet when everything works. Each source logs once when it
+fails and once when it recovers, never every cycle.
