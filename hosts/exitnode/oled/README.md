@@ -1,6 +1,6 @@
 # OLED status screens
 
-Four 0.91" 128×32 SSD1306 modules on a Raspberry Pi Pico in the rack, plugged
+Two 0.91" 128×32 SSD1306 modules on a Raspberry Pi Pico in the rack, plugged
 into the Pi by USB. The Pico only draws; the Pi decides everything, so changing
 a screen never means re-flashing it.
 
@@ -14,16 +14,31 @@ a screen never means re-flashing it.
 
 ## The screens
 
-| | Shows | Inverts when |
-|---|---|---|
-| 1 | `LAB OK` and nodes up, in large text; otherwise nodes up, the alert count and the first three firing alerts, critical first | a node is down, any alert other than Watchdog fires, or Prometheus cannot be reached |
-| 2 | one row per node: CPU %, RAM %, hottest sensor | a node is down or at 85 °C |
-| 3 | WAN latency, Pi-hole's queries and share blocked over 24 h, active clients | the internet or Pi-hole is down |
-| 4 | hours since the last good backup, Ceph health, days to the first certificate expiry, open PRs | the backup is over 26 h old, Ceph reports an error, or a certificate is within 7 days |
+**Screen 1 answers "is anything wrong?"** — `LAB OK` and the nodes up, in
+large text, or inverted with a count and the first three problems from every
+source at once:
+
+| Source | A problem when |
+|---|---|
+| Alertmanager | any alert other than Watchdog fires, critical first |
+| nodes | one is down or at 85 °C |
+| network | the internet or Pi-hole is down |
+| backup | the last good run is over 26 h old |
+| Ceph | it reports an error |
+| certificates | one is within 7 days of expiry |
+
+**Screen 2 is the detail**, ten seconds per page in turn:
+
+| Page | Shows |
+|---|---|
+| nodes | one row each: CPU %, RAM %, hottest sensor |
+| network | WAN latency, Pi-hole's queries and share blocked over 24 h, active clients |
+| jobs | hours since the last good backup, Ceph health, days to the first certificate expiry, open PRs |
 
 The Pi is outside the cluster on purpose. When the lab goes down, screen 1
 says `LAB UNREACHABLE` with the reason instead of going dark with it — a
-screen in the cluster could not.
+screen in the cluster could not — and screen 2 keeps the network page, the
+one thing the Pi can still see.
 
 Contrast drops to `NIGHT_CONTRAST` overnight.
 
@@ -57,6 +72,11 @@ diodes, and a low SDA is what an acknowledgement looks like, so every address
 appears to answer. That is how a breadboard rail not connected to pin 36 first
 showed up.
 
+The firmware drives up to four, and a position with nothing attached is
+skipped. The rack runs two, on positions 1 and 2 — the hardware I2C
+controllers. The other two modules were dropped after their joints kept
+failing; resoldering fixed them for an evening at a time.
+
 ## Protocol
 
 One line per update, ASCII only — the built-in font has no Cyrillic:
@@ -79,7 +99,7 @@ and these show the same characters in the same place all day. Dimming at night
 is the host's call, through `C|`.
 
 A display that drops off the bus is retried every ten seconds without
-disturbing the other three.
+disturbing the others.
 
 ## Try it
 

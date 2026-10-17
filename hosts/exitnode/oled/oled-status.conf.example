@@ -20,7 +20,7 @@ PIHOLE_PASSWORD=
 # resolver from the runbook's network table. Empty leaves the WAN line out.
 WAN_HOST=
 
-# Open PRs on screen 4. Empty leaves the line out.
+# Open PRs on the jobs page. Empty leaves the line out.
 GITHUB_REPO=baakhoff/homelab
 
 # Hours as START-END, local time, and the contrast for each (0-255).

@@ -11,7 +11,7 @@ the [Pi runbook](../../docs/runbooks/pi-exitnode.md).
 | `99-disable-network-config.cfg` | `/etc/cloud/cloud.cfg.d/` | stops cloud-init from managing the network on every boot; it dropped the Wi-Fi profile once |
 | `wake-nodes` | `/usr/local/bin/` | sends Wake-on-LAN magic packets to the lab's machines |
 | `wake-nodes.conf.example` | — | template for `/etc/wake-nodes.conf`, which is **not** tracked |
-| `oled/` | the Pi and the Pico | the rack's four status screens — [its own README](oled/README.md) |
+| `oled/` | the Pi and the Pico | the rack's OLED status screens — [its own README](oled/README.md) |
 
 ## Install
 
