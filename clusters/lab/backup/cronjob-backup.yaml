@@ -39,6 +39,11 @@ spec:
       # backoffLimit above zero mostly produces a second failure and a
       # confusing pair of pods.
       backoffLimit: 0
+      # A failed Job keeps KubeJobFailed firing, re-sent every twelve hours,
+      # for as long as it exists - and the history limit alone keeps it until
+      # three newer failures push it out. Three days leaves the driver's log
+      # to read; healthchecks.io has already reported the failure itself.
+      ttlSecondsAfterFinished: 259200
       template:
         spec:
           restartPolicy: Never
