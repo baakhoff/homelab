@@ -389,12 +389,29 @@ data:
     hc "/start"
     log "lab backup starting"
 
-    failed=0
+    retry=""
     for target in $BACKUP_TARGETS; do
       ns=${target%%/*}
       pvc=${target#*/}
-      backup_one "$ns" "$pvc" || failed=$((failed + 1))
+      backup_one "$ns" "$pvc" || retry="$retry $target"
     done
+
+    # One more pass over whatever failed, after a pause. The failures seen
+    # so far were the object storage itself - 503s, 504s and SlowDown for a
+    # few minutes on 2026-10-16, which cost six volumes their night - and a
+    # second try a quarter of an hour later outlasts that. Everything the
+    # first pass left behind is deleted by backup_one's own cleanup, so the
+    # retry starts from the same clean state as the first attempt.
+    failed=0
+    if [ -n "$retry" ]; then
+      log "retrying in ${RETRY_DELAY_SECONDS:-900}s:$retry"
+      sleep "${RETRY_DELAY_SECONDS:-900}"
+      for target in $retry; do
+        ns=${target%%/*}
+        pvc=${target#*/}
+        backup_one "$ns" "$pvc" || failed=$((failed + 1))
+      done
+    fi
 
     if [ "$failed" -gt 0 ]; then
       log "FAILED: $failed target(s) did not back up"
