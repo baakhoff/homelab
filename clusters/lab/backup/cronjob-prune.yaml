@@ -22,6 +22,8 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      # Deleted after three days, failed or not - see cronjob-backup.yaml.
+      ttlSecondsAfterFinished: 259200
       template:
         spec:
           restartPolicy: Never
