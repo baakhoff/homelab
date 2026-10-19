@@ -30,7 +30,7 @@ RUN AIRFLOW_VERSION=$(python -c 'import airflow; print(airflow.__version__)') \
 # them apart: Cosmos calls /opt/dbt/bin/dbt as a subprocess
 # (pipelines/dags/warehouse.py). Root-owned and read-only to the airflow
 # user, which only needs to run it.
-ARG DBT_CORE_VERSION=1.12.5
+ARG DBT_CORE_VERSION=1.12.6
 ARG DBT_CLICKHOUSE_VERSION=1.10.3
 USER root
 RUN python -m venv /opt/dbt \
