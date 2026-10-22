@@ -208,7 +208,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: nginx
-          image: docker.io/nginxinc/nginx-unprivileged:1.30.5-alpine
+          image: docker.io/nginxinc/nginx-unprivileged:1.31.7-alpine
           securityContext:
             # The account the unprivileged image is built around.
             runAsUser: 101

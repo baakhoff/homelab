@@ -42,7 +42,7 @@ spec:
         # and adds the lab's stylesheet to each page on the way out
         # (skin.yaml says why it takes a proxy).
         - name: skin
-          image: docker.io/nginxinc/nginx-unprivileged:1.31.6-alpine
+          image: docker.io/nginxinc/nginx-unprivileged:1.31.7-alpine
           securityContext:
             runAsUser: 101
             runAsGroup: 101
