@@ -1,6 +1,6 @@
 """Copy the Google account's data into Kafka topic raw.google.
 
-Three DAGs, because Google's data comes out in three different ways:
+Four DAGs, because Google's data comes out in four different ways:
 
   ingest_google              Calendar, Contacts, Tasks, Drive and the Gmail
                              labels: a full snapshot every 6 hours, like
@@ -15,6 +15,13 @@ Three DAGs, because Google's data comes out in three different ways:
                              playlists, saved places... - through the Data
                              Portability API: an export job per resource,
                              once a day, downloaded when Google has built it.
+  ingest_google_takeout      A Google Takeout export, by hand: Gmail with its
+                             bodies, which the Gmail DAG's token cannot read,
+                             and My Activity and Chrome history for an
+                             account the Data Portability API is closed to
+                             (it serves the EEA, the UK and Switzerland only).
+                             Packed on the machine that holds the export by
+                             pipelines/tools/google_takeout_pack.py.
 
 Every record goes out in ingest.py's envelope, with two optional fields:
 
@@ -51,6 +58,14 @@ import pendulum
 import requests
 from airflow.sdk import PokeReturnValue, Variable, dag, task, task_group
 from airflow.sdk.exceptions import AirflowSkipException
+
+# Secrets and identity numbers masked before anything leaves for Kafka -
+# sensitive.py beside this file. Airflow puts the DAG folder, pipelines/, on
+# the import path, not dags/, so the directory this file is in goes on first.
+import sys  # noqa: E402
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sensitive import mask_record  # noqa: E402
 
 KAFKA_BOOTSTRAP = "kafka.data.svc.cluster.local:9092"
 TOPIC = "raw.google"
@@ -172,6 +187,7 @@ class _Raw:
     def send(self, endpoint: str, rid: str, record, **extra) -> None:
         if not rid:
             raise RuntimeError(f"{endpoint}: a record without an id - the ods layer would drop it")
+        record, flags = mask_record(record)
         envelope = {
             "source": "google",
             "endpoint": endpoint,
@@ -180,6 +196,7 @@ class _Raw:
             "id": rid,
             "record": record,
             **extra,
+            **flags,
         }
         value = json.dumps(envelope, ensure_ascii=False).encode()
         while True:
@@ -682,3 +699,49 @@ def ingest_google_portability():
 
 
 ingest_google_portability()
+
+
+# --- ingest_google_takeout: an export, by hand -------------------------------
+
+
+@dag(
+    dag_id="ingest_google_takeout",
+    description="A Google Takeout export, packed on the workstation, into raw.google",
+    schedule=None,
+    start_date=START,
+    catchup=False,
+    max_active_runs=1,
+    tags=["ingest", "google"],
+    # Where `kubectl cp` put the file; another path can be given when
+    # triggering.
+    params={"path": "/tmp/google-takeout.jsonl.gz"},
+    # A retry sends every record again; the ods models keep each once.
+    default_args={"retries": 1, "retry_delay": pendulum.duration(minutes=5)},
+)
+def ingest_google_takeout():
+    @task(execution_timeout=timedelta(hours=2))
+    def load() -> None:
+        """Every line of the packed file to raw.google, masked on the way
+        like everything else, then the file deleted: the unmasked copy
+        does not outlive the load. A failed run leaves it for the retry."""
+        import gzip
+
+        from airflow.sdk import get_current_context
+
+        context = get_current_context()
+        path = context["params"]["path"]
+        raw = _Raw(context["run_id"])
+        # One line at a time: the scheduler's memory is the tasks' memory.
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            for line in f:
+                item = json.loads(line)
+                extra = {k: v for k, v in item.items() if k in ("file", "section")}
+                raw.send(item["endpoint"], item["id"], item["record"], **extra)
+        raw.flush()
+        os.remove(path)
+        print(f"{path} deleted")
+
+    load()
+
+
+ingest_google_takeout()

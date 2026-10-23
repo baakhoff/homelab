@@ -135,3 +135,7 @@ models:
     columns:
       - name: visit_id
         tests: [not_null, unique]
+  - name: google_gmail_bodies
+    columns:
+      - name: message_id_header
+        tests: [not_null, unique]

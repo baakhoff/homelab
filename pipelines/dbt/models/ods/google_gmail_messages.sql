@@ -1,5 +1,6 @@
 -- Gmail, one row per message: who wrote to whom, when, the subject and the
--- labels. No bodies - the DAG's token cannot read one (gmail.metadata).
+-- labels. No bodies - the DAG's token cannot read one (gmail.metadata);
+-- they are in google_gmail_bodies, from Takeout, on message_id_header.
 -- Messages deleted in Gmail drop out; trashed and spam ones are here, with
 -- their label.
 with messages as (
@@ -21,6 +22,7 @@ select
   arrayFirst(h -> h.1 = 'to', headers).2 as recipients,
   arrayFirst(h -> h.1 = 'cc', headers).2 as cc,
   arrayFirst(h -> h.1 = 'subject', headers).2 as subject,
+  nullIf(trimBoth(arrayFirst(h -> h.1 = 'message-id', headers).2), '') as message_id_header,
   arrayFirst(h -> h.1 = 'list-id', headers).2 as list_id,
   arrayFirst(h -> h.1 = 'in-reply-to', headers).2 != '' as is_reply,
   label_ids,

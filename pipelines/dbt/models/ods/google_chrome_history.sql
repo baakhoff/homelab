@@ -1,5 +1,5 @@
 -- Chrome's browsing history, as synced to the Google account, from the
--- Data Portability exports: one row per page visit.
+-- Data Portability exports or a Takeout export: one row per page visit.
 select
   id as visit_id,
   JSONExtractString(record, 'title') as title,
