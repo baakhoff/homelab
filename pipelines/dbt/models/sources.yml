@@ -30,6 +30,6 @@ sources:
       - name: outline
         description: Outline API snapshots - every document with its Markdown text, and the collections - one record per message in the ingest envelope.
       - name: telegram
-        description: One Telegram account's private chats - the chats as snapshots, the messages as sent once and again when edited, one record per message in the ingest envelope.
+        description: Telegram accounts' private chats, each record naming its account - the chats as snapshots, the messages as sent once and again when edited, one record per message in the ingest envelope.
       - name: proton
         description: Proton Mail exports loaded by hand - each message's headers, plain-text body and attachment names and sizes, one record per message in the ingest envelope.

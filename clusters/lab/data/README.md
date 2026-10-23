@@ -42,7 +42,7 @@ layers by hand.
 | Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
 | Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's; Outline's documents with their text), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich`, `raw.outline` |
 | CloudBeaver's usage | Airflow's `ingest_cloudbeaver` DAG, `pipelines/dags/cloudbeaver.py` - its ClickHouse queries from `system.query_log`, its sessions and sign-ins from its own database. Its Postgres statements come in with the log lines | `raw.cloudbeaver` |
-| Telegram | Airflow's `ingest_telegram` DAG, `pipelines/dags/telegram.py` - one account's private chats, logged in as the account; each message once, again when edited | `raw.telegram` |
+| Telegram | Airflow's `ingest_telegram` DAG, `pipelines/dags/telegram.py` - each logged-in account's private chats, logged in as the account; each message once, again when edited | `raw.telegram` |
 | Proton Mail | Airflow's `ingest_proton` DAG, `pipelines/dags/proton.py`, triggered by hand - a mailbox export packed on the machine that holds it, each message's headers, plain-text body and attachment names | `raw.proton` |
 
 ## What is here
