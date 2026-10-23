@@ -1,18 +1,20 @@
 # Google
 
 One Google account's data, in the warehouse: `raw.google`, then
-`ods.google_*` and `ads.google_daily`. Three Airflow DAGs in
-[`dags/google.py`](dags/google.py), because Google gives it out three ways:
+`ods.google_*` and `ads.google_daily`. Four Airflow DAGs in
+[`dags/google.py`](dags/google.py), because Google gives it out four ways:
 
 | DAG | What | How | When |
 |---|---|---|---|
 | `ingest_google` | Calendar (every calendar, events a year ahead), Contacts and their groups, Tasks, Drive's file list, Gmail's labels | full snapshot, like the other sources | every 6 hours |
 | `ingest_google_gmail` | Gmail: sender, recipients, subject, date, labels, size - **no bodies** | the whole mailbox once, then only changes | hourly |
 | `ingest_google_portability` | My Activity (Search, YouTube, Maps, Play, Shopping, ads seen), Chrome history and bookmarks, YouTube subscriptions, playlists, comments and music, Maps saved places and reviews, Play installs and purchases, Discover, Alerts | Google's [Data Portability API](https://developers.google.com/data-portability): an export job per resource; activity only since the last export | daily |
+| `ingest_google_takeout` | Gmail **with bodies**; My Activity and Chrome history for an account the Portability API is closed to | a [Google Takeout](https://takeout.google.com) export, packed on the workstation | by hand |
 
 | Model | One row per |
 |---|---|
 | `ods.google_gmail_messages` | message (deleted ones drop out; spam and trash keep their label) |
+| `ods.google_gmail_bodies` | message from a Takeout export, with its body as plain text and its attachments' names |
 | `ods.google_gmail_labels` | label |
 | `ods.google_calendars`, `ods.google_calendar_events` | calendar; occurrence of an event |
 | `ods.google_contacts`, `ods.google_contact_groups` | person; group |
@@ -21,6 +23,7 @@ One Google account's data, in the warehouse: `raw.google`, then
 | `ods.google_activity` | search, video watched, Maps search, ... (`resource` says which) |
 | `ods.google_chrome_history` | page visit |
 | `ads.google_daily` | day: mail in and out, meetings and their hours, searches, videos, pages |
+| `ads.people` | person, across Google Contacts, Telegram and mail - see below |
 
 Everything else the portability exports bring - subscriptions, playlists,
 saved places, purchases - is in `raw.google` as it came, until a model
@@ -32,8 +35,10 @@ FROM raw.google GROUP BY endpoint ORDER BY endpoint
 ```
 
 **Not here, and why.**
-- **Mail bodies**: a choice. The Gmail token's scope is `gmail.metadata`, so
-  Google refuses a body even if one is asked for.
+- **Mail bodies, live**: a choice. The Gmail token's scope is
+  `gmail.metadata`, so Google refuses a body even if one is asked for - the
+  other scope is "restricted" and wants an app review. Bodies come from a
+  Takeout export instead, as of the day it was made.
 - **Drive file contents and photos/videos**: files, not rows.
 - **Location Timeline**: Google moved it onto the phone and out of reach of
   any API.
@@ -83,15 +88,21 @@ python3 pipelines/tools/google_auth.py portability
 
 On the consent page, choose **180 days**, not "once" or "30 days": "once"
 allows a single export and the next day's run fails. This writes
-`GOOGLE_PORTABILITY_REFRESH_TOKEN`. The API is for accounts in the EEA,
-which this one is.
+`GOOGLE_PORTABILITY_REFRESH_TOKEN`.
+
+The API serves accounts in the EEA, the UK and Switzerland only. Which
+country an account is in: <https://policies.google.com/terms>, signed in -
+the line "Country version:" at the top. Outside those, skip this step: the
+consent page refuses, and `ingest_google_portability` stays off. My
+Activity and Chrome history come from Takeout instead (below).
 
 **7. Commit, push, restart.** Commit and push the Secret. Once Flux has
 applied it, restart the scheduler, which reads its environment only at
-start:
+start. Delete the pod rather than `rollout restart`, which Flux undoes,
+restarting it a second time:
 
 ```bash
-kubectl -n airflow rollout restart deployment/airflow-scheduler
+kubectl -n airflow delete pod -l component=scheduler
 ```
 
 **8. Run them.** In the Airflow UI, trigger `ingest_google_portability`
@@ -110,6 +121,62 @@ and afterwards `warehouse`.
 ```sql
 SELECT * FROM ads.google_daily ORDER BY day DESC LIMIT 14
 ```
+
+## A Takeout export
+
+For the mail bodies, and for My Activity and Chrome history when the
+Portability API is closed to the account. Load it again whenever a newer
+copy is wanted; each item is kept once.
+
+**1. Export.** <https://takeout.google.com>, signed in as the account.
+**Deselect all**, then tick:
+- **Mail** - all mail, mbox.
+- **My Activity** - *Multiple formats* -> **JSON**, not the default HTML.
+- **Chrome** - at least *BrowserHistory*.
+
+Export once, `.zip`, the largest size Google offers. Google mails a link
+when it is built, from minutes to days later. Download every part into
+one folder; unpacking is not needed.
+
+**2. Pack.** On the workstation, from the repo root - standard library
+only:
+
+```bash
+python3 pipelines/tools/google_takeout_pack.py ~/Downloads/takeout ~/google-takeout.jsonl.gz
+```
+
+It prints the records per kind and any message it skipped, never contents.
+Attachments and every other product in the export stay behind.
+
+**3. Copy into the scheduler**, where tasks run:
+
+```bash
+POD=$(kubectl -n airflow get pod -l component=scheduler -o jsonpath='{.items[0].metadata.name}')
+kubectl -n airflow cp ~/google-takeout.jsonl.gz "$POD":/tmp/google-takeout.jsonl.gz -c scheduler
+```
+
+**4. Run it.** Trigger `ingest_google_takeout`. It masks every record like
+every other source (`sensitive.md`), sends it to `raw.google`, and deletes
+the file once all of it is delivered. Then trigger `warehouse`.
+
+**5. Clean up.** The packed file and the zips are the account unmasked:
+`rm ~/google-takeout.jsonl.gz`, and the zips unless they are kept as the
+copy of record.
+
+## People
+
+`ads.people` is one row per person across the sources: every Google
+contact, every Telegram user (one row for both Telegram accounts), and
+every address mail was ever sent to, from Proton or Gmail. A contact takes
+in the Telegram chats whose phone number it lists and the addresses it
+lists, so a person who is all three is one row, with their phones,
+addresses, Telegram ids and usernames, and the messages and mails
+exchanged. `anchor` says what the row was built from.
+
+Matching is exact: phone numbers compared with only digits and `+` left,
+addresses lowercased. A contact saved without the country code does not
+match its Telegram chat - adding the `+...` in Google Contacts does. An
+address that only ever wrote in (newsletters, shops) is not a person here.
 
 ## Renewing
 
@@ -151,7 +218,10 @@ Google, so nothing else changes.
   after the first export, the item as it arrived is in `record` (and
   `raw.google`), and the model is the thing to fix.
 - **This is the most personal data in the lab.** All of it sits in
-  ClickHouse, readable by its `admin` and `dbt` users, and in the nightly
-  encrypted backup of `data/data-clickhouse-0`. Removing the app at
+  ClickHouse, readable by its `admin` and `dbt` users, by CloudBeaver, and
+  by the `brand` agent, which reads `ods`, `ads` and `dm` on purpose - the
+  history included - and in the nightly encrypted backup of
+  `data/data-clickhouse-0`. Secrets and identity numbers are masked on the
+  way in, as for every source. Removing the app at
   <https://myaccount.google.com/connections> stops new data, and leaves what
   is already copied.
