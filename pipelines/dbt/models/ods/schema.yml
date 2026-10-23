@@ -95,3 +95,79 @@ models:
     columns:
       - name: message_key
         tests: [not_null]
+  - name: google_gmail_messages
+    columns:
+      - name: message_id
+        tests: [not_null, unique]
+  - name: google_gmail_labels
+    columns:
+      - name: label_id
+        tests: [not_null, unique]
+  - name: google_calendars
+    columns:
+      - name: calendar_id
+        tests: [not_null, unique]
+  - name: google_calendar_events
+    columns:
+      - name: event_key
+        tests: [not_null, unique]
+  - name: google_contacts
+    columns:
+      - name: contact_id
+        tests: [not_null, unique]
+  - name: google_contact_groups
+    columns:
+      - name: group_id
+        tests: [not_null, unique]
+  - name: google_tasks
+    columns:
+      - name: task_key
+        tests: [not_null, unique]
+  - name: google_drive_files
+    columns:
+      - name: file_id
+        tests: [not_null, unique]
+  - name: google_activity
+    columns:
+      - name: activity_id
+        tests: [not_null, unique]
+  - name: google_chrome_history
+    columns:
+      - name: visit_id
+        tests: [not_null, unique]
+  - name: google_gmail_bodies
+    columns:
+      - name: message_id_header
+        tests: [not_null, unique]
+  - name: google_fit_daily
+    columns:
+      - name: day
+        tests: [not_null, unique]
+  - name: google_fit_sessions
+    columns:
+      - name: session_key
+        tests: [not_null, unique]
+  - name: google_keep_notes
+    columns:
+      - name: note_key
+        tests: [not_null, unique]
+  - name: google_chat_messages
+    columns:
+      - name: message_id
+        tests: [not_null, unique]
+  - name: google_pay_transactions
+    columns:
+      - name: transaction_key
+        tests: [not_null, unique]
+  - name: google_maps_places
+    columns:
+      - name: place_key
+        tests: [not_null, unique]
+  - name: google_saved_items
+    columns:
+      - name: item_key
+        tests: [not_null, unique]
+  - name: google_takeout_records
+    columns:
+      - name: record_key
+        tests: [not_null]
