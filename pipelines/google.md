@@ -174,6 +174,32 @@ the file once all of it is delivered. Then trigger `warehouse`.
 `rm ~/google-takeout.jsonl.gz`, and the zips unless they are kept as the
 copy of record.
 
+### Every two months
+
+What only Takeout has - My Activity (YouTube watched included), Chrome
+history, mail bodies, Keep, Pay, the sign-in log - stays current only as
+far as the last export. Takeout can repeat an export by itself: at step 1,
+under *Frequency*, choose **Export every 2 months for 1 year**, and tick
+just **My Activity** (JSON), **Chrome**, **Mail**, **Keep**, **Google
+Pay**, **Access Log Activity**, **Maps (your places)** and **Saved** -
+small, and nothing the live DAGs already bring. Renew the schedule when
+the year is up; Google mails when it ends.
+
+When the mail saying an export is ready arrives, download its zips into
+`~/Downloads` and run, on the workstation, from the repo:
+
+```bash
+pipelines/tools/google_takeout_load.sh
+```
+
+It does steps 2 to 5 in one go: picks the newest export's parts, packs
+them, copies the file into the scheduler, runs `ingest_google_takeout`,
+waits until the file is gone (the DAG deletes it once all of it is
+delivered), starts `warehouse`, deletes the packed file, and asks before
+deleting the zips. Everything already loaded is skipped by id, so only
+what is new since the last export adds rows. It stops with a pointer to
+Airflow if the load fails or the scheduler restarts under it.
+
 ## People
 
 `ads.people` is one row per person across the sources: every Google
