@@ -9,12 +9,19 @@ One Google account's data, in the warehouse: `raw.google`, then
 | `ingest_google` | Calendar (every calendar, events a year ahead), Contacts and their groups, Tasks, Drive's file list, Gmail's labels | full snapshot, like the other sources | every 6 hours |
 | `ingest_google_gmail` | Gmail: sender, recipients, subject, date, labels, size - **no bodies** | the whole mailbox once, then only changes | hourly |
 | `ingest_google_portability` | My Activity (Search, YouTube, Maps, Play, Shopping, ads seen), Chrome history and bookmarks, YouTube subscriptions, playlists, comments and music, Maps saved places and reviews, Play installs and purchases, Discover, Alerts | Google's [Data Portability API](https://developers.google.com/data-portability): an export job per resource; activity only since the last export | daily |
-| `ingest_google_takeout` | Gmail **with bodies**; My Activity and Chrome history for an account the Portability API is closed to | a [Google Takeout](https://takeout.google.com) export, packed on the workstation | by hand |
+| `ingest_google_takeout` | Gmail **with bodies**; My Activity and Chrome history for an account the Portability API is closed to; Fit, Keep, Chat, Pay, Maps places, Saved lists and the sign-in log | a [Google Takeout](https://takeout.google.com) export, packed on the workstation | by hand |
 
 | Model | One row per |
 |---|---|
 | `ods.google_gmail_messages` | message (deleted ones drop out; spam and trash keep their label) |
 | `ods.google_gmail_bodies` | message from a Takeout export, with its body as plain text and its attachments' names |
+| `ods.google_fit_daily`, `ods.google_fit_sessions` | day of Fit's history: steps, distance, calories, heart, weight; recorded activity |
+| `ods.google_keep_notes` | Keep note, checklists included |
+| `ods.google_chat_messages` | Google Chat / Hangouts message |
+| `ods.google_pay_transactions` | purchase through Google, money sent or requested |
+| `ods.google_maps_places` | saved, starred, reviewed, labelled (Home, Work) or followed place |
+| `ods.google_saved_items` | item in a "Saved" list |
+| `ods.google_takeout_records` | every other Takeout record as it came - the sign-in log's devices, commute routes, Shopping reviews |
 | `ods.google_gmail_labels` | label |
 | `ods.google_calendars`, `ods.google_calendar_events` | calendar; occurrence of an event |
 | `ods.google_contacts`, `ods.google_contact_groups` | person; group |
@@ -129,10 +136,13 @@ Portability API is closed to the account. Load it again whenever a newer
 copy is wanted; each item is kept once.
 
 **1. Export.** <https://takeout.google.com>, signed in as the account.
-**Deselect all**, then tick:
-- **Mail** - all mail, mbox.
-- **My Activity** - *Multiple formats* -> **JSON**, not the default HTML.
-- **Chrome** - at least *BrowserHistory*.
+Tick everything except what is files rather than data - **Google Photos**,
+**Drive** and **YouTube** - and wherever a product offers *Multiple
+formats*, choose **JSON**, not the default HTML; Mail stays mbox. What the
+loader reads is in `TAKEOUT` at the top of
+`pipelines/tools/google_takeout_pack.py`, plus Mail, My Activity and
+Chrome; the rest of the export is left alone. Calendar, Contacts and
+Tasks are skipped there on purpose: the live DAGs bring them, current.
 
 Export once, `.zip`, the largest size Google offers. Google mails a link
 when it is built, from minutes to days later. Download every part into
@@ -146,7 +156,8 @@ python3 pipelines/tools/google_takeout_pack.py ~/Downloads/takeout ~/google-take
 ```
 
 It prints the records per kind and any message it skipped, never contents.
-Attachments and every other product in the export stay behind.
+Attachments, Fit's GPS tracks, Keep's images and every product not listed
+stay behind.
 
 **3. Copy into the scheduler**, where tasks run:
 

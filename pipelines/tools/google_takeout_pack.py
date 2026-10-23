@@ -4,7 +4,7 @@
     python3 pipelines/tools/google_takeout_pack.py ~/Downloads/takeout ~/google-takeout.jsonl.gz
 
 The input is the folder Takeout's zips were unpacked into, or the folder
-holding the zips themselves - either works. Two kinds of data are read,
+holding the zips themselves - either works. Three kinds of data are read,
 the rest is ignored:
 
 - Gmail's mbox: every message with its headers, its body as plain text and
@@ -17,6 +17,10 @@ the rest is ignored:
   the same ids as the Data Portability exports (pipelines/dags/google.py),
   so the two ways in feed the same models and an item that came both ways
   is one row.
+- The products in TAKEOUT below - Fit, Keep, Chat, Pay, Maps and the rest
+  worth having - each CSV row or JSON item as it is, under endpoint
+  takeout/<name>; one file is one record where the file is one thing (a
+  note, a workout). Photos, audio, HTML and the rest are skipped.
 
 Nothing is masked here; the DAG does that. The output is as private as the
 export: keep it beside it, and delete both once the load is done. Standard
@@ -28,6 +32,7 @@ from __future__ import annotations
 
 import csv
 import gzip
+import io
 import hashlib
 import json
 import sys
@@ -47,6 +52,66 @@ PRODUCTS = {
     "YouTube": "myactivity.youtube", "Maps": "myactivity.maps", "Google Play Store": "myactivity.play",
     "Shopping": "myactivity.shopping", "Ads": "myactivity.myadcenter",
 }
+
+
+# Takeout product, sub-folder ("" for files at the product's top) -> the
+# endpoint its CSV rows and JSON items go to, and whether a JSON file is one
+# record (a note, a workout) rather than a list of them. Products and
+# folders not here are not read.
+TAKEOUT = {
+    ("Fit", "Daily activity metrics"): ("takeout/fit/daily", False),
+    ("Fit", "All Sessions"): ("takeout/fit/sessions", True),
+    ("Keep", ""): ("takeout/keep/notes", True),
+    ("Google Chat", "Groups"): ("takeout/chat/messages", False),
+    ("Google Chat", "Users"): ("takeout/chat/users", False),
+    ("Google Pay", "Google transactions"): ("takeout/pay/transactions", False),
+    ("Google Pay", "Money sends and requests"): ("takeout/pay/money_sends", False),
+    ("Access Log Activity", ""): ("takeout/access_log", False),
+    ("Maps", "My labeled places"): ("takeout/maps/labeled_places", False),
+    ("Maps", "Your local followed places"): ("takeout/maps/followed_places", False),
+    ("Maps", "Commute routes"): ("takeout/maps/commute_routes", False),
+    ("Maps (your places)", ""): ("takeout/maps/saved_places", False),
+    ("Saved", ""): ("takeout/saved", False),
+    ("Google Shopping", "Merchant Reviews"): ("takeout/shopping/merchant_reviews", False),
+    ("Google Shopping", "Product Reviews"): ("takeout/shopping/product_reviews", False),
+}
+
+
+def takeout_target(name: str):
+    """(endpoint, whole file) for a file of a product in TAKEOUT, else None."""
+    parts = name.split("/")
+    if len(parts) < 3 or not parts[0].lower().startswith("takeout"):
+        return None
+    product, sub = parts[1], parts[2] if len(parts) > 3 else ""
+    return TAKEOUT.get((product, sub))
+
+
+def _where(name: str) -> dict:
+    parts = name.split("/")
+    return {"_file": parts[-1], "_dir": parts[-2] if len(parts) > 1 else ""}
+
+
+def takeout_items(name: str, data, endpoint: str, whole: bool):
+    """(id, record, section) for one file of a TAKEOUT product. Every record
+    carries the file it came from as _file and its folder as _dir: a Fit
+    day's date, a Saved list's name and a Chat conversation are only there."""
+    where = _where(name)
+    if whole:
+        yield f"{endpoint}:{where['_file']}", {**data, **where}, None
+        return
+    if isinstance(data, list):
+        items = [(None, x) for x in data]
+    elif isinstance(data, dict):
+        lists = {k: v for k, v in data.items() if isinstance(v, list)}
+        items = [(k, x) for k, v in lists.items() for x in v] or [(None, data)]
+    else:
+        return
+    for section, item in items:
+        if not isinstance(item, dict):
+            item = {"value": item}
+        record = {**item, **where}
+        key = item.get("message_id") or rid(endpoint, section, record)
+        yield key, record, section
 
 
 def rid(resource: str, section, item) -> str:
@@ -138,7 +203,26 @@ def pack(root: Path, out) -> dict:
 
     for name, opener in files(root):
         lower = name.lower()
-        if lower.endswith(".mbox"):
+        target = takeout_target(name)
+        if target and lower.endswith(".csv"):
+            endpoint, _ = target
+            with opener() as fh:
+                rows = csv.DictReader(io.TextIOWrapper(fh, encoding="utf-8-sig", newline=""))
+                for row in rows:
+                    data = {k: v for k, v in row.items() if k}
+                    record = {**data, **_where(name)}
+                    write(endpoint, rid(endpoint, None, record), record, file=Path(name).name)
+        elif target and lower.endswith(".json"):
+            endpoint, whole = target
+            with opener() as fh:
+                try:
+                    data = json.load(fh)
+                except ValueError:
+                    counts["failed"] = counts.get("failed", 0) + 1
+                    continue
+            for key, record, section in takeout_items(name, data, endpoint, whole):
+                write(endpoint, key, record, file=Path(name).name, section=section)
+        elif lower.endswith(".mbox"):
             with opener() as fh:
                 for raw in mbox_messages(fh):
                     try:
