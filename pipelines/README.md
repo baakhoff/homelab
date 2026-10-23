@@ -8,13 +8,17 @@ minute, so a merged change is live a minute later.
       ingest.py      one DAG per service: snapshot its API into Kafka
       telegram.py    Telegram accounts' private chats, logged in as each
       proton.py      a Proton Mail export, loaded by hand from a packed file
+      google.py      the Google account, four DAGs (google.md)
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
       telegram_login.py  the one-time Telegram login, into the Secret
       proton_pack.py     a Proton Mail export packed into one file for the DAG
+      google_auth.py     the Google consent, run once on the workstation
+      google_takeout_pack.py  a Google Takeout export packed into one file for the DAG
     telegram.md      what Telegram sends, its setup and renewal
     proton.md        loading a Proton Mail export, and cleaning up after
+    google.md        what Google sends, its consent and renewal
     sensitive.md     what is masked before data reaches the warehouse, and how
     tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
     dbt/
@@ -22,6 +26,7 @@ minute, so a merged change is live a minute later.
       models/ads/    joins and aggregates across systems
       models/dm/     the tables questions and dashboards read
       macros/        the snapshot, timestamp and OTLP helpers the models share
+    google.md        Google: what is copied, setup, renewing
 
 ## The flow
 
@@ -38,14 +43,15 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
-| `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
+| `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily`, `google_daily`, `people` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
-Four patterns cover the sources:
+Five patterns cover the sources:
 
 - **API snapshots** (Firefly, Vikunja, Mealie, Paperless, SparkyFitness,
-  Dawarich's visits and places, Outline's documents) - `snapshot_records()` returns the newest
+  Dawarich's visits and places, Outline's documents, Google's Calendar,
+  Contacts, Tasks and Drive) - `snapshot_records()` returns the newest
   run's records, so a record deleted at the source disappears from `ods`
   too. These models are tables, rebuilt every run.
 - **API windows** (Dawarich's points) - each run sends only the last week,
@@ -57,6 +63,11 @@ Four patterns cover the sources:
   Mail), and `ods.telegram_messages` and `ods.proton_messages` keep every
   message's newest copy across all runs. Rebuilt every run; a message deleted at the
   source stays.
+- **Changes** (Gmail, Google's activity exports) - the DAG sends only what
+  is new or changed, and a tombstone for what was deleted, because a full
+  snapshot would be far too large. `accumulated_records()` returns the newest
+  version of every record ever sent, minus the deleted ones. Tables, rebuilt
+  every run.
 - **Streams** (Home Assistant, logs, Kubernetes events) - incremental: each
   run appends what arrived since the last.
 
