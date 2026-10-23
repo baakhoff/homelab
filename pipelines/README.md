@@ -7,11 +7,14 @@ minute, so a merged change is live a minute later.
     dags/
       ingest.py      one DAG per service: snapshot its API into Kafka
       telegram.py    one Telegram account's private chats, logged in as it
+      proton.py      a Proton Mail export, loaded by hand from a packed file
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
       telegram_login.py  the one-time Telegram login, into the Secret
+      proton_pack.py     a Proton Mail export packed into one file for the DAG
     telegram.md      what Telegram sends, its setup and renewal
+    proton.md        loading a Proton Mail export, and cleaning up after
     sensitive.md     what is masked before data reaches the warehouse, and how
     tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
     dbt/
@@ -35,7 +38,7 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `telegram_chats`, `telegram_messages`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
 | `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
@@ -49,9 +52,10 @@ Four patterns cover the sources:
   because the whole history is millions of points. `ods.dawarich_points` is
   incremental and keeps each point as first seen, so a point deleted at
   the source stays.
-- **Messages sent once** (Telegram) - each message is sent when it is new
-  and again when edited, and `ods.telegram_messages` keeps every message's
-  newest copy across all runs. Rebuilt every run; a message deleted at the
+- **Messages sent once** (Telegram, Proton Mail) - each message is sent
+  when it is new and again when edited (Telegram) or exported again (Proton
+  Mail), and `ods.telegram_messages` and `ods.proton_messages` keep every
+  message's newest copy across all runs. Rebuilt every run; a message deleted at the
   source stays.
 - **Streams** (Home Assistant, logs, Kubernetes events) - incremental: each
   run appends what arrived since the last.
