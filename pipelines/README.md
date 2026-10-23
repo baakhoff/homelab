@@ -16,6 +16,7 @@ minute, so a merged change is live a minute later.
       proton_pack.py     a Proton Mail export packed into one file for the DAG
       google_auth.py     the Google consent, run once on the workstation
       google_takeout_pack.py  a Google Takeout export packed into one file for the DAG
+      google_takeout_load.sh  the newest Takeout export packed, loaded and cleaned up, in one go
     telegram.md      what Telegram sends, its setup and renewal
     proton.md        loading a Proton Mail export, and cleaning up after
     google.md        what Google sends, its consent and renewal
