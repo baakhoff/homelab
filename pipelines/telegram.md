@@ -1,15 +1,15 @@
 # Telegram
 
-One Telegram account's private chats, in the warehouse: `raw.telegram`,
+Telegram accounts' private chats, in the warehouse: `raw.telegram`,
 then `ods.telegram_chats`, `ods.telegram_messages` and
 `ads.telegram_daily`. The DAG is `ingest_telegram`
 ([`dags/telegram.py`](dags/telegram.py)), hourly at :20.
 
 | Model | One row per |
 |---|---|
-| `ods.telegram_chats` | person the account has ever had a private chat with, kept after the chat is deleted: their name, user id, username, profile link, phone number when Telegram shows it, every username and number seen for them before, whether they are a contact, unread count, last message; the account's own Saved Messages is one too |
+| `ods.telegram_chats` | person an account has ever had a private chat with, kept after the chat is deleted: their name, user id, username, profile link, phone number when Telegram shows it, every username and number seen for them before, whether they are a contact, unread count, last message; the account's own Saved Messages is one too |
 | `ods.telegram_messages` | message, in its newest version: when, which way, the text, a reply or forward, and media and calls as metadata |
-| `ads.telegram_daily` | day: messages sent and received, people written with, voice messages, calls, missed calls, call minutes |
+| `ads.telegram_daily` | day and account: messages sent and received, people written with, voice messages, calls, missed calls, call minutes |
 
 ## What is in it, and what is not
 
@@ -77,14 +77,43 @@ large account takes a few hourly runs. Then trigger `warehouse`, and:
 SELECT * FROM ads.telegram_daily ORDER BY day DESC LIMIT 14
 ```
 
+## Another account
+
+Every account is logged in the same way and read by the same DAG, one
+after another in each run. Each has a name in the warehouse - the
+`account` column in every model. The first is `main`; the next is named
+on the command line. On the workstation, from the repo root:
+
+```bash
+python3 -m venv /tmp/tg && /tmp/tg/bin/pip install telethon==1.45.0
+/tmp/tg/bin/python pipelines/tools/telegram_login.py <name>
+```
+
+`<name>` is a short word, for example `work`. It reuses the api_id and
+api_hash already in the Secret - one app serves every account - so it asks
+only for the phone number, the code and the two-step password, and
+writes `TELEGRAM_SESSION_<NAME>`. Then steps 3 and the restart from step
+4. The first runs read that account's history while `main` carries on as
+before: `main` goes first in every run, the new account gets what is left
+of the 40 minutes.
+
+The same person written with from two accounts is two rows in
+`ods.telegram_chats`, one per account; `chat_key` tells them apart, and
+`ods.telegram_messages` carries it too. Starting one account over is
+clearing its own Variable, `telegram_sync_<name>`.
+
+Removing an account is ending its session in Telegram and deleting its
+key from the Secret (`sops unset`); what it already sent stays.
+
 ## Renewing
 
 The session has no end date. It stops working when it is ended in
 Telegram (Settings -> Devices -> *homelab warehouse*), when the account
 logs out of all other sessions, or when Telegram ends it after long
 disuse - which an hourly DAG never is. The DAG then fails with "Telegram
-no longer accepts TELEGRAM_SESSION". Run step 2 again, then 3 and the
-restart from step 4.
+no longer accepts TELEGRAM_SESSION" (or `TELEGRAM_SESSION_<NAME>`), after
+reading the other accounts. Run step 2 again - with the account's name for
+any but `main` - then 3 and the restart from step 4.
 
 ## Things to know
 
@@ -104,5 +133,5 @@ restart from step 4.
   five minutes at a time, and the run carries on. Reading one's own history
   this way is what every third-party Telegram app does.
 - **Starting over** is clearing the Airflow Variable `telegram_sync`
-  (Admin -> Variables): the next runs read every chat from the start
+  (Admin -> Variables; `telegram_sync_<name>` for another account): the next runs read every chat from the start
   again, and the ods model keeps each message once.

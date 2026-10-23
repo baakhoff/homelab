@@ -1,4 +1,4 @@
-"""One Telegram account's private chats, into the warehouse.
+"""Telegram accounts' private chats, into the warehouse.
 
 Telegram's bot API sees only chats a bot is in, so this logs in as the
 account itself, over MTProto with Telethon - the protocol the official apps
@@ -25,6 +25,14 @@ pipelines/tools/telegram_login.py and kept in the airflow-sources Secret with
 the app's api_id and api_hash. It is a full login to the account: ending it
 under Settings -> Devices in Telegram cuts this DAG off. pipelines/telegram.md
 has the setup.
+
+Every session in the Secret is read, one account after another in a run:
+TELEGRAM_SESSION is the account called `main`, TELEGRAM_SESSION_<NAME> the
+account called <name>. Each record carries its account. `main` keeps the
+ids and the Variable it had before there was more than one, so its history
+in raw carries on; another account's ids start with "<name>:" and its
+progress is in Variable telegram_sync_<name>. One account's dead session
+fails the run after the others are read, not before.
 """
 
 from __future__ import annotations
@@ -48,6 +56,7 @@ from sensitive import mask_record  # noqa: E402
 
 KAFKA_BOOTSTRAP = "kafka.data.svc.cluster.local:9092"
 TOPIC = "raw.telegram"
+# `main`'s progress; another account's is STATE + "_<name>".
 STATE = "telegram_sync"
 # Reading stops after this long, at the next save, and the next run carries
 # on; the first runs work through the history this way.
@@ -217,15 +226,26 @@ class _Raw:
         print(f"to {TOPIC}: {self.counts or 'nothing new'}")
 
 
-def _client():
+def accounts() -> dict[str, str]:
+    """Account name -> the Secret key holding its session, `main` first."""
+    found = {}
+    for key in sorted(os.environ):
+        if key == "TELEGRAM_SESSION":
+            found = {"main": key, **found}
+        elif key.startswith("TELEGRAM_SESSION_") and os.environ[key]:
+            found[key.removeprefix("TELEGRAM_SESSION_").lower()] = key
+    return found
+
+
+def _client(session_key: str):
     from telethon import TelegramClient
     from telethon.sessions import StringSession
 
-    missing = [k for k in ("TELEGRAM_API_ID", "TELEGRAM_API_HASH", "TELEGRAM_SESSION") if not os.environ.get(k)]
+    missing = [k for k in ("TELEGRAM_API_ID", "TELEGRAM_API_HASH", session_key) if not os.environ.get(k)]
     if missing:
         raise RuntimeError(f"{', '.join(missing)} not set - see pipelines/telegram.md")
     return TelegramClient(
-        StringSession(os.environ["TELEGRAM_SESSION"]),
+        StringSession(os.environ[session_key]),
         int(os.environ["TELEGRAM_API_ID"]),
         os.environ["TELEGRAM_API_HASH"],
         # Telegram answers "wait N seconds" when read too fast; Telethon
@@ -236,23 +256,27 @@ def _client():
     )
 
 
-async def _sync(raw: _Raw, state: dict, save) -> None:
+async def _sync(raw: _Raw, account: str, session_key: str, state: dict, save, started: float) -> None:
     from telethon.errors import AuthKeyUnregisteredError, SessionRevokedError
 
-    started = time.monotonic()
     now = datetime.now(timezone.utc)
-    async with _client() as client:
+    prefix = "" if account == "main" else f"{account}:"
+
+    def send(endpoint, rid, record):
+        raw.send(endpoint, prefix + rid, {**record, "account": account})
+
+    async with _client(session_key) as client:
         try:
             authorized = await client.is_user_authorized()
         except (AuthKeyUnregisteredError, SessionRevokedError):
             authorized = False
         if not authorized:
-            raise RuntimeError("Telegram no longer accepts TELEGRAM_SESSION - the session was ended "
+            raise RuntimeError(f"Telegram no longer accepts {session_key} - the session was ended "
                                "under Settings -> Devices, or expired. pipelines/telegram.md, \"Renewing\"")
 
         dialogs = [d async for d in client.iter_dialogs() if is_private(d)]
         for d in dialogs:
-            raw.send("chats", str(d.id), chat_record(d))
+            send("chats", str(d.id), chat_record(d))
 
         # Chats with something new first, the backlog of unread history
         # after, so one long first import never holds up today's messages.
@@ -262,14 +286,14 @@ async def _sync(raw: _Raw, state: dict, save) -> None:
         dialogs.sort(key=lambda d: (str(d.id) not in state, not pending(d)))
         for d in dialogs:
             if time.monotonic() - started > BUDGET.total_seconds():
-                print("budget spent; the next run carries on")
+                print(f"{account}: budget spent; the next run carries on")
                 break
             key = str(d.id)
             last = state.get(key, 0)
             if pending(d):
                 n = 0
                 async for m in client.iter_messages(d.entity, reverse=True, min_id=last):
-                    raw.send("messages", f"{d.id}/{m.id}", message_record(d.id, m))
+                    send("messages", f"{d.id}/{m.id}", message_record(d.id, m))
                     state[key] = m.id
                     n += 1
                     if n % SAVE_EVERY == 0:
@@ -285,7 +309,7 @@ async def _sync(raw: _Raw, state: dict, save) -> None:
                 async for m in client.iter_messages(d.entity, reverse=True, max_id=last + 1,
                                                     offset_date=now - timedelta(days=EDIT_DAYS)):
                     if m.edit_date:
-                        raw.send("messages", f"{d.id}/{m.id}", message_record(d.id, m))
+                        send("messages", f"{d.id}/{m.id}", message_record(d.id, m))
 
 
 @dag(
@@ -302,14 +326,29 @@ def ingest_telegram():
     def sync() -> None:
         from airflow.sdk import get_current_context
 
-        state = json.loads(Variable.get(STATE, default="{}"))
-
-        def save(s):
-            Variable.set(STATE, json.dumps(s, sort_keys=True))
-
+        found = accounts()
+        if not found:
+            raise RuntimeError("no TELEGRAM_SESSION in the Secret - see pipelines/telegram.md")
         raw = _Raw(get_current_context()["run_id"])
-        asyncio.run(_sync(raw, state, save))
-        raw.flush()
+        # One budget for the whole run, `main` first: another account's long
+        # first import never holds up main's new messages.
+        started = time.monotonic()
+        failed = []
+        for account, session_key in found.items():
+            var = STATE if account == "main" else f"{STATE}_{account}"
+            state = json.loads(Variable.get(var, default="{}"))
+
+            def save(s, var=var):
+                Variable.set(var, json.dumps(s, sort_keys=True))
+
+            try:
+                asyncio.run(_sync(raw, account, session_key, state, save, started))
+            except Exception as e:  # the other accounts are still read
+                print(f"{account}: {e}")
+                failed.append(account)
+            raw.flush()
+        if failed:
+            raise RuntimeError(f"accounts not read: {', '.join(failed)} - see the lines above")
 
     sync()
 

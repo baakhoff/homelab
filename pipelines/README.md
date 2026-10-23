@@ -6,7 +6,7 @@ minute, so a merged change is live a minute later.
 
     dags/
       ingest.py      one DAG per service: snapshot its API into Kafka
-      telegram.py    one Telegram account's private chats, logged in as it
+      telegram.py    Telegram accounts' private chats, logged in as each
       proton.py      a Proton Mail export, loaded by hand from a packed file
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
