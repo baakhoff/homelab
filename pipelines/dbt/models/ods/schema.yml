@@ -139,3 +139,35 @@ models:
     columns:
       - name: message_id_header
         tests: [not_null, unique]
+  - name: google_fit_daily
+    columns:
+      - name: day
+        tests: [not_null, unique]
+  - name: google_fit_sessions
+    columns:
+      - name: session_key
+        tests: [not_null, unique]
+  - name: google_keep_notes
+    columns:
+      - name: note_key
+        tests: [not_null, unique]
+  - name: google_chat_messages
+    columns:
+      - name: message_id
+        tests: [not_null, unique]
+  - name: google_pay_transactions
+    columns:
+      - name: transaction_key
+        tests: [not_null, unique]
+  - name: google_maps_places
+    columns:
+      - name: place_key
+        tests: [not_null, unique]
+  - name: google_saved_items
+    columns:
+      - name: item_key
+        tests: [not_null, unique]
+  - name: google_takeout_records
+    columns:
+      - name: record_key
+        tests: [not_null]
