@@ -15,7 +15,8 @@ internet ── Deco mesh ──┬── Wi-Fi ── workstation, phones
                         └── TL-SG108E ──┬── node02
                                         ├── node03
                                         ├── node04
-                                        └── exitnode (Pi)
+                                        ├── exitnode (Pi)
+                                        └── nas
 ```
 
 Traffic between the wired machines never leaves the switch: one gigabit hop,
@@ -45,6 +46,9 @@ The rule that matters: **a static address must sit outside the pool.** Inside
 it, the server will eventually hand the same address to a laptop, and the
 resulting outage arrives weeks later with nothing to connect it to.
 
+The one exception is the NAS: its address is static on the device and reserved
+on the Deco as well, so the pool can never hand it out ([why](runbooks/nas-bring-up.md#static-in-truenas-the-reservation-kept)).
+
 | Host | Address | How |
 |---|---|---|
 | Deco (gateway, DHCP, DNS forwarder) | `192.168.68.1` | fixed |
@@ -53,6 +57,7 @@ resulting outage arrives weeks later with nothing to connect it to.
 | `node02` | `192.168.68.102` | reservation |
 | `node03` | `192.168.68.103` | reservation |
 | `node04` | `192.168.68.104` | reservation |
+| `nas` | `192.168.68.105` | static on the device, inside a reservation — [why](runbooks/nas-bring-up.md#static-in-truenas-the-reservation-kept) |
 | `node01` (laptop) | DHCP | retired, wiped. Wi-Fi only, never had a reservation |
 
 ### Reservations and Ubuntu
@@ -66,6 +71,9 @@ up on a pool address, and nothing is visibly broken.
 Every node therefore carries `dhcp-identifier: mac` in its netplan, which makes
 the request identify itself the way the router's UI implies. See
 [`hosts/nodes/`](../hosts/nodes/).
+
+The NAS needs none of this. TrueNAS sends no client identifier, so the router
+matches its reservation on the MAC as the UI describes.
 
 ## The switch
 
@@ -86,7 +94,8 @@ brick these.
 | 3 | `node03` |
 | 4 | `node04` |
 | 5 | `exitnode` |
-| 6–8 | free |
+| 6 | `nas` |
+| 7–8 | free |
 
 VLANs, QoS, IGMP snooping and loop prevention are at defaults. The network is
 flat.
@@ -142,6 +151,7 @@ desk, from a phone on mobile data, and from anywhere on the tailnet:
 | `node02.lab` | `192.168.68.102` |
 | `node03.lab` | `192.168.68.103` |
 | `node04.lab` | `192.168.68.104` |
+| `nas.lab` | `192.168.68.105` |
 | `mc.lab` | `192.168.68.102` — the Minecraft server, which every node answers for; [why one node](../clusters/lab/minecraft/README.md#reaching-it) |
 
 Machines on the tailnet have MagicDNS names already and do not need records.
@@ -158,3 +168,7 @@ ssh <user>@exitnode wake-nodes
 ```
 
 See [`hosts/exitnode/`](../hosts/exitnode/).
+
+The NAS wakes the same way, as `wake-nodes nas`. TrueNAS has no Wake-on-LAN
+setting of its own, so a startup command arms the NIC on every boot —
+[NAS bring-up, section 6](runbooks/nas-bring-up.md#6-truenas-settings).
