@@ -17,6 +17,7 @@
 # systemd it arrives through LoadCredential, so the file can stay root-only.
 
 import base64
+import http.client
 import json
 import os
 import socket
@@ -102,17 +103,52 @@ class Every:
 
 
 class Prometheus:
+    """Instant queries over one kept-alive connection.
+
+    A connection per query cost a DNS lookup (A and AAAA) and a TLS handshake
+    every time: ten queries every five seconds made this the Pi-hole's busiest
+    client by far, with every lookup written to the database on the SD card.
+    One connection, reopened only when it drops, pays for that once.
+    """
+
     def __init__(self, conf):
-        self.url = conf["PROM_URL"].rstrip("/") + "/api/v1/query"
+        url = urllib.parse.urlsplit(conf["PROM_URL"].rstrip("/"))
+        self.https = url.scheme == "https"
+        self.host = url.netloc
+        self.path = url.path + "/api/v1/query"
         token = "%s:%s" % (conf["PROM_USER"], conf["PROM_PASSWORD"])
         self.auth = "Basic " + base64.b64encode(token.encode()).decode()
+        self.conn = None
+
+    def _close(self):
+        if self.conn is not None:
+            self.conn.close()
+            self.conn = None
 
     def query(self, expr):
         """Instant query -> list of (labels, value)."""
-        url = self.url + "?" + urllib.parse.urlencode({"query": expr})
-        req = urllib.request.Request(url, headers={"Authorization": self.auth})
-        with urllib.request.urlopen(req, timeout=4) as r:
-            body = json.load(r)
+        target = self.path + "?" + urllib.parse.urlencode({"query": expr})
+        for attempt in (1, 2):
+            reused = self.conn is not None
+            if self.conn is None:
+                connect = http.client.HTTPSConnection if self.https else http.client.HTTPConnection
+                self.conn = connect(self.host, timeout=4)
+            try:
+                self.conn.request("GET", target, headers={"Authorization": self.auth})
+                r = self.conn.getresponse()
+                data = r.read()
+                break
+            except (http.client.HTTPException, OSError):
+                self._close()
+                # The server closes idle and long-lived connections whenever
+                # it likes, which a kept-alive one only finds out on its next
+                # request: try once more on a fresh one. A fresh one failing
+                # is a real outage.
+                if not (reused and attempt == 1):
+                    raise
+        if r.status != 200:
+            raise RuntimeError("HTTP %d %s" % (r.status, r.reason))
+        body = json.loads(data)
         if body.get("status") != "success":
             raise RuntimeError(body.get("error", "query failed"))
         return [(s["metric"], float(s["value"][1])) for s in body["data"]["result"]]
