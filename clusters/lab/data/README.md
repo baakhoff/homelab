@@ -44,6 +44,7 @@ layers by hand.
 | CloudBeaver's usage | Airflow's `ingest_cloudbeaver` DAG, `pipelines/dags/cloudbeaver.py` - its ClickHouse queries from `system.query_log`, its sessions and sign-ins from its own database. Its Postgres statements come in with the log lines | `raw.cloudbeaver` |
 | Telegram | Airflow's `ingest_telegram` DAG, `pipelines/dags/telegram.py` - each logged-in account's private chats, logged in as the account; each message once, again when edited | `raw.telegram` |
 | Proton Mail | Airflow's `ingest_proton` DAG, `pipelines/dags/proton.py`, triggered by hand - a mailbox export packed on the machine that holds it, each message's headers, plain-text body and attachment names | `raw.proton` |
+| VK | Airflow's `ingest_vk` DAG, `pipelines/dags/vk.py`, triggered by hand - the deleted account's data archive, packed on the machine that holds it: messages, conversations, music, and every other section's entries | `raw.vk` |
 | The Google account | Airflow's `ingest_google*` DAGs, `pipelines/dags/google.py` - snapshots, Gmail changes and Data Portability exports, in the same envelope (`pipelines/google.md`) | `raw.google` |
 
 ## What is here
@@ -79,7 +80,7 @@ only that range. `raw.logs` rows are deleted after 90 days; every other
 table keeps everything.
 
 The sources are `SOURCES` in `clickhouse-schema.yaml`:
-`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver outline telegram proton google`. Topic
+`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver outline telegram proton google vk`. Topic
 `raw.<name>`, table `raw.<name>`, a dash becoming an underscore
 (`raw.k8s-events` -> `raw.k8s_events`). Adding a source is one word there:
 the next run creates its topic, its table and its consumer. Removing one is
