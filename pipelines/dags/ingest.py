@@ -205,6 +205,18 @@ def _outline_pages(session: requests.Session, url: str):
         offset += PAGE_SIZE
 
 
+def _immich_pages(session: requests.Session, url: str):
+    """No paging: each endpoint answers in one go. server/statistics is one
+    object, and what is kept is its per-user breakdown - photos, videos and
+    bytes for each account; admin/users is a list.
+    """
+    r = session.get(url, timeout=TIMEOUT)
+    if url.endswith("/server/statistics"):
+        yield from _json(r, "usageByUser", url)["usageByUser"]
+    else:
+        yield from _json(r, None, url)
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -286,6 +298,20 @@ SOURCES = {
         "endpoints": ["documents.list", "collections.list"],
         "schedule": "45 */6 * * *",
     },
+    # Counts and sizes only: how many photos and videos each account holds,
+    # and the accounts. Nothing about any photo - no file names, places,
+    # faces or albums - so nothing here says what the photos are of
+    # (clusters/lab/immich/README.md). An admin's key limited to
+    # server.statistics and adminUser.read.
+    "immich": {
+        "base": "http://immich-server.immich.svc.cluster.local/api",
+        "auth": ("x-api-key:", "IMMICH_API_KEY"),
+        "pages": _immich_pages,
+        "endpoints": ["server/statistics", "admin/users"],
+        # Statistics has one entry per account, named by its user.
+        "ids": {"server/statistics": "userId"},
+        "schedule": "50 */6 * * *",
+    },
 }
 
 
@@ -298,7 +324,13 @@ def _session(auth, headers: dict | None = None) -> requests.Session:
         token = os.environ.get(env)
         if not token:
             raise RuntimeError(f"{env} is not set - see clusters/lab/airflow/README.md")
-        s.headers["Authorization"] = f"{scheme} {token}"
+        # A scheme ending in a colon is a header of its own instead of
+        # "Authorization: <scheme> <token>": Immich reads API keys from
+        # x-api-key and takes a Bearer token for a login session.
+        if scheme.endswith(":"):
+            s.headers[scheme[:-1]] = token
+        else:
+            s.headers["Authorization"] = f"{scheme} {token}"
     return s
 
 
