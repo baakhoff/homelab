@@ -1,0 +1,13 @@
+# The first app namespace with a Pod Security label. baseline rather than
+# restricted: the nightly restic pod here runs as root to read Postgres's
+# files, which belong to uid 999, and restricted refuses root. Immich's own
+# containers would pass restricted. What baseline buys is that nothing in
+# this namespace can be privileged, use the host's network or mount a host
+# path - the namespace that holds the photos stays an ordinary one.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: immich
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest

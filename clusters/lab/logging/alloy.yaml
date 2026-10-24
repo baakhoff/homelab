@@ -345,9 +345,17 @@ spec:
           // the first day that loop put 13 million lines into raw.logs in
           // two hours and filled Kafka's disk. Loki still gets them (above);
           // Kafka never does.
+          //
+          // Nor do Immich's. Its lines name photo files, people and albums,
+          // and the warehouse's ods.logs is readable by the brand agent;
+          // Immich's own feed there is counts only (clusters/lab/immich/).
           loki.process "to_kafka" {
             stage.match {
               selector = "{namespace=\"logging\"}"
+              action   = "drop"
+            }
+            stage.match {
+              selector = "{namespace=\"immich\"}"
               action   = "drop"
             }
             forward_to = [otelcol.receiver.loki.logs.receiver]

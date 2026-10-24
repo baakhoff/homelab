@@ -104,6 +104,22 @@
       schedule: ["* * 1 * *"],
     },
     {
+      // The server and its machine learning must run the same release, and
+      // Immich does not support going back even one patch: one PR for both,
+      // merged after a database dump (clusters/lab/immich/README.md).
+      description: "Immich's server and machine learning move together",
+      matchPackageNames: ["ghcr.io/immich-app/immich-server", "ghcr.io/immich-app/immich-machine-learning"],
+      groupName: "immich",
+    },
+    {
+      // Its tag is the Postgres major plus the vector extensions' versions,
+      // and Immich says which it supports. Offered on the dashboard, moved
+      // when upstream's own Compose file moves.
+      description: "Immich's Postgres moves when Immich says so",
+      matchPackageNames: ["ghcr.io/immich-app/postgres"],
+      dependencyDashboardApproval: true,
+    },
+    {
       // Majors get read, not merged. kube-prometheus-stack in particular
       // renames values between majors, and a rename is silently ignored by
       // Helm rather than rejected - the same class of failure as the
