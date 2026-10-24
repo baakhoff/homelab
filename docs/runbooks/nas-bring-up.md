@@ -97,7 +97,7 @@ has no equivalent here.
 | What | Value |
 |---|---|
 | NIC | onboard Realtek RTL8111H, in-kernel `r8169` driver — nothing to add; interface `enp2s0` |
-| Address | `192.168.68.105`, a DHCP reservation on the Deco, the same mechanism as the nodes |
+| Address | `192.168.68.105`, now static in TrueNAS with the Deco reservation kept (below) |
 | Switch | port 6 |
 
 **The reservation matched on the MAC with nothing done on the host.** TrueNAS
@@ -128,19 +128,40 @@ clock back to the truth. `dhclient` had planned its renewal against the wrong
 clock and was still waiting for it when the address — whose lifetime the kernel
 counts down on its own — expired with the lease.
 
-Recovery, on the NAS: stop the confused `dhclient` and start it again with the
-same lease and pid files the middleware uses; it rebinds the reserved address
-at once.
-
-```
-sudo kill <pid of dhclient>
-sudo dhclient -v -lf /var/lib/dhcp/dhclient.leases.enp2s0 -pf /var/run/dhclient.enp2s0.pid enp2s0
-```
-
-The cause does not come back: chrony runs with `rtcsync`, so the corrected UTC
+The clock is fixed for good: chrony runs with `rtcsync`, so the corrected UTC
 time was written to the firmware clock, and `timedatectl` now shows *RTC time*
-equal to *Universal time*. The rule for a rebuild is the cheaper one: **set the
-firmware clock to UTC before the first boot.**
+equal to *Universal time*. The rule for a rebuild: **set the firmware clock to
+UTC before the first boot.**
+
+### The address that expired again: a `dhclient` started under `sudo`
+
+The first recovery was to kill the confused `dhclient` and start a new one from
+the SSH session with `sudo dhclient ...`. It bound the address at once, and two
+hours later the NAS was gone again, mid-copy. The journal showed the renewals
+reaching the Deco and failing on the NAS:
+
+```
+dhclient[...]: DHCPACK of 192.168.68.105 from 192.168.68.1
+dhclient[...]: execve (/sbin/dhclient-script, ...): Function not implemented
+```
+
+TrueNAS's `sudo` logs every program its command starts by intercepting `execve`.
+Once the SSH session that ran `sudo` closed, nothing was left to answer for that
+interception, and every later `execve` failed — so the renewed lease was never
+applied, and the address expired exactly at the end of the first lease. **Never
+start a long-lived daemon with `sudo` from a shell on TrueNAS.** The middleware
+starts its own `dhclient` as a system process with `sudo midclt call
+interface.sync`, after the stray one is killed.
+
+### Static in TrueNAS, the reservation kept
+
+DHCP had now cost two outages, and the NAS is what the cluster's storage will
+depend on. Its address is static in TrueNAS (Network → Interfaces → `enp2s0`:
+`192.168.68.105/22`, gateway `192.168.68.1`, nameservers `192.168.68.65` then
+`192.168.68.1`, applied with *Test Changes* and saved within the rollback
+window). The Deco keeps its reservation for the same address, which is what
+stops the DHCP pool from ever handing it to another device; see
+[the network](../network.md#addressing).
 
 ## 5. Power without a button
 
@@ -283,7 +304,7 @@ start at all: keep the log in the user's profile.
 
 - The board boots pure UEFI into TrueNAS from the NVMe; FreeDOS no longer
   starts.
-- `nas` holds `192.168.68.105` from the reservation, on `enp2s0`, cabled to
+- `nas` holds `192.168.68.105` as a static address, on `enp2s0`, cabled to
   switch port 6.
 - The web UI answers on that address and the admin password works.
 - With the PSU switched off for about a minute and on again, the machine starts

@@ -46,6 +46,9 @@ The rule that matters: **a static address must sit outside the pool.** Inside
 it, the server will eventually hand the same address to a laptop, and the
 resulting outage arrives weeks later with nothing to connect it to.
 
+The one exception is the NAS: its address is static on the device and reserved
+on the Deco as well, so the pool can never hand it out ([why](runbooks/nas-bring-up.md#static-in-truenas-the-reservation-kept)).
+
 | Host | Address | How |
 |---|---|---|
 | Deco (gateway, DHCP, DNS forwarder) | `192.168.68.1` | fixed |
@@ -54,7 +57,7 @@ resulting outage arrives weeks later with nothing to connect it to.
 | `node02` | `192.168.68.102` | reservation |
 | `node03` | `192.168.68.103` | reservation |
 | `node04` | `192.168.68.104` | reservation |
-| `nas` | `192.168.68.105` | reservation |
+| `nas` | `192.168.68.105` | static on the device, inside a reservation — [why](runbooks/nas-bring-up.md#static-in-truenas-the-reservation-kept) |
 | `node01` (laptop) | DHCP | retired, wiped. Wi-Fi only, never had a reservation |
 
 ### Reservations and Ubuntu
