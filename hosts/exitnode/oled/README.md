@@ -143,3 +143,16 @@ journalctl -u oled-status -f
 
 The journal stays quiet when everything works. Each source logs once when it
 fails and once when it recovers, never every cycle.
+
+A newer `oled-status` goes in the same way, then a restart; the
+configuration file stays as it is:
+
+```
+sudo install -m 0755 oled-status /usr/local/bin/oled-status
+sudo systemctl restart oled-status
+```
+
+Prometheus is queried over one kept-alive connection, so the Pi resolves its
+name and shakes hands once rather than on every query. The Pi-hole's own
+dashboard is where that shows: the Pi itself should be a minor client, not
+most of the traffic.
