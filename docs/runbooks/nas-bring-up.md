@@ -213,6 +213,72 @@ sectors waiting to be, and sectors that failed an offline scan. CRC errors are
 transfer errors between the disk and the board, so a nonzero count points at
 the SATA cable before the disk.
 
+An extended self-test (`smartctl -t long`, 234 minutes) then read the whole
+surface: *Completed without error*.
+
+## 8. Storage
+
+| Pool | Layout | Disk |
+|---|---|---|
+| `tank` | single-disk stripe | the WD Red Plus |
+
+A single disk has no redundancy: ZFS still checksums every block, so it
+detects damaged file data, but it can only repair metadata (kept twice by
+default), not the files themselves. The Create Pool pages for Log, Spare,
+Cache, Metadata and Dedup stay empty. Each needs disks this box does not have,
+and a lone special (metadata) vdev would take the whole pool with it if it died.
+
+| Dataset | Preset | Encryption | Record size | For |
+|---|---|---|---|---|
+| `tank/personal` | Multiprotocol | AES-256-GCM, key | default | family files |
+| `tank/media` | Multiprotocol | none | 1M | large files that can be fetched again |
+
+- **The pool root is not encrypted; `personal` is.** TrueNAS's own docs advise
+  against root encryption, and the G5400 has no AVX, so ZFS falls back to its
+  slower AES-GCM code: media stays unencrypted and fast.
+- **A key, not a passphrase.** TrueNAS keeps the key in its configuration on
+  the boot SSD and unlocks the dataset at every boot, so a power cut needs no
+  one at the keyboard. That protects disks that leave the box, not a stolen
+  box. The key was exported (Datasets → the dataset → ZFS Encryption → Export
+  Key) and is kept as text in the owner's password manager: without it the
+  dataset cannot be opened on any other system.
+- **Multiprotocol, not SMB.** The SMB preset makes a dataset case-insensitive
+  with restricted ACLs, which Linux clients cannot work with; Multiprotocol
+  serves Windows as well and keeps Linux access possible.
+
+Periodic snapshot tasks on `tank`, recursive:
+
+| Task | Schedule | Kept | Naming schema |
+|---|---|---|---|
+| hourly | every hour | 2 days | `hourly-%Y-%m-%d_%H-%M` |
+| daily | every day | 5 weeks | `daily-%Y-%m-%d_%H-%M` |
+
+The schemas differ so the two tasks never claim each other's snapshots. An SMB
+client cannot delete them, and Windows shows them as Previous Versions.
+
+The configuration export (System → Advanced Settings → Manage Configuration →
+Download File, with *Export Password Secret Seed*) is the backup of record for
+everything above, the dataset key included. It is a secret: it lives in the
+password manager, not in a download folder.
+
+### The Windows share
+
+| Share | Path | Purpose | Access |
+|---|---|---|---|
+| `personal` | `/mnt/tank/personal` | Default Share | the local user `baakh`, owner of the dataset |
+
+From the Windows PC, in PowerShell:
+
+```
+net use P: \\nas.lab\personal /user:baakh /persistent:yes
+robocopy "<source folder>" P:\ /E /COPY:DAT /DCOPY:DAT /R:2 /W:5 /MT:8 /XJ /NP /LOG:$env:USERPROFILE\nas-copy.log /TEE
+```
+
+`robocopy` keeps timestamps, retries, resumes when run again, and a second run
+that copies nothing proves the first one finished. A log under `C:\` itself
+fails with *Access is denied* for a normal user, and robocopy then refuses to
+start at all: keep the log in the user's profile.
+
 ## Verification checklist
 
 - The board boots pure UEFI into TrueNAS from the NVMe; FreeDOS no longer
@@ -228,4 +294,10 @@ the SATA cable before the disk.
 - A test alert from System → Alert Settings arrives in the Telegram chat.
 - The physical console asks for a password.
 - SMART on the WD Red: zero reallocated, pending and offline-uncorrectable
-  sectors, zero CRC errors, an empty error log.
+  sectors, zero CRC errors, an empty error log, and an extended self-test
+  completed without error.
+- `tank/personal` is encrypted and unlocked after a reboot without anyone
+  typing a key; its exported key opens it.
+- Both snapshot tasks appear under Data Protection and have taken snapshots.
+- The Windows PC maps `\\nas.lab\personal` as `baakh`, and a second `robocopy`
+  run copies nothing.

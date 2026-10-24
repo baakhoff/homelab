@@ -64,7 +64,7 @@ a 3D-printed NAS case.
 | Power | be quiet! 500 W ATX supply: the 24-pin and one half of its 4+4 CPU connector into the board's 4-pin ATX12V |
 | Enclosure | 3D-printed NAS case, with **no power button** — the firmware powers the machine on when mains returns after a long enough cut; [how that behaves](runbooks/nas-bring-up.md#5-power-without-a-button) |
 | OS | TrueNAS Community Edition 25.10.7 (Linux 6.12.105, OpenZFS 2.3.9); why: [ADR 0008](decisions/0008-truenas-for-the-nas.md) |
-| State | Installed offline from USB onto the NVMe, on the LAN at its reserved address, firmware set for pure UEFI and power-on after a mains cut, update profile on General, alerts reaching Telegram — [bring-up](runbooks/nas-bring-up.md). SSH with a key, Wake-on-LAN armed at boot. It has no pool, no datasets and no shares |
+| State | Installed offline from USB onto the NVMe, on the LAN at its reserved address, firmware set for pure UEFI and power-on after a mains cut, update profile on General, alerts reaching Telegram — [bring-up](runbooks/nas-bring-up.md). SSH with a key, Wake-on-LAN armed at boot. One pool, `tank`, on the WD Red: an encrypted `personal` dataset shared to Windows over SMB and an unencrypted `media` dataset, with hourly and daily snapshots; no redundancy and no off-site copy |
 
 Measured during bring-in, worth keeping as a baseline:
 
