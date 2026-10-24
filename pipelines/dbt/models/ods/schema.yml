@@ -171,3 +171,19 @@ models:
     columns:
       - name: record_key
         tests: [not_null]
+  - name: vk_messages
+    columns:
+      - name: message_key
+        tests: [not_null, unique]
+  - name: vk_conversations
+    columns:
+      - name: conversation_id
+        tests: [not_null, unique]
+  - name: vk_audio
+    columns:
+      - name: track_key
+        tests: [not_null, unique]
+  - name: vk_items
+    columns:
+      - name: item_key
+        tests: [not_null, unique]

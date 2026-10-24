@@ -14,7 +14,7 @@
 --
 -- A table rebuilt every run rather than a view: a view would read raw as
 -- whoever queries it, and the brand agent's user may not read raw.
-{% set envelope_sources = ['firefly', 'vikunja', 'mealie', 'paperless', 'sparkyfitness', 'dawarich', 'cloudbeaver', 'outline', 'telegram', 'proton', 'google'] %}
+{% set envelope_sources = ['firefly', 'vikunja', 'mealie', 'paperless', 'sparkyfitness', 'dawarich', 'cloudbeaver', 'outline', 'telegram', 'proton', 'google', 'vk'] %}
 {% for s in envelope_sources %}
 select
   '{{ s }}' as source,
