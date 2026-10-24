@@ -140,10 +140,11 @@ Sign out, and sign in with **Sign in with Pocket ID**: Immich links your
 Pocket ID login to the account by its email. Then Authentication →
 Password login: off.
 
-**5. Close setup.** In `deployment.yaml`, add `IMMICH_ALLOW_SETUP: "false"`
-to the ConfigMap and bump `immich.lab/config-revision`. It switches off the
-first-account page and restoring a database from the web, both of which
-answer anyone until then.
+**5. Setup closes itself.** `IMMICH_ALLOW_SETUP` is `"false"` in
+`deployment.yaml`, which switches off the first-account page and restoring a
+database from the web. On a fresh install that also blocks step 4: take the
+line out until the first account exists, then put it back, bumping
+`immich.lab/config-revision` each time.
 
 **6. The warehouse's key.** In Immich, Account settings → API keys → New,
 with only the permissions `server.statistics` and `adminUser.read`. Then:
@@ -208,6 +209,22 @@ Kafka (`clusters/lab/logging/alloy.yaml`).
   carries on. A pod started meanwhile waits in ContainerCreating. After a
   short power cut the NAS can stay off while the nodes come back: `ssh
   <user>@exitnode wake-nodes nas`.
+- **If Immich asks for a first admin again, it has no admin left.** A
+  Pocket ID login that carries `immich_role` = `user` takes admin away,
+  and when that happens to the only admin, every page leads to the setup
+  form, which cannot succeed with an email that is taken. It happened on
+  the first day, before the user-level claim was saved. Fix the claim in
+  Pocket ID, then give admin back from the command line, with OAuth off
+  meanwhile so the next login cannot take it again:
+
+  ```
+  kubectl -n immich exec -it deploy/immich-server -c server -- immich-admin disable-oauth-login
+  kubectl -n immich exec -it deploy/immich-server -c server -- immich-admin grant-admin
+  kubectl -n immich exec -it deploy/immich-server -c server -- immich-admin reset-admin-password
+  ```
+
+  Sign in with that password, switch OAuth back on in the settings, and
+  test the Pocket ID login in a private window while still signed in.
 - **A restart loses queued jobs.** Redis keeps no data. Administration →
   Jobs → *Missing* queues them again.
 - **Sessions do not expire, and Pocket ID cannot end them.** To take
