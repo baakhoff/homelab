@@ -37,7 +37,7 @@ spec:
         # never over anything already there (-n). Every start, so a directory
         # a new version adds is added too.
         - name: storage-skeleton
-          image: docker.io/fireflyiii/core:version-6.7.3
+          image: docker.io/fireflyiii/core:version-6.7.9
           command: ["cp", "-R", "-n", "/var/www/html/storage/.", "/volume/"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -48,7 +48,7 @@ spec:
               mountPath: /volume
       containers:
         - name: firefly
-          image: docker.io/fireflyiii/core:version-6.7.3
+          image: docker.io/fireflyiii/core:version-6.7.9
           # Not read-only at the root: the image's start script regenerates
           # Composer's autoloader and Laravel's config cache inside the
           # application directory on every boot.
@@ -149,7 +149,7 @@ spec:
         # to pull. Remove this once Firefly's download reads the per-books
         # setting.
         - name: rate-currencies
-          image: docker.io/fireflyiii/core:version-6.7.3
+          image: docker.io/fireflyiii/core:version-6.7.9
           command:
             - sh
             - -c
