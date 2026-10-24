@@ -105,6 +105,43 @@ sends no DHCP client identifier, so it needs none of the `dhcp-identifier: mac`
 workaround the Ubuntu nodes carry
 ([why they need it](../network.md#reservations-and-ubuntu)).
 
+### The address that expired: the board's clock was on local time
+
+Two hours after it came up, the NAS vanished from the LAN: `ping` from the
+workstation answered *Destination Host Unreachable*, the Deco dropped it from
+its client list, and yet the fans ran and the switch port blinked. The Pi,
+wired to the same switch, still found it by its IPv6 link-local address —
+`ping -6 ff02::1%eth0`, then `ip neigh` matched against the NAS's MAC — so the
+machine and its NIC were fine. Over SSH through the Pi as a jump host:
+
+```
+ssh -J <user>@192.168.68.65 "truenas_admin@fe80::<the NAS's link-local>%eth0"
+```
+
+`enp2s0` was up with only its link-local address, and `dhclient` was still
+running. The journal said why: the lease was bound at boot with *renewal in
+3241 seconds*, and minutes later every timestamp jumped two hours back.
+
+**The firmware clock had been set to local time (UTC+2), and Linux reads it as
+UTC.** TrueNAS booted two hours fast, took its lease, then chrony stepped the
+clock back to the truth. `dhclient` had planned its renewal against the wrong
+clock and was still waiting for it when the address — whose lifetime the kernel
+counts down on its own — expired with the lease.
+
+Recovery, on the NAS: stop the confused `dhclient` and start it again with the
+same lease and pid files the middleware uses; it rebinds the reserved address
+at once.
+
+```
+sudo kill <pid of dhclient>
+sudo dhclient -v -lf /var/lib/dhcp/dhclient.leases.enp2s0 -pf /var/run/dhclient.enp2s0.pid enp2s0
+```
+
+The cause does not come back: chrony runs with `rtcsync`, so the corrected UTC
+time was written to the firmware clock, and `timedatectl` now shows *RTC time*
+equal to *Universal time*. The rule for a rebuild is the cheaper one: **set the
+firmware clock to UTC before the first boot.**
+
 ## 5. Power without a button
 
 Restore AC Power Loss = Power On is what starts this machine without a button,
@@ -132,6 +169,9 @@ Two rules follow:
 | Update profile | **General** |
 | Console: Show Text Console without Password Prompt | **off** |
 | Alert service | Telegram |
+| SSH | on, start automatically; key only, the workstation's key on `truenas_admin` |
+| Init script, Post Init | `ethtool -s enp2s0 wol g` |
+| Local user | `baakh`, UID 1000, SMB access |
 
 - **Update profile: General.** A fresh 25.10.7 install shows **Mission
   Critical**, a profile that is never offered General releases. Change it on
@@ -146,6 +186,14 @@ Two rules follow:
   Secret ([`clusters/lab/monitoring/`](../../clusters/lab/monitoring/)). The
   NAS's alerts land in the same chat as the cluster's. A test alert from that
   page arrived.
+- **SSH is key only by default.** TrueNAS writes `PasswordAuthentication no`
+  and leaves password login off for `truenas_admin`; turning the service on and
+  pasting the public key into the user (Credentials → Users, SSH Access) was all
+  it took.
+- **Wake-on-LAN needs a startup command.** TrueNAS has no WOL setting, and the
+  `r8169` driver starts every boot with wake disabled, so a Post Init command
+  arms it: `ethtool -s enp2s0 wol g`. The Pi wakes it as `wake-nodes nas`
+  ([waking the lab](../network.md#waking-the-lab)).
 
 ## 7. The disk
 
@@ -175,6 +223,8 @@ the SATA cable before the disk.
 - With the PSU switched off for about a minute and on again, the machine starts
   by itself.
 - The update profile reads General.
+- `timedatectl` shows *RTC time* equal to *Universal time*, and the clock synchronized.
+- `ssh truenas_admin@nas.lab` logs in with the workstation's key and no password.
 - A test alert from System → Alert Settings arrives in the Telegram chat.
 - The physical console asks for a password.
 - SMART on the WD Red: zero reallocated, pending and offline-uncorrectable

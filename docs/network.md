@@ -148,6 +148,7 @@ desk, from a phone on mobile data, and from anywhere on the tailnet:
 | `node02.lab` | `192.168.68.102` |
 | `node03.lab` | `192.168.68.103` |
 | `node04.lab` | `192.168.68.104` |
+| `nas.lab` | `192.168.68.105` |
 | `mc.lab` | `192.168.68.102` — the Minecraft server, which every node answers for; [why one node](../clusters/lab/minecraft/README.md#reaching-it) |
 
 Machines on the tailnet have MagicDNS names already and do not need records.
@@ -164,3 +165,7 @@ ssh <user>@exitnode wake-nodes
 ```
 
 See [`hosts/exitnode/`](../hosts/exitnode/).
+
+The NAS wakes the same way, as `wake-nodes nas`. TrueNAS has no Wake-on-LAN
+setting of its own, so a startup command arms the NIC on every boot —
+[NAS bring-up, section 6](runbooks/nas-bring-up.md#6-truenas-settings).
