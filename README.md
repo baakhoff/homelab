@@ -24,7 +24,7 @@ replaced as the build changes, and the one it replaces moves to
 |---|---|---|
 | Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router, wired |
 | 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | in service: a three-node k3s cluster with replicated Ceph storage — [bring-up](docs/runbooks/node-bring-up.md) |
-| NAS `nas` | Pentium Gold G5400 · 16 GB RAM (temporary) · 256 GB NVMe boot · WD Red Plus 2 TB · 1 GbE — [details](docs/hardware.md#nas--nas) | installed: TrueNAS Community Edition, wired, alerting to Telegram; no pool or shares — [bring-up](docs/runbooks/nas-bring-up.md) |
+| NAS `nas` | Pentium Gold G5400 · 16 GB RAM · 256 GB NVMe boot · WD Red Plus 2 TB · 1 GbE — [details](docs/hardware.md#nas--nas) | installed: TrueNAS Community Edition, wired, alerting to Telegram; no pool or shares — [bring-up](docs/runbooks/nas-bring-up.md) |
 | Switch | TP-Link TL-SG108E, 8 × 1 GbE, web-managed — [details](docs/hardware.md) | in service: the wired backbone — [the network](docs/network.md) |
 | Rack | 10″ 3D-printed, 12U — [KWS Rack V2 and the printed mounts](docs/hardware.md#rack) | in service: switch, patch panel, the three mini PCs and their power adapters are mounted; cables still to be dressed |
 
