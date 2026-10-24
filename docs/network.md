@@ -130,6 +130,24 @@ a whole computer below the operating system. Both are acceptable on an
 authenticated, encrypted tailnet and unacceptable exposed to the internet. The
 devices are not hardened — access to them is.
 
+## Pods and the LAN
+
+To anything on the LAN, a pod is its node. k3s masquerades pod traffic leaving
+the cluster to the node's own address, so a device that admits
+`192.168.68.102`–`.104` admits every pod scheduled there as well. The NAS is
+where that matters: its NFS share for the cluster admits the node addresses,
+and NFS believes whatever user the client says it is.
+
+So every namespace whose egress is otherwise open carries a `no-nas`
+NetworkPolicy, allowing everything except `192.168.68.105`. The namespaces that
+already limit egress exclude the whole LAN in their own policies, and policies
+add up, so a copy there would widen them rather than narrow them; they get
+none. Neither do kube-system, flux-system, rook-ceph and csi-driver-nfs, the
+cluster's own machinery. The kubelet mounts NFS from the host network, where no
+policy applies, and that is the one path the share is meant for.
+
+A new namespace with open egress gets the same file, `networkpolicy-no-nas.yaml`.
+
 ## Names instead of addresses
 
 Pi-hole serves the house through the router's DHCP and the tailnet through

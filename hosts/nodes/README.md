@@ -123,12 +123,25 @@ in any order.
 
 ## Not files
 
-Two changes on these machines live outside any file worth tracking.
+These live outside any file worth tracking.
 
 **Swap is off.** `swapoff -a`, and the `/swap.img` line in `/etc/fstab` is
 commented out with a `.bak` kept beside it. kubelet refuses to start with swap
 enabled, and the reason is worth knowing rather than working around — see the
 runbook.
+
+**No NFS client, on purpose.** `nfs-common` is not installed, and must not be.
+NAS shares reach pods through csi-driver-nfs, whose node plugin brings its own
+NFS tools ([why](../../clusters/lab/csi-driver-nfs/helmrelease.yaml)). Without
+`mount.nfs` on the host, an inline `nfs:` volume in some pod spec cannot be
+mounted, so no pod can name the NAS itself and get a mount past the policies
+in [Pods and the LAN](../../docs/network.md#pods-and-the-lan). The kernel's
+NFSv4 client is a module and needs nothing installed. The check, on each node:
+
+```
+dpkg -s nfs-common 2>&1 | head -1    # not installed
+modinfo -n nfsv4                     # a path under /lib/modules
+```
 
 **Firmware.** `Wake On LAN` enabled and `S5 Maximum Power Savings` unticked, so
 the network card keeps power when the machine is off and the Pi can wake these
