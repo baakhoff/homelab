@@ -1,0 +1,31 @@
+# No pod here reaches the NAS; everything else stays as open as before.
+#
+# The NAS's NFS share admits the node addresses, and pod traffic leaves a
+# node under that node's address, so without this any pod here would pass
+# for a node. The kubelet mounts NFS from the host network, where no policy
+# applies, so mounts are unaffected. Why every open namespace carries its
+# own copy: docs/network.md, "Pods and the LAN".
+#
+# The Vikunja pod itself is left out. Its own policy already allows only
+# DNS, and policies add up, so selecting it here would open the rest of the
+# network to it. What this covers is everything else in the namespace - the
+# nightly restic pod, today.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: no-nas
+  namespace: vikunja
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: [vikunja]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 192.168.68.105/32
