@@ -29,6 +29,11 @@ data:
   # Sizes the server's own thread pool. It matches the CPU limit below;
   # left to detect, it would see all twelve threads of the node.
   CPU_CORES: "3"
+  # Setup is closed: no first-account page, and no restoring a database
+  # from the web, both of which answer anyone who can reach the address.
+  # A fresh install needs this out until its first account exists
+  # (README, step 4).
+  IMMICH_ALLOW_SETUP: "false"
 ---
 # One pod: the server, which is the web app, the API and every background
 # job - thumbnails, metadata, video conversion, the database dump - and
@@ -52,7 +57,7 @@ spec:
         app.kubernetes.io/name: immich-server
       annotations:
         # Bump with every edit to the immich-env ConfigMap above.
-        immich.lab/config-revision: "1"
+        immich.lab/config-revision: "2"
     spec:
       # A Service named immich-* would otherwise inject IMMICH_* variables
       # into the pod - the way PAPERLESS_PORT broke Paperless.
