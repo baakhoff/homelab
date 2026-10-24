@@ -8,17 +8,20 @@ minute, so a merged change is live a minute later.
       ingest.py      one DAG per service: snapshot its API into Kafka
       telegram.py    Telegram accounts' private chats, logged in as each
       proton.py      a Proton Mail export, loaded by hand from a packed file
+      vk.py          the VK data archive, loaded by hand from a packed file
       google.py      the Google account, four DAGs (google.md)
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
       telegram_login.py  the one-time Telegram login, into the Secret
       proton_pack.py     a Proton Mail export packed into one file for the DAG
+      vk_pack.py         the VK data archive packed into one file for the DAG
       google_auth.py     the Google consent, run once on the workstation
       google_takeout_pack.py  a Google Takeout export packed into one file for the DAG
       google_takeout_load.sh  the newest Takeout export packed, loaded and cleaned up, in one go
     telegram.md      what Telegram sends, its setup and renewal
     proton.md        loading a Proton Mail export, and cleaning up after
+    vk.md            loading the VK data archive
     google.md        what Google sends, its consent and renewal
     sensitive.md     what is masked before data reaches the warehouse, and how
     tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
@@ -44,7 +47,7 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `vk_messages`, `vk_conversations`, `vk_audio`, `vk_items`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
 | `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily`, `google_daily`, `people` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
