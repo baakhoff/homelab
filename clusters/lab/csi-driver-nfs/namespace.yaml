@@ -1,0 +1,10 @@
+# Its own namespace rather than kube-system, for the reason
+# clusters/lab/snapshot-controller/namespace.yaml gives: kube-system on k3s
+# holds things this repo does not own.
+#
+# No Pod Security label: the node plugin is privileged, as every CSI node
+# plugin is, because it mounts filesystems on the host for the kubelet.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: csi-driver-nfs

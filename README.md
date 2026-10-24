@@ -75,7 +75,8 @@ exception: it keeps its own master password.
 - **node02, node03, node04** — k3s with embedded etcd, all three as servers,
   reconciled by Flux from `clusters/lab/`. Rook-Ceph runs an OSD on each and
   serves replicated block storage as the cluster's default StorageClass, with a
-  CSI snapshot class on top of it. cert-manager and ingress-nginx,
+  CSI snapshot class on top of it; csi-driver-nfs mounts NAS shares, one
+  static volume per share and no StorageClass. cert-manager and ingress-nginx,
   kube-prometheus-stack and Loki, Headlamp and Homepage, Vaultwarden, epicurus
   ([ADR 0007](docs/decisions/0007-epicurus-rebuilt-on-kubernetes.md)), and the
   agent pods: Claude Code Remote Control servers on volumes that follow the pod
