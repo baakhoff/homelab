@@ -15,7 +15,8 @@ internet ── Deco mesh ──┬── Wi-Fi ── workstation, phones
                         └── TL-SG108E ──┬── node02
                                         ├── node03
                                         ├── node04
-                                        └── exitnode (Pi)
+                                        ├── exitnode (Pi)
+                                        └── nas
 ```
 
 Traffic between the wired machines never leaves the switch: one gigabit hop,
@@ -53,6 +54,7 @@ resulting outage arrives weeks later with nothing to connect it to.
 | `node02` | `192.168.68.102` | reservation |
 | `node03` | `192.168.68.103` | reservation |
 | `node04` | `192.168.68.104` | reservation |
+| `nas` | `192.168.68.105` | reservation |
 | `node01` (laptop) | DHCP | retired, wiped. Wi-Fi only, never had a reservation |
 
 ### Reservations and Ubuntu
@@ -66,6 +68,9 @@ up on a pool address, and nothing is visibly broken.
 Every node therefore carries `dhcp-identifier: mac` in its netplan, which makes
 the request identify itself the way the router's UI implies. See
 [`hosts/nodes/`](../hosts/nodes/).
+
+The NAS needs none of this. TrueNAS sends no client identifier, so the router
+matches its reservation on the MAC as the UI describes.
 
 ## The switch
 
@@ -86,7 +91,8 @@ brick these.
 | 3 | `node03` |
 | 4 | `node04` |
 | 5 | `exitnode` |
-| 6–8 | free |
+| 6 | `nas` |
+| 7–8 | free |
 
 VLANs, QoS, IGMP snooping and loop prevention are at defaults. The network is
 flat.

@@ -48,6 +48,30 @@ Measured during bring-in, worth keeping as a baseline:
 | Idle | 34–39 °C |
 | Throughput spread | within 3% of each other under `stress-ng` |
 
+## NAS — `nas`
+
+The household NAS: a separate box outside the k3s cluster, built from parts in
+a 3D-printed NAS case.
+
+| Field | Value |
+|---|---|
+| Board | ASUS PRIME H310I-PLUS, the original revision rather than R2.0. BIOS 0803 of 2018-06-20, deliberately not flashed: the G5400 is supported from the first BIOS, TrueNAS loads CPU microcode itself, and the later change logs offer nothing this machine needs |
+| CPU | Intel Pentium Gold G5400 — 2 cores / 4 threads, 3.7 GHz, 58 W TDP; AES-NI, no AVX. The Intel box cooler on `CPU_FAN`, Q-Fan profile Silent, lower limit kept at 200 RPM |
+| RAM | 16 GB, temporary. The stick ordered to replace it is one 8 GB DDR4 non-ECC UDIMM, a single stick for `DIMM_A1`. The G5400 runs memory at 2400 at most; TrueNAS's minimum is 8 GB |
+| Boot drive | SanDisk SN7100S 256 GB NVMe in the M.2 slot, running at PCIe 2.0 on the H310. TrueNAS takes the whole drive as its `boot-pool`. An NVMe drive disables no SATA port, so all four SATA ports are usable |
+| Disk | WD Red Plus 2 TB (WD20EFZX) — CMR, 5400 rpm — on `SATA6G_1`. Not new; its counters are in the baseline below |
+| NIC | Realtek RTL8111H 1 GbE onboard, in-kernel `r8169` driver, interface `enp2s0` |
+| Power | be quiet! 500 W ATX supply, temporary. The supply chosen for the case is a DeBroglie DB9325A picoPSU with a 5.5 × 2.5 mm barrel input, fed by an EDAC EA12501B-120 12 V 15 A brick through a Kycon KPJX-PM-4S four-pin DIN panel socket whose pinout is unverified. In that chain the barrel connector, not the brick, is the current limit when several drives spin up at once |
+| Enclosure | 3D-printed NAS case, with **no power button** — the firmware powers the machine on when mains returns after a long enough cut; [how that behaves](runbooks/nas-bring-up.md#5-power-without-a-button) |
+| OS | TrueNAS Community Edition 25.10.7 (Linux 6.12.105, OpenZFS 2.3.9); why: [ADR 0008](decisions/0008-truenas-for-the-nas.md) |
+| State | Installed offline from USB onto the NVMe, on the LAN at its reserved address, firmware set for pure UEFI and power-on after a mains cut, update profile on General, alerts reaching Telegram — [bring-up](runbooks/nas-bring-up.md). It has no pool, no datasets, no shares and no SSH |
+
+Measured during bring-in, worth keeping as a baseline:
+
+| | Result |
+|---|---|
+| WD Red Plus health | about 22,300 power-on hours; 0 reallocated, 0 pending and 0 offline-uncorrectable sectors, 0 interface CRC errors, empty SMART error log |
+
 ## Switch
 
 | Field | Value |
@@ -56,7 +80,7 @@ Measured during bring-in, worth keeping as a baseline:
 | Ports | 8 × 1 GbE |
 | Management | web UI over HTTP, no TLS; VLANs, QoS and port mirroring available and unused |
 | Power | 5 V wall-plug adapter, no separate brick |
-| Role | the lab's wired backbone — the three mini PCs, the Pi, and the uplink to the mesh. Port map and addressing: [the network](network.md) |
+| Role | the lab's wired backbone — the three mini PCs, the Pi, the NAS, and the uplink to the mesh. Port map and addressing: [the network](network.md) |
 
 ## Rack
 
