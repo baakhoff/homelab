@@ -297,6 +297,22 @@ roleRef:
   kind: ClusterRole
   name: backup-driver
 ---
+# Immich: the photos' metadata in its Postgres. The library itself is an NFS
+# volume on the NAS, which a CSI snapshot cannot take - one target.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-driver
+  namespace: immich
+subjects:
+  - kind: ServiceAccount
+    name: backup-driver
+    namespace: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-driver
+---
 # CloudBeaver: its users and sessions in its Postgres, and each user's own
 # connections and SQL scripts on the workspace volume - two targets, one
 # namespace.

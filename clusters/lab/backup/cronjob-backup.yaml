@@ -105,6 +105,7 @@ spec:
                     sparkyfitness/sparkyfitness-data
                     dawarich/data-dawarich-postgres-0
                     dawarich/dawarich-storage
+                    immich/data-immich-postgres-0
                     notes/data-outline-postgres-0
                     notes/outline-data
                     monitoring/kube-prometheus-stack-grafana

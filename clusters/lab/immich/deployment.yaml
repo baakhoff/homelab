@@ -1,0 +1,153 @@
+# Settings the server reads at start. Everything else - the login, the
+# machine-learning models, job concurrency, the storage template, database
+# dumps - is set in Immich's own admin UI and kept in its database; the
+# values chosen are in README.md.
+#
+# Every edit here also bumps immich.lab/config-revision in the Deployment
+# below, or the running pod keeps the old values: envFrom is read once, at
+# start.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: immich-env
+  namespace: immich
+data:
+  # The server's clock for its scheduled jobs: the nightly database dump
+  # is set to 01:00 in the UI, an hour before the cluster's 02:00 restic
+  # run, so every backup carries a dump from the same night.
+  TZ: Europe/Copenhagen
+  # --- Database: postgres.yaml -----------------------------------------------
+  DB_HOSTNAME: immich-postgres
+  DB_PORT: "5432"
+  DB_USERNAME: immich
+  DB_DATABASE_NAME: immich
+  # --- Redis: the second container in the pod ---------------------------------
+  REDIS_HOSTNAME: 127.0.0.1
+  REDIS_PORT: "6379"
+  # The library: the NAS share, mounted at Immich's default (pvc.yaml).
+  IMMICH_MEDIA_LOCATION: /data
+  # Sizes the server's own thread pool. It matches the CPU limit below;
+  # left to detect, it would see all twelve threads of the node.
+  CPU_CORES: "3"
+---
+# One pod: the server, which is the web app, the API and every background
+# job - thumbnails, metadata, video conversion, the database dump - and
+# Redis beside it. Machine learning is its own pod (machine-learning.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-server
+  namespace: immich
+spec:
+  # One replica. With more, every pod would run the scheduled jobs.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: immich-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: immich-server
+      annotations:
+        # Bump with every edit to the immich-env ConfigMap above.
+        immich.lab/config-revision: "1"
+    spec:
+      # A Service named immich-* would otherwise inject IMMICH_* variables
+      # into the pod - the way PAPERLESS_PORT broke Paperless.
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The NAS's `immich` user. The share maps every client to it, and
+        # the files Immich writes carry this uid on the NAS - the two must
+        # be the same number (README, step 1).
+        runAsUser: 3000
+        runAsGroup: 3000
+        seccompProfile:
+          type: RuntimeDefault
+      # Apart from the machine-learning pod, when there is room: a first
+      # import keeps both busy for hours.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: immich-machine-learning
+      containers:
+        - name: server
+          image: ghcr.io/immich-app/immich-server:v3.3.5@sha256:485d546a2e31d6a8b4db8423fcba5c109de8c218d93410af115fd1ccfc4352a6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - configMapRef:
+                name: immich-env
+            # DB_PASSWORD. Created by hand into secret.sops.yaml beside this
+            # file; until it exists the pod waits in
+            # CreateContainerConfigError - README, step 3.
+            - secretRef:
+                name: immich
+          ports:
+            - name: http
+              containerPort: 2283
+          # The first start creates the database and its vector indexes,
+          # and every start checks each folder on the share before the API
+          # listens. Ten minutes before liveness gets a vote.
+          startupProbe:
+            httpGet:
+              path: /api/server/ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/server/ping
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/server/ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 6
+          # A CPU limit, which the lab otherwise sets only on Minecraft and
+          # restic. Thumbnails and video conversion take every core they are
+          # offered, the first import runs them for hours, and a node with
+          # no CPU left is a node whose etcd falls behind. Three of twelve
+          # threads; the import takes longer instead.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "3"
+              memory: 4Gi
+          volumeMounts:
+            - name: library
+              mountPath: /data
+        # The job queue. No persistence and no volume, as in Dawarich: a
+        # restart loses only the jobs still queued, and Administration ->
+        # Jobs -> Missing queues them again. Listening on loopback, so
+        # nothing outside the pod can reach it.
+        - name: redis
+          image: docker.io/library/redis:8.10.2-alpine
+          args: ["redis-server", "--bind", "127.0.0.1", "--save", "", "--appendonly", "no"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: library
+          persistentVolumeClaim:
+            claimName: immich-library

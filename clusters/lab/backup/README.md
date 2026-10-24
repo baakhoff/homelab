@@ -73,14 +73,15 @@ whose loss would hurt most are written first:
 | 10 | `sparkyfitness/sparkyfitness-data` | meal and progress photos |
 | 11 | `dawarich/data-dawarich-postgres-0` | the location history; what a phone recorded is not recorded anywhere else |
 | 12 | `dawarich/dawarich-storage` | the original import files - Google Timeline and the like |
-| 13 | `notes/data-outline-postgres-0` | Outline's documents, their history, collections and users |
-| 14 | `notes/outline-data` | the images and attachments in those documents |
-| 15-16 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
-| 17 | `minecraft/minecraft-data` | the world |
-| 18 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
-| 19 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
-| 20 | `data/data-clickhouse-0` | the warehouse's history |
-| 21-28 | the eight `agents/*` volumes | session transcripts and unpushed work |
+| 13 | `immich/data-immich-postgres-0` | the photos' albums, named faces, favourites and descriptions; the photos themselves are on the NAS (below) |
+| 14 | `notes/data-outline-postgres-0` | Outline's documents, their history, collections and users |
+| 15 | `notes/outline-data` | the images and attachments in those documents |
+| 16-17 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
+| 18 | `minecraft/minecraft-data` | the world |
+| 19 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
+| 20 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
+| 21 | `data/data-clickhouse-0` | the warehouse's history |
+| 22-29 | the eight `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly
@@ -118,6 +119,8 @@ applied to this cluster:
 | Prometheus | 15d retention and an 8GB cap, so it already deletes itself; its blocks churn constantly and losing it costs history, not capability |
 | Loki | same argument at 7d, and its logs only start when Alloy was deployed |
 | `photon/photon-data` | Photon's geocoding index, downloaded and built again by its next start (`clusters/lab/photon/README.md`) |
+| `immich/immich-ml-cache` | Immich's machine-learning models, downloaded again on first use |
+| `immich-library`, the photo library | an NFS volume on the NAS, which this driver cannot snapshot. The NAS snapshots it with ZFS; its off-site copy is the NAS's own business, not this repository's (`clusters/lab/immich/README.md`, Backup) |
 
 Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its
 namespace, and a copy of the Secret below. Three things have to line up rather
