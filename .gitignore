@@ -11,6 +11,10 @@
 Thumbs.db
 *.swp
 
+# Python bytecode, written next to any script a test imports
+__pycache__/
+*.pyc
+
 # logs & scratch
 *.log
 scratch/
