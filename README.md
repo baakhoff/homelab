@@ -60,6 +60,7 @@ exception: it keeps its own master password.
 | [Outline](https://www.getoutline.com) | Notes and documents in a polished web editor, organised in collections, with every edit kept in its history; an agent reads and writes them too. |
 | [Dawarich](https://github.com/Freika/dawarich) | Location history from the phone on a map: trips, visits, countries and stats, a self-hosted Google Timeline. |
 | [Photon](https://github.com/komoot/photon) | Turns Dawarich's coordinates into streets, cities and places, from OpenStreetMap, without sending them out of the lab. |
+| [Immich](https://immich.app) | The family's photos and videos: phones back up to it, with faces, places and search in any language, and the library on the NAS. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
 | [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
@@ -102,6 +103,8 @@ exception: it keeps its own master password.
   for calories, meals and exercise ([how](clusters/lab/sparkyfitness/README.md)), and
   Dawarich keeping the phones' location history ([how](clusters/lab/dawarich/README.md)), with
   Photon naming its streets and places ([how](clusters/lab/photon/README.md)), and
+  Immich for the family's photos and videos, its library on the NAS
+  ([how](clusters/lab/immich/README.md)), and
   Outline for notes and documents ([how](clusters/lab/notes/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
   feeding ClickHouse, where every source's raw data is kept for querying

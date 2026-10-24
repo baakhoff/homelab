@@ -1,0 +1,44 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Not behind the oauth2-proxy gate, like Dawarich and SparkyFitness: the
+# phone apps cannot get through it. They sign in through Immich's own login
+# and then upload with its token, which the gate does not know. Immich's
+# own login is Pocket ID and nothing else (README), the API answers nothing
+# without a token, and the lab is reachable from the house and the tailnet
+# only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: immich
+  namespace: immich
+  annotations:
+    # A phone video is uploaded whole, and can be several gigabytes.
+    # Streamed to Immich as it arrives rather than buffered first on the
+    # controller node's disk - the NVMe etcd lives on.
+    nginx.ingress.kubernetes.io/proxy-body-size: "50000m"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/client-body-buffer-size: "1024k"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Immich
+    gethomepage.dev/group: Home
+    gethomepage.dev/icon: immich.png
+    gethomepage.dev/description: Our photos and videos
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://photos.lab.baakhoff.com
+    # The Ingress is named immich and the pod immich-server.
+    gethomepage.dev/pod-selector: app.kubernetes.io/name=immich-server
+spec:
+  rules:
+    - host: photos.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: immich-server
+                port:
+                  number: 80
