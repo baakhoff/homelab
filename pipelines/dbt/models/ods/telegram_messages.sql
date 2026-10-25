@@ -5,9 +5,11 @@
 -- latest copy of every message ever sent. A message deleted in Telegram
 -- stays: nothing reports the deletion.
 --
--- Media is metadata only: what kind, its size, duration and file name, and
--- the coordinates of a shared location. Calls are service messages with
--- action = 'PhoneCall'.
+-- Media is its metadata here - what kind, its size, duration and file name,
+-- and the coordinates of a shared location - and a photo, video, voice
+-- message, video note, audio file or document is also a file in the NAS
+-- archive, found through file_key (pipelines/telegram.md). Calls are
+-- service messages with action = 'PhoneCall'.
 with latest as (
   select
     JSONExtractString(payload, 'id') as message_key,
@@ -39,6 +41,14 @@ select
   JSONExtract(record, 'media', 'size', 'Nullable(Int64)') as media_size_bytes,
   JSONExtract(record, 'media', 'duration', 'Nullable(Float64)') as media_duration_s,
   nullIf(JSONExtractString(record, 'media', 'name'), '') as media_file_name,
+  -- The row in ods.files, once the DAG's media task has stored the file;
+  -- the same test as to_archive() in pipelines/dags/telegram.py. Not a
+  -- link's preview, whose picture is a 'photo' here, nor media with no file
+  -- left - a self-destructing photo once seen - which has no size. A file
+  -- over 1 GiB, or one Telegram would not hand over, never gets its row.
+  if(media_kind in ('photo', 'video', 'voice', 'video_note', 'audio', 'document')
+       and not JSONHas(record, 'media', 'url') and media_size_bytes is not null,
+     concat('telegram:', message_key), null) as file_key,
   JSONExtract(record, 'media', 'lat', 'Nullable(Float64)') as lat,
   JSONExtract(record, 'media', 'lon', 'Nullable(Float64)') as lon,
   nullIf(JSONExtractString(record, 'action', 'kind'), '') as action,
