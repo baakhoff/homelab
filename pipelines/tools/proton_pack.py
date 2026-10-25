@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import shutil
 import sys
 from datetime import datetime, timezone
 from email import policy
@@ -137,15 +138,33 @@ def attachments(msg) -> list[dict]:
             for part in attachment_parts(msg)]
 
 
-def save_file(files: Path, file: str, data: bytes, endpoint: str, rid: str, record: dict) -> None:
-    """A file into the --files folder at files/<file>, and its line in the
-    manifest: the source and key ingest_files stores it under."""
+def save_file(files: Path, file: str, data, endpoint: str, rid: str, record: dict) -> None:
+    """A file into the --files folder at files/<file> - data its bytes, or
+    a binary file to copy them from - and its line in the manifest: the
+    source and key ingest_files stores it under."""
     path = files / file
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
+    with open(path, "wb") as f:
+        if isinstance(data, bytes):
+            f.write(data)
+        else:
+            shutil.copyfileobj(data, f)
     with open(files / MANIFEST, "a", encoding="utf-8") as f:
         f.write(json.dumps({"file": file, "endpoint": endpoint, "id": rid, "record": record},
                            ensure_ascii=False) + "\n")
+
+
+def empty_folder(path: Path) -> Path:
+    """The --files folder, made if need be. One that is not empty stops the
+    pack: an earlier pack's files would go into the archive with these."""
+    path.mkdir(parents=True, exist_ok=True)
+    if any(path.iterdir()):
+        sys.exit(f"{path} is not empty - an earlier pack's files would go in with these")
+    return path
+
+
+def folder_size(path: Path) -> int:
+    return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
 
 
 def save_attachments(msg, files: Path, folder: str, endpoint: str, key: str) -> int:
@@ -260,17 +279,12 @@ def main() -> None:
                         help="also write each attachment into DIR, for the NAS archive's inbox")
     args = parser.parse_args()
     export, target = args.export.expanduser(), args.target.expanduser()
-    files = args.files.expanduser() if args.files else None
-    if files is not None:
-        files.mkdir(parents=True, exist_ok=True)
-        if any(files.iterdir()):
-            sys.exit(f"{files} is not empty - an earlier pack's files would go in with these")
+    files = empty_folder(args.files.expanduser()) if args.files else None
     with gzip.open(target, "wt", encoding="utf-8") as out:
         counts = pack(export, out, files)
     print(f"{target}: {counts}, {target.stat().st_size / 1e6:.1f} MB")
     if files is not None:
-        size = sum(p.stat().st_size for p in files.rglob("*") if p.is_file())
-        print(f"{files}: {counts['files']} files, {size / 1e6:.1f} MB")
+        print(f"{files}: {counts['files']} files, {folder_size(files) / 1e6:.1f} MB")
     if not counts["messages"]:
         sys.exit("no messages found - is that the directory the export tool wrote?")
 

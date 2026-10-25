@@ -5,7 +5,8 @@
 --
 -- Joins its message in google_gmail_messages on message_id_header, or on
 -- thread_id, which is kept in the hex the Gmail API uses. Attachments are
--- names and sizes; the files stayed in the export.
+-- their names here; the files go to the NAS archive when the export is
+-- packed with --files (pipelines/google.md).
 select
   id as message_id_header,
   nullIf(JSONExtractString(record, 'gmail_thread_id'), '') as thread_id,
@@ -23,5 +24,8 @@ select
   JSONExtractString(record, 'body_text') as body_text,
   JSONExtractBool(record, 'body_truncated') as is_body_truncated,
   arrayMap(x -> JSONExtractString(x, 'name'), JSONExtractArrayRaw(record, 'attachments')) as attachment_names,
+  -- Each attachment's row in ods.files, in the same order, once the file is
+  -- stored. An empty attachment has none.
+  arrayMap(i -> concat('google/gmail:', id, '/', toString(i)), arrayEnumerate(attachment_names)) as attachment_file_keys,
   extracted_at
 from ({{ accumulated_records('google', ['gmail/takeout']) }})

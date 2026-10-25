@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Load the newest Google Takeout export into the warehouse, start to end.
 #
-#     pipelines/tools/google_takeout_load.sh [folder with the zips, default ~/Downloads]
+#     pipelines/tools/google_takeout_load.sh [folder with the zips, default ~/Downloads] [archive inbox]
 #
 # Run on the workstation, from anywhere in the repo, with kubectl pointing at
 # the lab. It does what pipelines/google.md, "A Takeout export", does by
@@ -12,14 +12,27 @@
 # delivered - runs warehouse, and deletes the packed file here. The zips are
 # kept unless you answer yes at the end.
 #
+# The export's files - mail attachments, Keep's images, Fit's tracks, Drive -
+# are packed into a folder google-takeout-<time> beside the zips, the batch
+# for the NAS archive's inbox (pipelines/files.md). Given the inbox as it is
+# mounted here (the file manager's smb://archive@nas.lab/archive-inbox is
+# under /run/user/$UID/gvfs/), this copies the folder in and deletes it
+# here; without it, the folder stays, and the end says to copy it in by hand.
+#
 # Nothing it prints is mail or history: counts, file names, progress. Made
 # for Google's scheduled export ("every 2 months for 1 year"): the mail
 # saying it is ready is the cue to run this.
 set -euo pipefail
 
 src="${1:-$HOME/Downloads}"
+inbox="${2:-}"
 here="$(cd "$(dirname "$0")" && pwd)"
 remote=/tmp/google-takeout.jsonl.gz
+
+if [ -n "$inbox" ] && [ ! -d "$inbox" ]; then
+  echo "no folder $inbox - is the inbox share mounted?" >&2
+  exit 1
+fi
 
 newest=$(ls "$src"/takeout-*.zip 2>/dev/null | sed -E 's|.*/takeout-([0-9TZ]+)-.*|\1|' | sort -u | tail -1)
 if [ -z "$newest" ]; then
@@ -28,12 +41,33 @@ if [ -z "$newest" ]; then
 fi
 zips=("$src"/takeout-"$newest"-*.zip)
 echo "export $newest: ${#zips[@]} part(s), $(du -ch "${zips[@]}" | tail -1 | cut -f1)"
+# Beside the zips, not in the temporary folder: Drive can be more than
+# /tmp holds.
+batch="google-takeout-$newest"
+files="$src/$batch"
+if [ -e "$files" ]; then
+  echo "$files is already there, from an earlier run - copy it into the inbox or delete it, then run this again" >&2
+  exit 1
+fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-for z in "${zips[@]}"; do ln -s "$(readlink -f "$z")" "$work/"; done
+mkdir "$work/zips"
+for z in "${zips[@]}"; do ln -s "$(readlink -f "$z")" "$work/zips/"; done
 packed="$work/google-takeout.jsonl.gz"
-python3 "$here/google_takeout_pack.py" "$work" "$packed"
+python3 "$here/google_takeout_pack.py" "$work/zips" "$packed" --files "$files"
+if [ ! -e "$files/files.jsonl" ]; then
+  rmdir "$files"
+  files=
+elif [ -n "$inbox" ]; then
+  echo "copying the files into $inbox/$batch"
+  # The manifest first: a file in without it is stored as a loose inbox
+  # file, under its number.
+  mkdir -p "$inbox/$batch"
+  cp "$files/files.jsonl" "$inbox/$batch/"
+  cp -r "$files/." "$inbox/$batch/"
+  rm -rf "$files"
+fi
 
 pod=$(kubectl -n airflow get pod -l component=scheduler -o jsonpath='{.items[0].metadata.name}')
 airflow() { kubectl -n airflow exec "$pod" -c scheduler -- airflow "$@"; }
@@ -77,4 +111,9 @@ if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
   echo "zips deleted"
 else
   echo "zips kept in $src"
+fi
+
+if [ -n "$files" ] && [ -z "$inbox" ]; then
+  echo "Now copy $files into the archive's inbox, smb://archive@nas.lab/archive-inbox, as it is"
+  echo "(pipelines/files.md), and delete it here once it is in: it is the files, unmasked."
 fi
