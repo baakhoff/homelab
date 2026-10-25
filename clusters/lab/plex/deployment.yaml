@@ -1,0 +1,106 @@
+# Plex Media Server: the films and series on the NAS, to the TVs, phones
+# and browsers in the house and on the tailnet.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex
+  namespace: plex
+spec:
+  # One replica on a ReadWriteOnce database volume.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plex
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plex
+    spec:
+      # A Service named plex would otherwise inject PLEX_* variables into a
+      # container whose own settings are PLEX_* variables.
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      # No runAsUser: the image starts as root to give its `plex` user the
+      # ids below and the GPU device's group, then runs the server as that
+      # user. So no dropped capabilities either - it needs chown and setuid
+      # for exactly that.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: plex
+          # The tag is the Plex release plus its build hash; renovate.json5
+          # reads the release part.
+          image: docker.io/plexinc/pms-docker:1.43.5.11029-6bf8af3f0
+          env:
+            - name: TZ
+              value: Europe/Copenhagen
+            # The NAS's `media` user, which its share maps every client to.
+            # The share is mounted read-only here, so this is only the owner
+            # of the database files; it matches so the two never disagree.
+            - name: PLEX_UID
+              value: "3001"
+            - name: PLEX_GID
+              value: "3001"
+          ports:
+            - name: http
+              containerPort: 32400
+          # /identity answers without a login: the server's id and version.
+          startupProbe:
+            httpGet:
+              path: /identity
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /identity
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /identity
+              port: http
+            periodSeconds: 30
+            failureThreshold: 6
+          # The GPU: Quick Sync on the node's UHD 770, for video a device
+          # cannot play as it is. Without Plex Pass, Plex ignores it and
+          # transcodes on the CPU, inside the CPU limit - which is what keeps
+          # a 4K transcode from starving the node's etcd.
+          #
+          # The memory limit covers the transcoder's scratch space below,
+          # which is RAM.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 6Gi
+              gpu.intel.com/i915: "1"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+              readOnly: true
+            - name: transcode
+              mountPath: /transcode
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: plex-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: plex-media
+            readOnly: true
+        # The transcoder's segments, in RAM rather than on the node's disk:
+        # a stream writes a few seconds ahead continuously, and the node's
+        # one NVMe is etcd's. Plex keeps about a minute buffered per stream,
+        # far below this; a download-for-offline conversion that needs more
+        # fails rather than filling the node.
+        - name: transcode
+          emptyDir:
+            medium: Memory
+            sizeLimit: 3Gi

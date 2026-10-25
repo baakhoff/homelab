@@ -18,6 +18,7 @@
 #   dawarich        3000
 #   notes           3000, Outline
 #   immich          2283
+#   plex            32400
 #   cloudbeaver     its Postgres 5432, for the usage DAG
 #
 # And one more way in: CloudBeaver to Postgres, as its read-only role - the
@@ -172,6 +173,16 @@ spec:
       ports:
         - protocol: TCP
           port: 2283
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: plex
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: plex
+      ports:
+        - protocol: TCP
+          port: 32400
     - to:
         - namespaceSelector:
             matchLabels:

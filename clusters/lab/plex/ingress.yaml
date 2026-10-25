@@ -1,0 +1,42 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Not behind the oauth2-proxy gate: no Plex app - TV, phone or stick - can
+# get through it. Plex's login is a plex.tv account instead, the one
+# service besides Vaultwarden that does not sign in with Pocket ID (README).
+#
+# How the apps find this address: Plex tells plex.tv where it can be
+# reached, and that list includes this host once it is set as the server's
+# custom access URL (README, step 5). An app signs in to plex.tv, gets the
+# list, and connects here - in the house directly, away over Tailscale.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plex
+  namespace: plex
+  annotations:
+    # A stream is one long response, and the apps hold a websocket open for
+    # live updates; the controller's 60-second default would cut both.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Posters and subtitles uploaded from the web app.
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Plex
+    gethomepage.dev/group: Play
+    gethomepage.dev/icon: plex.png
+    gethomepage.dev/description: Films and series
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://watch.lab.baakhoff.com/web
+spec:
+  rules:
+    - host: watch.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plex
+                port:
+                  number: 32400
