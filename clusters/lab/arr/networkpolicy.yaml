@@ -4,6 +4,8 @@
 #                    ingest_radarr and ingest_sonarr
 #   Prowlarr         ingress-nginx; Radarr and Sonarr, which search through
 #                    it
+#   FlareSolverr     Prowlarr only - a browser that fetches any address it is
+#                    given is not something to leave open
 # Nothing else, and no rule for the agents, brand-jobs or n8n namespaces.
 #
 # Out: open but for the NAS (networkpolicy-no-nas.yaml) - film and series
@@ -90,3 +92,22 @@ spec:
       ports:
         - protocol: TCP
           port: 9696
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: flaresolverr
+  namespace: arr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: flaresolverr
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prowlarr
+      ports:
+        - protocol: TCP
+          port: 8191
