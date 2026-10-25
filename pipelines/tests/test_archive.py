@@ -1,6 +1,6 @@
 """Tests for pipelines/dags/archive.py, on an archive in a temporary folder.
-Airflow, pendulum and Kafka are not needed: stand-ins take their place.
-Run from the repo root:
+Kafka is not needed: a stand-in collects what would be sent. Run from the
+repo root:
 
     uv run --with pytest pytest pipelines/tests
 """
@@ -10,22 +10,9 @@ import json
 import os
 import sys
 import time
-import types
 from pathlib import Path
 
 import pytest
-
-# Stand-ins for what the DAG file imports at the top, before importing it.
-_sdk = types.ModuleType("airflow.sdk")
-_sdk.dag = lambda **kw: (lambda f: f)
-# A task is not run when the DAG is defined.
-_sdk.task = lambda **kw: (lambda f: (lambda *a, **k: None))
-sys.modules.setdefault("airflow", types.ModuleType("airflow"))
-sys.modules.setdefault("airflow.sdk", _sdk)
-_pendulum = types.ModuleType("pendulum")
-_pendulum.datetime = lambda *a, **kw: None
-_pendulum.duration = lambda **kw: None
-sys.modules.setdefault("pendulum", _pendulum)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dags"))
 import archive  # noqa: E402

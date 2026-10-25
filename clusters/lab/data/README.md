@@ -45,7 +45,7 @@ layers by hand.
 | Proton Mail | Airflow's `ingest_proton` DAG, `pipelines/dags/proton.py`, triggered by hand - a mailbox export packed on the machine that holds it, each message's headers, plain-text body and attachment names | `raw.proton` |
 | VK | Airflow's `ingest_vk` DAG, `pipelines/dags/vk.py`, triggered by hand - the deleted account's data archive, packed on the machine that holds it: messages, conversations, music, and every other section's entries | `raw.vk` |
 | The Google account | Airflow's `ingest_google*` DAGs, `pipelines/dags/google.py` - snapshots, Gmail changes and Data Portability exports, in the same envelope (`pipelines/google.md`) | `raw.google` |
-| The NAS archive | Airflow's `ingest_files` DAG, `pipelines/dags/archive.py` - each file stored on the NAS under its hash, and here one record per place it came from: its source and key there, the hash, size and name. Never the file (`pipelines/files.md`) | `raw.files` |
+| The NAS archive | Airflow's `ingest_files` DAG, `pipelines/dags/files.py` - each file stored on the NAS under its hash, and here one record per place it came from: its source and key there, the hash, size and name. Never the file (`pipelines/files.md`) | `raw.files` |
 
 ## What is here
 

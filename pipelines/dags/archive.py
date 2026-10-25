@@ -1,4 +1,7 @@
-"""Files, onto the NAS, with a row for each in the warehouse.
+"""Files, onto the NAS, with a row for each in the warehouse - the helpers.
+
+No DAG is defined here, so any DAG file can import this one: ingest_files is
+in files.py beside it, and a DAG that fetches files itself uses store().
 
 The warehouse holds rows; the files those rows talk about - a photo in a
 chat, an attachment in a mail, a scan dropped in from the workstation - are
@@ -20,7 +23,7 @@ Two ways in:
   and sends the record with Files.send().
 - Anything else is dropped into the inbox, /archive/inbox, from the
   workstation over SMB (pipelines/files.md): a folder per batch, or a loose
-  file. The ingest_files DAG below takes a batch once nothing in it has
+  file. The ingest_files DAG, through sweep(), takes a batch once nothing in it has
   changed for QUIET, stores each file, sends its record, and removes it
   from the inbox. A batch may carry a manifest, files.jsonl, naming the
   source and key of each file in it - the pack tools write one. A file it
@@ -44,9 +47,6 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-
-import pendulum
-from airflow.sdk import dag, task
 
 # Secrets and identity numbers masked before anything leaves for Kafka -
 # sensitive.py beside this file. Airflow puts the DAG folder, pipelines/, on
@@ -269,45 +269,26 @@ def _take(batch: Path, inbox: Path, files: Files, started: float) -> bool:
     return True
 
 
-@dag(
-    dag_id="ingest_files",
-    schedule="30 * * * *",
-    start_date=pendulum.datetime(2026, 10, 1, tz="UTC"),
-    catchup=False,
-    max_active_runs=1,
-    tags=["ingest", "files"],
-    # A retry sends the last group's records again; ods.files keeps each once.
-    default_args={"retries": 1, "retry_delay": pendulum.duration(minutes=5)},
-)
-def ingest_files():
-    @task(execution_timeout=timedelta(minutes=55))
-    def sweep() -> None:
-        from airflow.sdk import get_current_context
+def sweep(files: Files) -> None:
+    """Take every batch in the inbox that has gone quiet, oldest name first."""
+    inbox = ROOT / "inbox"
+    if not inbox.is_dir():
+        raise RuntimeError(f"no {inbox} - the NAS folders, pipelines/files.md")
+    # What a fetching DAG left in tmp/ when it died mid-file.
+    for p in (ROOT / "tmp").glob("*"):
+        if time.time() - p.stat().st_ctime > 86400:
+            p.unlink()
 
-        inbox = ROOT / "inbox"
-        if not inbox.is_dir():
-            raise RuntimeError(f"no {inbox} - the NAS folders, pipelines/files.md")
-        # What a fetching DAG left in tmp/ when it died mid-file.
-        for p in (ROOT / "tmp").glob("*"):
-            if time.time() - p.stat().st_ctime > 86400:
-                p.unlink()
-
-        files = Files(get_current_context()["run_id"])
-        started = time.monotonic()
-        waiting = []
-        for batch in sorted(inbox.iterdir()):
-            if batch.name.startswith(".") or batch.is_symlink():
-                continue
-            if not _quiet([batch, *batch.rglob("*")] if batch.is_dir() else [batch]):
-                waiting.append(batch.name)
-                continue
-            if not _take(batch, inbox, files, started):
-                print("budget spent; the next run carries on")
-                break
-        print(f"to {TOPIC}: {files.counts or 'nothing new'}"
-              + (f"; still being copied: {', '.join(waiting)}" if waiting else ""))
-
-    sweep()
-
-
-ingest_files()
+    started = time.monotonic()
+    waiting = []
+    for batch in sorted(inbox.iterdir()):
+        if batch.name.startswith(".") or batch.is_symlink():
+            continue
+        if not _quiet([batch, *batch.rglob("*")] if batch.is_dir() else [batch]):
+            waiting.append(batch.name)
+            continue
+        if not _take(batch, inbox, files, started):
+            print("budget spent; the next run carries on")
+            break
+    print(f"to {TOPIC}: {files.counts or 'nothing new'}"
+          + (f"; still being copied: {', '.join(waiting)}" if waiting else ""))

@@ -10,7 +10,8 @@ minute, so a merged change is live a minute later.
       proton.py      a Proton Mail export, loaded by hand from a packed file
       vk.py          the VK data archive, loaded by hand from a packed file
       google.py      the Google account, four DAGs (google.md)
-      archive.py     files onto the NAS under their hash, a row for each (files.md)
+      files.py       the NAS archive's inbox, into the archive and the warehouse (files.md)
+      archive.py     files onto the NAS under their hash, a row for each: the helpers
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/

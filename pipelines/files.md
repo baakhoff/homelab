@@ -11,7 +11,7 @@ in the warehouse finds its file through that index.
 | The files | `tank/archive/objects/<first two of the hash>/<hash>`, no extension |
 | Files waiting to be taken | `tank/archive/inbox/` |
 | The index | `ods.files`, from `raw.files` |
-| The DAG | `ingest_files` (`dags/archive.py`), hourly at :30 |
+| The DAG | `ingest_files` (`dags/files.py`, the work in `dags/archive.py`), hourly at :30 |
 
 Setting up the dataset, its user and its shares is in the NAS runbook,
 [the cluster's shares](../docs/runbooks/nas-bring-up.md#the-clusters-shares).
