@@ -16,8 +16,14 @@ through the oauth2-proxy gate, and Plex has no other login. With Vaultwarden
 it is the one exception to Pocket ID in the lab (`clusters/lab/pocket-id/`).
 
 Who may watch is decided on plex.tv: the owner's account, and whoever the
-owner adds to Plex Home or shares the libraries with. Nobody else gets in,
-and the server is reachable only from the house and the tailnet anyway.
+owner adds to Plex Home or shares the libraries with. Nobody else gets in.
+
+**Family and friends watch from their own homes through Plex's Relay**, with
+no port open on the router. The server keeps an outbound connection to
+Plex's relay, and an app that cannot reach the server directly streams
+through it, encrypted. The price is bandwidth: 2 Mbps a stream with Plex
+Pass, 1 Mbps without - about 720p - and Plex shrinks the video to fit. In the
+house and on the tailnet the apps connect directly, at full quality.
 
 ## What is here
 
@@ -96,8 +102,8 @@ the server `lab`, and add two libraries: **Films** at `/data/films` and
 |---|---|
 | Network | *Custom server access URLs*: `https://watch.lab.baakhoff.com:443` - the address the apps are told to use |
 | Network | *LAN Networks*: `192.168.68.0/22,10.42.0.0/16,100.64.0.0/10` - the house, the cluster's pods (every request arrives through ingress-nginx) and the tailnet, so no stream is treated as remote and squeezed |
-| Network | *Enable Relay*: off - streams never go through Plex's servers |
-| Remote Access | disabled: nothing is forwarded from the internet, and away from home the apps come in over Tailscale |
+| Network | *Enable Relay*: on - how family and friends outside the house and the tailnet reach it, capped at 2 Mbps a stream |
+| Remote Access | disabled: nothing is forwarded from the internet. Away from home your own apps come in over Tailscale, everyone else's through Relay |
 | DLNA | off |
 | Transcoder | *Transcoder temporary directory*: `/transcode`; *Use hardware acceleration when available* and *Use hardware-accelerated video encoding*: on (Plex Pass) |
 | Library | *Scan my library periodically*: every hour - changes on the NAS are not noticed by themselves over NFS; *Generate video preview thumbnails*: never - they grow the database by gigabytes per film |
@@ -123,6 +129,15 @@ devices on plex.tv replaces the token, and this step is repeated.
 **7. The devices.** Install Plex on the TV, the stick, the phones and the
 PC, and sign in with the plex.tv account - on a TV, through the code it
 shows at plex.tv/link. The server appears by itself.
+
+**8. Family and friends.** Each needs a free plex.tv account. Settings →
+Manage Library Access → Grant Library Access: their email or username, the
+server `lab`, the libraries. On their TV they sign in to their own account
+and find `lab` among the shared servers. Watching away from the owner's home
+needs Plex Pass on the owner's account, or a Remote Watch Pass on theirs.
+
+The Deco's UPnP is off, so nothing in the house can open a port on the
+router by asking.
 
 ## What reaches the warehouse
 
