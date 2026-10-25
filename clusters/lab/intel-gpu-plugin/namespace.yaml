@@ -1,0 +1,9 @@
+# Its own namespace, and no Pod Security label: a device plugin reads the
+# host's /dev/dri and /sys/class/drm and talks to the kubelet through a
+# socket on the host, all of which are host paths. That is the whole reason
+# it exists - so that the pods USING the GPU need none of them, and can stay
+# in namespaces that forbid host paths.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: intel-gpu-plugin

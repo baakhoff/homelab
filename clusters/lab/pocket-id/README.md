@@ -72,6 +72,12 @@ setting them as an env var would do nothing.
 identity provider in front of the thing that stores its own credential is a
 loop, and the day it closes is the day you are locked out of both.
 
+**Not behind it, because it cannot be: Plex.** Every Plex login is a plex.tv
+account - the server is claimed by one, and each TV, phone and stick signs in
+with one - and none of those apps could pass the oauth2-proxy gate. Who may
+watch is who the owner shares the server with on plex.tv
+(`clusters/lab/plex/README.md`).
+
 Each client is created in Pocket ID's admin UI first, because the client secret
 has to exist before the manifest that references it can. The callback URL for
 Grafana is `https://grafana.lab.baakhoff.com/login/generic_oauth`, for
