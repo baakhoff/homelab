@@ -9,7 +9,7 @@ with bots. Secret chats exist only on the phones and are out of reach.
 Each message goes to Kafka topic raw.telegram in the usual envelope
 (pipelines/dags/ingest.py), as text and metadata: who, when, the text, what
 it replied to or was forwarded from, and for a photo, voice message or file
-its kind, size, duration and name - never the file itself.
+its kind, size, duration and name.
 
 Not a full snapshot like the other sources: years of messages are too many to
 send every hour. Variable telegram_sync holds, per chat, the newest message id
@@ -19,6 +19,19 @@ BUDGET. Chats with messages in the last EDIT_DAYS days are also read back
 that far, so an edit made since reaches the warehouse - the ods model keeps
 each message's newest version. A deletion does not: Telegram tells a client
 about deletions only as they happen, and this one is not listening then.
+
+The files go into the NAS archive (archive.py), in a second task, media:
+photos, videos, voice messages, video notes, audio and documents, each up to
+MEDIA_MAX. Stickers, GIFs and link previews stay metadata. Each file is
+stored under its hash and gets a record on raw.files, endpoint `telegram`,
+id the message's own id in raw.telegram - so ods.files' ref is
+ods.telegram_messages' message_key. Variable telegram_media holds, per chat,
+the newest message whose media was handled, never past telegram_sync's, so a
+file's message is always in the warehouse first; a chat seen for the first
+time is read from its first message, MEDIA_BUDGET per run. A file Telegram
+will not hand over - an expired file reference, a message deleted since - is
+logged and skipped. media runs after sync, never beside it: Telegram ends a
+session used over two connections at once (AUTH_KEY_DUPLICATED).
 
 The login is a Telethon session string, made once on the workstation by
 pipelines/tools/telegram_login.py and kept in the airflow-sources Secret with
@@ -31,8 +44,9 @@ TELEGRAM_SESSION is the account called `main`, TELEGRAM_SESSION_<NAME> the
 account called <name>. Each record carries its account. `main` keeps the
 ids and the Variable it had before there was more than one, so its history
 in raw carries on; another account's ids start with "<name>:" and its
-progress is in Variable telegram_sync_<name>. One account's dead session
-fails the run after the others are read, not before.
+progress is in Variables telegram_sync_<name> and telegram_media_<name>.
+One account's dead session fails the run after the others are read, not
+before.
 """
 
 from __future__ import annotations
@@ -42,16 +56,19 @@ import json
 import os
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pendulum
 from airflow.sdk import Variable, dag, task
 
 # Secrets and identity numbers masked before anything leaves for Kafka -
-# sensitive.py beside this file. Airflow puts the DAG folder, pipelines/, on
-# the import path, not dags/, so the directory this file is in goes on first.
+# sensitive.py beside this file - and the NAS archive, archive.py. Airflow
+# puts the DAG folder, pipelines/, on the import path, not dags/, so the
+# directory this file is in goes on first.
 import sys  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import archive  # noqa: E402
 from sensitive import mask_record  # noqa: E402
 
 KAFKA_BOOTSTRAP = "kafka.data.svc.cluster.local:9092"
@@ -65,6 +82,19 @@ EDIT_DAYS = 3
 # The newest message id sent is saved every this many messages, so a run
 # that fails part-way through a long chat does not start it over.
 SAVE_EVERY = 2000
+# The media task's progress, the same way: `main`'s, and MEDIA_STATE +
+# "_<name>" for another account.
+MEDIA_STATE = "telegram_media"
+# The media kinds, as _media() names them, whose files go into the archive.
+ARCHIVED = {"photo", "video", "voice", "video_note", "audio", "document"}
+# A bigger file is skipped, and counted in the task's log.
+MEDIA_MAX = 1 << 30
+# Downloading stops after this long and the next run carries on, so the
+# history's files go in a portion an hour.
+MEDIA_BUDGET = timedelta(minutes=30)
+# Progress is saved every this many files stored, so a failed run fetches
+# at most this many again.
+MEDIA_SAVE_EVERY = 20
 
 
 def _media(m) -> dict | None:
@@ -90,6 +120,14 @@ def _media(m) -> dict | None:
     if m.web_preview is not None:
         media["url"] = getattr(m.web_preview, "url", None)
     return media
+
+
+def to_archive(media: dict | None) -> bool:
+    """Whether a message's media, as _media() describes it, is a file for the
+    archive. Not a link's preview, which _media() calls a photo when it has
+    a picture, and not media whose file is gone - a self-destructing photo
+    once seen - which has no size."""
+    return media is not None and media["kind"] in ARCHIVED and "url" not in media and "size" in media
 
 
 def _action(m) -> dict | None:
@@ -256,9 +294,20 @@ def _client(session_key: str):
     )
 
 
-async def _sync(raw: _Raw, account: str, session_key: str, state: dict, save, started: float) -> None:
+async def _authorize(client, session_key: str) -> None:
+    """Fails, saying what to do, when Telegram no longer takes the session."""
     from telethon.errors import AuthKeyUnregisteredError, SessionRevokedError
 
+    try:
+        authorized = await client.is_user_authorized()
+    except (AuthKeyUnregisteredError, SessionRevokedError):
+        authorized = False
+    if not authorized:
+        raise RuntimeError(f"Telegram no longer accepts {session_key} - the session was ended "
+                           "under Settings -> Devices, or expired. pipelines/telegram.md, \"Renewing\"")
+
+
+async def _sync(raw: _Raw, account: str, session_key: str, state: dict, save, started: float) -> None:
     now = datetime.now(timezone.utc)
     prefix = "" if account == "main" else f"{account}:"
 
@@ -266,13 +315,7 @@ async def _sync(raw: _Raw, account: str, session_key: str, state: dict, save, st
         raw.send(endpoint, prefix + rid, {**record, "account": account})
 
     async with _client(session_key) as client:
-        try:
-            authorized = await client.is_user_authorized()
-        except (AuthKeyUnregisteredError, SessionRevokedError):
-            authorized = False
-        if not authorized:
-            raise RuntimeError(f"Telegram no longer accepts {session_key} - the session was ended "
-                               "under Settings -> Devices, or expired. pipelines/telegram.md, \"Renewing\"")
+        await _authorize(client, session_key)
 
         dialogs = [d async for d in client.iter_dialogs() if is_private(d)]
         for d in dialogs:
@@ -310,6 +353,92 @@ async def _sync(raw: _Raw, account: str, session_key: str, state: dict, save, st
                                                     offset_date=now - timedelta(days=EDIT_DAYS)):
                     if m.edit_date:
                         send("messages", f"{d.id}/{m.id}", message_record(d.id, m))
+
+
+async def _download(client, m, label: str) -> dict | None:
+    """A message's file, stored in the archive: store()'s fields, or None
+    when Telegram does not hand it over."""
+    from telethon.errors import BadRequestError, ForbiddenError, NotFoundError
+
+    tmp = archive.tmp_path()
+    try:
+        got = await client.download_media(m, file=str(tmp))
+    # This file's own trouble: an expired file reference, a message deleted
+    # since - Telethon, fetching it again, gets None, hence AttributeError.
+    # Anything else - the connection, the NAS, a long "wait", the login -
+    # fails the account, and the file is tried again next run.
+    except (BadRequestError, ForbiddenError, NotFoundError, AttributeError) as e:
+        print(f"{label}: not downloaded, {type(e).__name__}: {e}")
+        got = None
+    if got is None:
+        for p in tmp.parent.glob(f"{tmp.name}*"):  # what was written of it
+            p.unlink()
+        return None
+    # Telethon adds an extension to a name without one, so the file is
+    # where it says, not at tmp.
+    return archive.store(Path(got))
+
+
+async def _store_media(files: archive.Files, account: str, session_key: str, synced: dict, state: dict,
+                       save, started: float) -> None:
+    prefix = "" if account == "main" else f"{account}:"
+    stored = too_big = failed = unsaved = 0
+
+    def spent():
+        return time.monotonic() - started > MEDIA_BUDGET.total_seconds()
+
+    async with _client(session_key) as client:
+        await _authorize(client, session_key)
+
+        dialogs = [d async for d in client.iter_dialogs() if is_private(d)]
+        # Chats already under way first, the backlog after, so one long first
+        # import never holds up today's photos.
+        dialogs.sort(key=lambda d: str(d.id) not in state)
+        for d in dialogs:
+            if spent():
+                print(f"{account}: budget spent; the next run carries on")
+                break
+            key = str(d.id)
+            # No further than sync has sent, so a file's message is always in
+            # the warehouse before the file is.
+            last, upto = state.get(key, 0), synced.get(key, 0)
+            if upto <= last:
+                continue
+            async for m in client.iter_messages(d.entity, reverse=True, min_id=last, max_id=upto + 1):
+                if spent():
+                    break
+                media = _media(m)
+                if to_archive(media):
+                    if media["size"] > MEDIA_MAX:
+                        too_big += 1
+                    elif (record := await _download(client, m, f"{account}: {d.id}/{m.id}")) is None:
+                        failed += 1
+                    else:
+                        files.send("telegram", f"{prefix}{d.id}/{m.id}", {
+                            **record,
+                            "name": m.file.name,
+                            "mime_type": m.file.mime_type,
+                            "kind": media["kind"],
+                            "account": account,
+                            "chat_id": d.id,
+                            "message_id": m.id,
+                        })
+                        stored += 1
+                        unsaved += 1
+                state[key] = m.id
+                if unsaved == MEDIA_SAVE_EVERY:
+                    files.flush()
+                    save(state)
+                    unsaved = 0
+            else:
+                # The whole way: a message deleted since sync sent it is not
+                # waited for.
+                state[key] = upto
+            files.flush()
+            save(state)
+            unsaved = 0
+    print(f"{account}: {stored} files to {archive.TOPIC}; skipped {too_big} over MEDIA_MAX, "
+          f"{failed} not downloaded")
 
 
 @dag(
@@ -350,7 +479,36 @@ def ingest_telegram():
         if failed:
             raise RuntimeError(f"accounts not read: {', '.join(failed)} - see the lines above")
 
-    sync()
+    # MEDIA_BUDGET, and room for the file being fetched when it runs out. It
+    # runs when sync failed too, so one account's dead session holds up no
+    # other account's files; it never goes past what sync sent.
+    @task(execution_timeout=timedelta(minutes=45), trigger_rule="all_done")
+    def media() -> None:
+        from airflow.sdk import get_current_context
+
+        files = archive.Files(get_current_context()["run_id"])
+        # One budget for the whole run, `main` first, as in sync.
+        started = time.monotonic()
+        failed = []
+        for account, session_key in accounts().items():
+            suffix = "" if account == "main" else f"_{account}"
+            synced = json.loads(Variable.get(STATE + suffix, default="{}"))
+            state = json.loads(Variable.get(MEDIA_STATE + suffix, default="{}"))
+
+            def save(s, var=MEDIA_STATE + suffix):
+                Variable.set(var, json.dumps(s, sort_keys=True))
+
+            try:
+                asyncio.run(_store_media(files, account, session_key, synced, state, save, started))
+            except Exception as e:  # the other accounts' files are still stored
+                print(f"{account}: {e}")
+                failed.append(account)
+        if failed:
+            raise RuntimeError(f"accounts' files not stored: {', '.join(failed)} - see the lines above")
+
+    # One after the other, never at once: Telegram ends a session used over
+    # two connections at the same time.
+    sync() >> media()
 
 
 ingest_telegram()

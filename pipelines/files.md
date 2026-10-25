@@ -71,6 +71,7 @@ which then stays in the inbox untouched.
 | `source` | What | `ref` | Joins |
 |---|---|---|---|
 | `inbox` | anything dropped in that no manifest names | its path in the inbox, the batch folder first | - |
+| `telegram` | photos, videos, voice messages, video notes, audio and documents in private Telegram chats, from `ingest_telegram` ([telegram.md](telegram.md)) | the message's `message_key`: `<chat id>/<message id>`, with `<account>:` in front for an account other than `main` | `ods.telegram_messages.file_key` |
 | `proton` | Proton Mail attachments, packed with `--files` ([proton.md](proton.md)) | `<message_key>/<position>`: the message's Proton id, and the attachment's place in it from 1 | `ods.proton_attachments.file_key` |
 
 ## Finding a file from a row
