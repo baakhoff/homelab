@@ -50,8 +50,8 @@ plugin offers no GPU and Plex waits in Pending.
 
 - *Credentials → Groups*: add `media`. *Credentials → Users*: add `media`,
   primary group `media`, password disabled, shell `nologin`, no SMB. Its UID
-  must be `PLEX_UID` in `deployment.yaml`, 3001; if TrueNAS gave another,
-  change it there.
+  and its group's GID must be `PLEX_UID` and `PLEX_GID` in
+  `deployment.yaml`, 3001 and 3002 here; `id media` on the NAS shows both.
 - *Datasets → tank/media → Permissions → Edit*: owner user and group
   `media`, applied to the children.
 - *Shares → NFS → Add*: path `/mnt/tank/media`; networks
@@ -64,7 +64,7 @@ sudo install -d -o media -g media /mnt/tank/media/films /mnt/tank/media/series
 ```
 
 Check with `sudo cat /etc/exports`: the media line shows the three addresses,
-each with `all_squash,anonuid=3001,anongid=3001`.
+each with `all_squash,anonuid=3001,anongid=3002`.
 
 **3. The backup's restic credentials**, as the backup README describes:
 
