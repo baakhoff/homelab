@@ -217,6 +217,28 @@ def _immich_pages(session: requests.Session, url: str):
         yield from _json(r, None, url)
 
 
+def _plex_pages(session: requests.Session, url: str):
+    """Plex answers {"MediaContainer": {...}} with the records in its
+    "Metadata" list (watch history) or its "Directory" list (libraries); an
+    empty container has neither. Paged with X-Plex-Container-Start and
+    -Size; a page shorter than asked for is the last.
+    """
+    start = 0
+    while True:
+        r = session.get(url, params={"X-Plex-Container-Start": start,
+                                     "X-Plex-Container-Size": PAGE_SIZE}, timeout=TIMEOUT)
+        r.raise_for_status()
+        try:
+            container = r.json()["MediaContainer"]
+        except (ValueError, KeyError, TypeError):
+            raise RuntimeError(f"{url} did not answer a Plex MediaContainer")
+        items = container.get("Metadata") or container.get("Directory") or []
+        yield from items
+        if len(items) < PAGE_SIZE:
+            return
+        start += PAGE_SIZE
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -311,6 +333,17 @@ SOURCES = {
         # Statistics has one entry per account, named by its user.
         "ids": {"server/statistics": "userId"},
         "schedule": "50 */6 * * *",
+    },
+    # The libraries, and every play: what was watched, by which account,
+    # when. Plex has no scoped keys, so this is the server owner's own
+    # plex.tv token (clusters/lab/plex/README.md, step 6).
+    "plex": {
+        "base": "http://plex.plex.svc.cluster.local:32400",
+        "auth": ("X-Plex-Token:", "PLEX_TOKEN"),
+        "pages": _plex_pages,
+        "endpoints": ["library/sections", "status/sessions/history/all"],
+        "ids": {"library/sections": "uuid", "status/sessions/history/all": "historyKey"},
+        "schedule": "55 */6 * * *",
     },
 }
 

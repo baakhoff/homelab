@@ -1,0 +1,11 @@
+# Nothing in, nothing out. The plugin talks to the kubelet through a Unix
+# socket on the host and needs no network at all, so it gets none - the
+# strictest policy in the lab, and the simplest.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: intel-gpu-plugin
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]

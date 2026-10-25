@@ -78,10 +78,11 @@ whose loss would hurt most are written first:
 | 15 | `notes/outline-data` | the images and attachments in those documents |
 | 16-17 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
 | 18 | `minecraft/minecraft-data` | the world |
-| 19 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
-| 20 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
-| 21 | `data/data-clickhouse-0` | the warehouse's history |
-| 22-29 | the eight `agents/*` volumes | session transcripts and unpushed work |
+| 19 | `plex/plex-config` | Plex's library database, watch history and settings; the films themselves are on the NAS and can be fetched again |
+| 20 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
+| 21 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
+| 22 | `data/data-clickhouse-0` | the warehouse's history |
+| 23-30 | the eight `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly
@@ -120,6 +121,7 @@ applied to this cluster:
 | Loki | same argument at 7d, and its logs only start when Alloy was deployed |
 | `photon/photon-data` | Photon's geocoding index, downloaded and built again by its next start (`clusters/lab/photon/README.md`) |
 | `immich/immich-ml-cache` | Immich's machine-learning models, downloaded again on first use |
+| `plex-media`, the films and series | an NFS volume on the NAS, like the photo library; and what the download client fetched can be fetched again |
 | `immich-library`, the photo library | an NFS volume on the NAS, which this driver cannot snapshot. The NAS snapshots it with ZFS; its off-site copy is the NAS's own business, not this repository's (`clusters/lab/immich/README.md`, Backup) |
 
 Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its

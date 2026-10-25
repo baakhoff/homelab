@@ -37,5 +37,7 @@ sources:
         description: The VK account's data archive (deleted 2020), loaded by hand - messages, conversations, the music list and every other section's entries, one record per message in the ingest envelope.
       - name: immich
         description: Immich API snapshots - photo and video counts and bytes per account, and the accounts - one record per message in the ingest envelope. Nothing about any photo.
+      - name: plex
+        description: Plex API snapshots - the libraries, and the whole watch history, one play per record - one record per message in the ingest envelope.
       - name: google
         description: One Google account - Calendar, Contacts, Tasks, Drive and Gmail labels as snapshots, Gmail message metadata as changes, Data Portability exports - one record per message in the ingest envelope.
