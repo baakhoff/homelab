@@ -1,5 +1,6 @@
-# In: ingress-nginx, which is every app's way in, and Airflow's scheduler,
-# for the ingest_plex DAG (pipelines/dags/ingest.py). Nothing else in the
+# In: ingress-nginx, which is every app's way in, Airflow's scheduler, for
+# the ingest_plex DAG (pipelines/dags/ingest.py), and Seerr in `arr`, which
+# reads the library to know what is already there. Nothing else in the
 # cluster, and no rule for the agents, brand-jobs or n8n namespaces.
 #
 # Out: open but for the NAS (networkpolicy-no-nas.yaml). Plex needs plex.tv
@@ -32,6 +33,16 @@ spec:
           podSelector:
             matchLabels:
               component: scheduler
+      ports:
+        - protocol: TCP
+          port: 32400
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: arr
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: seerr
       ports:
         - protocol: TCP
           port: 32400

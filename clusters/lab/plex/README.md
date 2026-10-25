@@ -32,7 +32,7 @@ house and on the tailnet the apps connect directly, at full quality.
 | `namespace.yaml` | the namespace, at Pod Security `baseline` |
 | `deployment.yaml` | Plex, with the GPU, its database volume, the films read-only, and RAM for transcoding |
 | `pvc.yaml` | the database volume on Ceph, and the NAS share `tank/media`, read-only, through csi-driver-nfs |
-| `networkpolicy.yaml` | ingress-nginx and Airflow's scheduler in |
+| `networkpolicy.yaml` | ingress-nginx, Airflow's scheduler and Seerr in |
 | `networkpolicy-no-nas.yaml` | no pod here reaches the NAS ([why](../../../docs/network.md#pods-and-the-lan)) |
 | `service.yaml`, `ingress.yaml` | `watch.lab.baakhoff.com`, with the Homepage tile |
 

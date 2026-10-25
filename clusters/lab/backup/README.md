@@ -80,10 +80,12 @@ whose loss would hurt most are written first:
 | 18 | `minecraft/minecraft-data` | the world |
 | 19 | `plex/plex-config` | Plex's library database, watch history and settings; the films themselves are on the NAS and can be fetched again |
 | 20-22 | `arr/radarr-config`, `arr/sonarr-config`, `arr/prowlarr-config` | the films and series followed, their quality profiles and history, and the torrent sites with their logins |
-| 23 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
-| 24 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
-| 25 | `data/data-clickhouse-0` | the warehouse's history |
-| 26-33 | the eight `agents/*` volumes | session transcripts and unpushed work |
+| 23 | `arr/bazarr-config` | the subtitle languages wanted, the subtitle sites with their logins, and what was fetched; the subtitles themselves sit beside the videos on the NAS |
+| 24 | `arr/seerr-config` | the household's requests and their approvals, and Seerr's users and settings |
+| 25 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
+| 26 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
+| 27 | `data/data-clickhouse-0` | the warehouse's history |
+| 28-35 | the eight `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly

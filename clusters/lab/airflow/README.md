@@ -8,7 +8,7 @@ model is live a minute later, with no restart.
 
 | DAG | What it does | When |
 |---|---|---|
-| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline`, `ingest_immich`, `ingest_plex`, `ingest_radarr`, `ingest_sonarr` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, the rest every 6 hours |
+| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline`, `ingest_immich`, `ingest_plex`, `ingest_radarr`, `ingest_sonarr`, `ingest_bazarr`, `ingest_seerr` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, the rest every 6 hours |
 | `ingest_telegram` | Each logged-in Telegram account's private chats into `raw.telegram`, logged in as the account: new messages, and the last 3 days again for edits; the history in 40-minute portions on the first runs ([how](../../../pipelines/telegram.md)) | hourly, at :20 |
 | `ingest_proton` | A Proton Mail export, packed on the workstation and copied into the scheduler pod, into `raw.proton` ([how](../../../pipelines/proton.md)) | by hand |
 | `ingest_vk` | The VK data archive, packed on the workstation and copied into the scheduler pod, into `raw.vk` ([how](../../../pipelines/vk.md)) | by hand |
@@ -47,7 +47,7 @@ container's log.
 `networkpolicy.yaml` lets Airflow out to the internet on 443 - GitHub for
 git-sync, Google's APIs for the Google DAGs - and inside the lab to exactly
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
-Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline, Immich, Plex, Radarr, Sonarr. Each of
+Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline, Immich, Plex, Radarr, Sonarr, Bazarr, Seerr. Each of
 those admits the scheduler pod by name in its own policy. A new source needs
 a door on both sides. Telegram is outside the lab, so `ingest_telegram` goes
 out through the same internet rule as git-sync, on 443. The dbt docs pod uses
@@ -124,7 +124,7 @@ Dawarich's keys are added later, into the same Secret - step 5 of
 and so is Outline's API key, step 4 of `clusters/lab/notes/README.md`, and
 Immich's, step 6 of `clusters/lab/immich/README.md`, and Plex's, step 6 of
 `clusters/lab/plex/README.md`, and Radarr's and Sonarr's, step 1 of
-`clusters/lab/arr/README.md`, and
+`clusters/lab/arr/README.md`, and Bazarr's and Seerr's, step 9 there, and
 Telegram's login, by `pipelines/tools/telegram_login.py` (`pipelines/telegram.md`).
 So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
 `clusters/lab/cloudbeaver/README.md` - and Google's client and tokens, by

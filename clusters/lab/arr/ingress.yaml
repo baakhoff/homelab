@@ -1,5 +1,6 @@
-# Three hosts behind the admin gate (lab-admins only). The apps' own login
-# is off - `External`, trusting the gate (radarr.yaml and its siblings).
+# Five hosts behind the gate. Four for lab-admins only, with the apps' own
+# login off - `External` in radarr.yaml and its siblings, none at all in
+# Bazarr's settings. Seerr, last, is for the whole household.
 #
 # No tls: block - the controller serves the lab wildcard as its default
 # certificate, like every other Ingress here.
@@ -83,3 +84,60 @@ spec:
                 name: prowlarr
                 port:
                   number: 9696
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bazarr
+  namespace: arr
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Bazarr
+    gethomepage.dev/group: Platform
+    gethomepage.dev/icon: bazarr.png
+    gethomepage.dev/description: Subtitles for the films and series
+    gethomepage.dev/href: https://subtitles.lab.baakhoff.com
+spec:
+  rules:
+    - host: subtitles.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bazarr
+                port:
+                  number: 6767
+---
+# Seerr is for the whole household, not only lab-admins: the gate admits
+# anyone Pocket ID lets through its client, and Seerr's own login - the
+# plex.tv account - then says who is asking.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: seerr
+  namespace: arr
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Seerr
+    gethomepage.dev/group: Play
+    gethomepage.dev/icon: seerr.png
+    gethomepage.dev/description: Ask for a film or a series
+    gethomepage.dev/href: https://requests.lab.baakhoff.com
+spec:
+  rules:
+    - host: requests.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: seerr
+                port:
+                  number: 5055

@@ -1,0 +1,111 @@
+# Bazarr: subtitles for everything Radarr and Sonarr bring in. It reads
+# their lists of films and episodes, searches the subtitle sites for the
+# languages in its profile, and writes each .srt beside its video in
+# /data/films or /data/series, where Plex picks it up on its next scan. It
+# keeps looking for a better match for a while after the first one.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bazarr
+  namespace: arr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bazarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bazarr
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      # As radarr.yaml: the image starts as root to take PUID and PGID.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bazarr
+          # Bazarr's release and linuxserver's build; renovate.json5 reads
+          # both.
+          image: ghcr.io/linuxserver/bazarr:v1.6.2-ls369
+          env:
+            - name: TZ
+              value: Europe/Copenhagen
+            # The NAS's `media` user and group, so the subtitles it writes
+            # belong to the share's owner like the videos beside them.
+            - name: PUID
+              value: "3001"
+            - name: PGID
+              value: "3002"
+          ports:
+            - name: http
+              containerPort: 6767
+          # The one path Bazarr answers without its API key.
+          startupProbe:
+            httpGet:
+              path: /api/system/ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/system/ping
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/system/ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: bazarr-config
+        # The same share and path as Radarr and Sonarr, so the paths they
+        # report are paths Bazarr can open. Writable: the subtitles go
+        # beside the videos.
+        - name: media
+          persistentVolumeClaim:
+            claimName: arr-media
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bazarr
+  namespace: arr
+spec:
+  selector:
+    app.kubernetes.io/name: bazarr
+  ports:
+    - name: http
+      port: 6767
+      targetPort: http
+---
+# Bazarr's database - which subtitles it fetched for what, and from where -
+# its settings, and the subtitle sites' logins. SQLite, so on Ceph.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bazarr-config
+  namespace: arr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 2Gi

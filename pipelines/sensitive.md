@@ -8,7 +8,7 @@ Kafka, ClickHouse, Loki, their backups, or an agent that reads them.
 Two places do it, with the same rules:
 
 - **`dags/sensitive.py`**, in every ingest job (Telegram, Proton Mail,
-  Google, VK, Outline, Paperless, Firefly, Mealie, Vikunja, SparkyFitness, Dawarich, Immich, Plex, Radarr, Sonarr, CloudBeaver).
+  Google, VK, Outline, Paperless, Firefly, Mealie, Vikunja, SparkyFitness, Dawarich, Immich, Plex, Radarr, Sonarr, Bazarr, Seerr, CloudBeaver).
   Every string in a record, however deep, goes through it before the record
   is sent.
 - **`mask_secrets` in `clusters/lab/logging/alloy.yaml`**, in the

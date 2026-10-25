@@ -43,5 +43,9 @@ sources:
         description: Radarr API snapshots - the films followed and the whole grab and import history - one record per message in the ingest envelope.
       - name: sonarr
         description: Sonarr API snapshots - the series followed and the whole grab and import history - one record per message in the ingest envelope.
+      - name: bazarr
+        description: Bazarr API snapshots - each film and series with the subtitle languages it has and the ones still missing - one record per message in the ingest envelope.
+      - name: seerr
+        description: Seerr API snapshots - every request for a film or series with who made it and what became of it, and the accounts - one record per message in the ingest envelope.
       - name: google
         description: One Google account - Calendar, Contacts, Tasks, Drive and Gmail labels as snapshots, Gmail message metadata as changes, Data Portability exports - one record per message in the ingest envelope.

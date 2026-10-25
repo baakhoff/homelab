@@ -329,8 +329,9 @@ roleRef:
   kind: ClusterRole
   name: backup-driver
 ---
-# Radarr, Sonarr and Prowlarr: each one's database and settings - three
-# targets, one namespace. qBittorrent, in `torrents`, is not backed up.
+# Radarr, Sonarr, Prowlarr, Bazarr and Seerr: each one's database and
+# settings - five targets, one namespace. qBittorrent, in `torrents`, is not
+# backed up.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

@@ -263,6 +263,34 @@ def _arr_pages(session: requests.Session, url: str):
         page += 1
 
 
+def _bazarr_pages(session: requests.Session, url: str):
+    """{"data": [...], "total": n}, paged by row offset ("start") and page
+    size ("length"); without a length Bazarr answers everything at once.
+    """
+    start = 0
+    while True:
+        r = session.get(url, params={"start": start, "length": PAGE_SIZE}, timeout=TIMEOUT)
+        body = _json(r, "data", url)
+        yield from body["data"]
+        start += PAGE_SIZE
+        if start >= body.get("total", 0) or not body["data"]:
+            return
+
+
+def _seerr_pages(session: requests.Session, url: str):
+    """{"pageInfo": {"pages": n, ...}, "results": [...]}, paged by "take"
+    and "skip". With no filter the request list holds every status.
+    """
+    skip = 0
+    while True:
+        r = session.get(url, params={"take": PAGE_SIZE, "skip": skip}, timeout=TIMEOUT)
+        body = _json(r, "results", url)
+        yield from body["results"]
+        skip += PAGE_SIZE
+        if skip >= body.get("pageInfo", {}).get("results", 0) or not body["results"]:
+            return
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -385,6 +413,26 @@ SOURCES = {
         "pages": _arr_pages,
         "endpoints": ["series", "history"],
         "schedule": "10 */6 * * *",
+    },
+    # Each film's and series' subtitles: the languages there, and the ones
+    # still missing. Not Bazarr's history, whose rows carry no id. The key
+    # is the one Bazarr made itself (clusters/lab/arr/README.md, step 9).
+    "bazarr": {
+        "base": "http://bazarr.arr.svc.cluster.local:6767/api",
+        "auth": ("X-API-KEY:", "BAZARR_API_KEY"),
+        "pages": _bazarr_pages,
+        "endpoints": ["movies", "series"],
+        "ids": {"movies": "radarrId", "series": "sonarrSeriesId"},
+        "schedule": "0 */6 * * *",
+    },
+    # Who asked for what, when, and what became of it; and the accounts.
+    # Seerr's own API key, read from its settings (README, step 9).
+    "seerr": {
+        "base": "http://seerr.arr.svc.cluster.local:5055/api/v1",
+        "auth": ("X-Api-Key:", "SEERR_API_KEY"),
+        "pages": _seerr_pages,
+        "endpoints": ["request", "user"],
+        "schedule": "2 */6 * * *",
     },
 }
 

@@ -1,7 +1,10 @@
 # In, per app:
 #   Radarr, Sonarr   ingress-nginx (behind the gate); Prowlarr, which pushes
-#                    the torrent sites into them; Airflow's scheduler, for
-#                    ingest_radarr and ingest_sonarr
+#                    the torrent sites into them; Bazarr, which reads their
+#                    films and episodes; Seerr, which hands them requests;
+#                    Airflow's scheduler, for ingest_radarr and ingest_sonarr
+#   Bazarr, Seerr    ingress-nginx; Airflow's scheduler, for ingest_bazarr
+#                    and ingest_seerr
 #   Prowlarr         ingress-nginx; Radarr and Sonarr, which search through
 #                    it
 #   FlareSolverr     Prowlarr only - a browser that fetches any address it is
@@ -9,8 +12,9 @@
 # Nothing else, and no rule for the agents, brand-jobs or n8n namespaces.
 #
 # Out: open but for the NAS (networkpolicy-no-nas.yaml) - film and series
-# metadata, the torrent sites, and qBittorrent in `torrents`, whose own
-# policy admits Radarr and Sonarr by name.
+# metadata, the torrent sites, the subtitle sites, plex.tv for Seerr's
+# logins, qBittorrent in `torrents`, whose own policy admits Radarr and
+# Sonarr by name, and Plex, whose policy admits Seerr.
 #
 # k3s enforces NetworkPolicy - see the agents policy for the smoke test.
 apiVersion: networking.k8s.io/v1
@@ -29,8 +33,10 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
         - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: prowlarr
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [prowlarr, bazarr, seerr]
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: airflow
@@ -57,8 +63,10 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
         - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: prowlarr
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [prowlarr, bazarr, seerr]
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: airflow
@@ -92,6 +100,56 @@ spec:
       ports:
         - protocol: TCP
           port: 9696
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bazarr
+  namespace: arr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bazarr
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 6767
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: seerr
+  namespace: arr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: seerr
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 5055
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

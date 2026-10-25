@@ -19,7 +19,7 @@
 #   notes           3000, Outline
 #   immich          2283
 #   plex            32400
-#   arr             7878 Radarr, 8989 Sonarr
+#   arr             7878 Radarr, 8989 Sonarr, 6767 Bazarr, 5055 Seerr
 #   cloudbeaver     its Postgres 5432, for the usage DAG
 #
 # And one more way in: CloudBeaver to Postgres, as its read-only role - the
@@ -204,6 +204,26 @@ spec:
       ports:
         - protocol: TCP
           port: 8989
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: arr
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: bazarr
+      ports:
+        - protocol: TCP
+          port: 6767
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: arr
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: seerr
+      ports:
+        - protocol: TCP
+          port: 5055
     - to:
         - namespaceSelector:
             matchLabels:

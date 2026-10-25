@@ -1,0 +1,110 @@
+# Seerr: where the household asks for a film or a series. Someone searches,
+# clicks Request, and Seerr hands it to Radarr or Sonarr, or holds it for
+# the owner's approval, by the rules set in it (README, step 8). It reads
+# Plex's library, so what is already there shows as available instead of
+# being requested twice, and each person signs in with the plex.tv account
+# that Plex knows them by.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seerr
+  namespace: arr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seerr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seerr
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      # The image runs as its own `node` user; it touches no NAS file, so
+      # unlike its neighbours it needs no root to start with.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: seerr
+          image: ghcr.io/seerr-team/seerr:v3.5.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: TZ
+              value: Europe/Copenhagen
+            - name: LOG_LEVEL
+              value: info
+            - name: PORT
+              value: "5055"
+          ports:
+            - name: http
+              containerPort: 5055
+          # Public, no key needed.
+          startupProbe:
+            httpGet:
+              path: /api/v1/status
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/status
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/v1/status
+              port: http
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: seerr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seerr
+  namespace: arr
+spec:
+  selector:
+    app.kubernetes.io/name: seerr
+  ports:
+    - name: http
+      port: 5055
+      targetPort: http
+---
+# Seerr's settings.json - its API key, and the Plex, Radarr and Sonarr
+# connections - and its SQLite database: the users, every request and its
+# approval. On Ceph.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seerr-config
+  namespace: arr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 2Gi

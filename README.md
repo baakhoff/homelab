@@ -68,6 +68,8 @@ accounts, the only login its TV apps know.
 | [Sonarr](https://sonarr.tv) | The same for series, fetching each new episode as it airs. |
 | [Prowlarr](https://prowlarr.com) | The torrent sites, kept in one place for Radarr and Sonarr. |
 | [qBittorrent](https://www.qbittorrent.org) | The torrent client they hand downloads to, only ever through the VPN. |
+| [Bazarr](https://www.bazarr.media) | Subtitles for every film and episode they bring in, in the household's languages. |
+| [Seerr](https://github.com/seerr-team/seerr) | Where the household asks for a film or a series, signed in with their Plex account; it hands the request to Radarr or Sonarr. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
 | [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
@@ -117,7 +119,8 @@ accounts, the only login its TV apps know.
   Intel graphics through Intel's device plugin
   ([how](clusters/lab/plex/README.md)), and
   Radarr, Sonarr and Prowlarr filling that library from the torrent sites,
-  through a qBittorrent that reaches the internet only over a VPN
+  through a qBittorrent that reaches the internet only over a VPN, with
+  Bazarr adding subtitles and Seerr taking the household's requests
   ([how](clusters/lab/arr/README.md)), and
   Outline for notes and documents ([how](clusters/lab/notes/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
