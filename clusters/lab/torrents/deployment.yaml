@@ -143,12 +143,17 @@ spec:
               command: ["/gluetun-entrypoint", "healthcheck"]
             periodSeconds: 30
             failureThreshold: 4
+          # Every byte of every torrent passes through here, encrypted or
+          # decrypted by OpenVPN, and the tunnel's buffers count against this
+          # container. At 256Mi it was killed for memory 19 times in its
+          # first two hours, with three large downloads running - and each
+          # kill dropped the tunnel and, with it, Radarr's way in.
           resources:
             requests:
-              cpu: 20m
-              memory: 64Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
-              memory: 256Mi
+              memory: 1Gi
           volumeMounts:
             - name: gluetun
               mountPath: /gluetun
