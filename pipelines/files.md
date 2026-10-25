@@ -66,6 +66,15 @@ A manifest line without `file`, `endpoint` or `id`, or with an endpoint
 that is not lower-case letters, digits, `_`, `-` and `/`, fails the batch,
 which then stays in the inbox untouched.
 
+## Where files come from
+
+Each `source` besides `inbox`, and how its `ref` finds what the file
+belongs to:
+
+| `source` | The files | `ref` |
+|---|---|---|
+| `telegram` | Photos, videos, voice messages, video notes, audio and documents in private Telegram chats, from `ingest_telegram` ([telegram.md](telegram.md)) | the message's `message_key` in `ods.telegram_messages`, `<chat id>/<message id>`, with `<account>:` in front for an account other than `main`; that row's `file_key` is this one's |
+
 ## Finding a file from a row
 
 ```sql

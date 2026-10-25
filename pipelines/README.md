@@ -27,7 +27,7 @@ minute, so a merged change is live a minute later.
     google.md        what Google sends, its consent and renewal
     files.md         the NAS archive: where files go, the inbox, finding a file from a row
     sensitive.md     what is masked before data reaches the warehouse, and how
-    tests/           tests for sensitive.py, the pack tools and archive.py: `uv run --with pytest pytest pipelines/tests`
+    tests/           tests for sensitive.py, the pack tools, archive.py and telegram.py's choice of files: `uv run --with pytest pytest pipelines/tests`
     dbt/
       models/ods/    raw parsed into typed tables, one system at a time
       models/ads/    joins and aggregates across systems
