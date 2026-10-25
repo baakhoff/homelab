@@ -5,7 +5,8 @@
 --
 -- Addresses are lowercased. Folders and labels are by name, Proton's own
 -- (Inbox, Sent, Archive ...) included. Attachments are their names here and
--- one row each in proton_attachments; the files never left the export.
+-- one row each in proton_attachments, which finds the files in the NAS
+-- archive.
 with latest as (
   select
     JSONExtractString(payload, 'id') as message_key,

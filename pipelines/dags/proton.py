@@ -4,9 +4,10 @@ Proton has no API a server can read mail through, so this is not a sync: it
 loads one file, made on the machine holding a Proton Mail Export by
 pipelines/tools/proton_pack.py and copied into the scheduler pod with
 `kubectl cp`. Each line is one message - headers, the body as plain text,
-and attachments as names and sizes, never the files - and goes to Kafka
-topic raw.proton in the usual envelope (pipelines/dags/ingest.py), masked
-first like every other source.
+and attachments as names and sizes - and goes to Kafka topic raw.proton in
+the usual envelope (pipelines/dags/ingest.py), masked first like every
+other source. The attachments themselves go to the NAS archive, through its
+inbox (pipelines/files.md).
 
 Triggered by hand, never on a schedule. The file is deleted once every
 message is delivered, so the unmasked copy does not outlive the load; a

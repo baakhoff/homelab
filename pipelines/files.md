@@ -56,7 +56,7 @@ attachment belongs to, its name before it was saved - writes a
 `files.jsonl` into the batch folder, one line per file:
 
 ```json
-{"file": "m1/1", "endpoint": "proton", "id": "m1/1", "record": {"name": "invoice.pdf", "mime_type": "application/pdf"}}
+{"file": "12/1", "endpoint": "proton", "id": "Xq3vT9bLw0==/1", "record": {"name": "invoice.pdf", "mime_type": "application/pdf", "inline": false}}
 ```
 
 `file` is the path in the batch; the row gets `source` = `endpoint` and
@@ -65,6 +65,13 @@ itself. A file the manifest does not list is an `inbox` row like any other.
 A manifest line without `file`, `endpoint` or `id`, or with an endpoint
 that is not lower-case letters, digits, `_`, `-` and `/`, fails the batch,
 which then stays in the inbox untouched.
+
+## Where files come from
+
+| `source` | What | `ref` | Joins |
+|---|---|---|---|
+| `inbox` | anything dropped in that no manifest names | its path in the inbox, the batch folder first | - |
+| `proton` | Proton Mail attachments, packed with `--files` ([proton.md](proton.md)) | `<message_key>/<position>`: the message's Proton id, and the attachment's place in it from 1 | `ods.proton_attachments.file_key` |
 
 ## Finding a file from a row
 
@@ -77,6 +84,15 @@ WHERE source = 'inbox' AND batch = 'receipts-2026';
 `object` is the path in the read-only share `\\nas.lab\archive`, logged in
 as `archive`: `\\nas.lab\archive\objects\2d\2d7116…`. Copy it out and give
 it its `file_name` back - stored files have no extension.
+
+A model with a `file_key` column joins on it:
+
+```sql
+SELECT a.file_name, f.object
+FROM ods.proton_attachments AS a
+JOIN ods.files AS f ON f.file_key = a.file_key
+WHERE a.message_key = '…';
+```
 
 ## Things to know
 

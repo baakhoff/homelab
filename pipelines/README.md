@@ -16,7 +16,7 @@ minute, so a merged change is live a minute later.
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
       telegram_login.py  the one-time Telegram login, into the Secret
-      proton_pack.py     a Proton Mail export packed into one file for the DAG
+      proton_pack.py     a Proton Mail export packed into one file for the DAG, its attachments for the archive
       vk_pack.py         the VK data archive packed into one file for the DAG
       google_auth.py     the Google consent, run once on the workstation
       google_takeout_pack.py  a Google Takeout export packed into one file for the DAG
