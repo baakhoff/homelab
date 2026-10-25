@@ -1,0 +1,42 @@
+# The NAS's tank/archive, writable, mounted at /archive in the scheduler pod,
+# where the tasks run: the files the warehouse's rows point at, each stored
+# once under its hash, and the inbox files are dropped into from the
+# workstation (pipelines/files.md, pipelines/dags/archive.py). Only Airflow
+# mounts it.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: archive
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: airflow
+    name: archive
+  mountOptions:
+    - nfsvers=4.2
+    - hard
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeHandle: 192.168.68.105/mnt/tank/archive##airflow
+    volumeAttributes:
+      server: 192.168.68.105
+      share: /mnt/tank/archive
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: archive
+  namespace: airflow
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: archive
+  resources:
+    requests:
+      storage: 1Ti

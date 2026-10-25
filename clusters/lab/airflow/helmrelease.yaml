@@ -146,6 +146,14 @@ spec:
         # this together with parallelism, never one without the other.
         limits:
           memory: 2560Mi
+      # The NAS archive (archive.yaml), for the tasks that store files.
+      extraVolumes:
+        - name: archive
+          persistentVolumeClaim:
+            claimName: archive
+      extraVolumeMounts:
+        - name: archive
+          mountPath: /archive
       logGroomerSidecar:
         resources:
           requests:

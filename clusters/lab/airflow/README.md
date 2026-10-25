@@ -12,6 +12,7 @@ model is live a minute later, with no restart.
 | `ingest_proton` | A Proton Mail export, packed on the workstation and copied into the scheduler pod, into `raw.proton` ([how](../../../pipelines/proton.md)) | by hand |
 | `ingest_vk` | The VK data archive, packed on the workstation and copied into the scheduler pod, into `raw.vk` ([how](../../../pipelines/vk.md)) | by hand |
 | `ingest_google`, `ingest_google_gmail`, `ingest_google_portability`, `ingest_google_takeout` | The Google account into `raw.google`: Calendar, Contacts, Tasks and Drive as snapshots; Gmail metadata as changes; My Activity, Chrome and the rest as Data Portability exports; a Takeout export by hand, for mail bodies ([`pipelines/google.md`](../../../pipelines/google.md)) | 6-hourly, hourly, daily, by hand |
+| `ingest_files` | Every file dropped into the NAS archive's inbox: stored on the NAS under its hash, a row for each into `raw.files` ([how](../../../pipelines/files.md)) | hourly, at :30 |
 | `warehouse` | The dbt project: `raw` -> `ods` -> `ads` -> `dm`, one task per model and per model's tests, rendered by [Cosmos](https://github.com/astronomer/astronomer-cosmos) | hourly, at :45 |
 
 UI: <https://airflow.lab.baakhoff.com>, behind the admin gate. That gate is
@@ -37,6 +38,10 @@ container's log.
   dbt's and Airflow's dependencies never meet.
 - **Its own Postgres** (`postgres.yaml`) for run history. Losing it loses
   history, not data.
+- **The NAS archive at `/archive`** (`archive.yaml`): the NAS's
+  `tank/archive` over NFS, writable, in the scheduler pod only - where the
+  tasks that store files run. The node mounts it, not the pod, so no
+  network policy is involved.
 - **dbt connects as the `dbt` ClickHouse user**: it reads `raw` and owns
   `ods`, `ads` and `dm`, nothing else. The data namespace's schema job
   creates it.
@@ -148,5 +153,9 @@ Trigger `ingest_vikunja` by hand; when it is green,
   the schema job.
 - **Task logs are not kept** past the scheduler pod's life; its output is in
   Loki like any pod's.
-- **Not backed up**, and nothing here needs to be: the DAGs are in git and
-  the data is in ClickHouse.
+- **The scheduler needs the NAS to start.** Its pod mounts the archive, so a
+  scheduler restarted while the NAS is off waits in `ContainerCreating`,
+  and every DAG waits with it, until the NAS is back.
+- **Not backed up**, and nothing here needs to be: the DAGs are in git,
+  the data is in ClickHouse, and the files are on the NAS, snapshotted
+  there.

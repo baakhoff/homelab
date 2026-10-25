@@ -39,5 +39,7 @@ sources:
         description: Immich API snapshots - photo and video counts and bytes per account, and the accounts - one record per message in the ingest envelope. Nothing about any photo.
       - name: plex
         description: Plex API snapshots - the libraries, and the whole watch history, one play per record - one record per message in the ingest envelope.
+      - name: files
+        description: The files on the NAS archive - one record per place a file came from, its source and key, with the file's hash, size and name - one record per message in the ingest envelope. Never the file.
       - name: google
         description: One Google account - Calendar, Contacts, Tasks, Drive and Gmail labels as snapshots, Gmail message metadata as changes, Data Portability exports - one record per message in the ingest envelope.

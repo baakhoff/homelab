@@ -254,6 +254,7 @@ and a lone special (metadata) vdev would take the whole pool with it if it died.
 | `tank/personal` | Multiprotocol | AES-256-GCM, key | default | family files |
 | `tank/media` | Multiprotocol | none | 1M | large files that can be fetched again: films and series, for Plex |
 | `tank/immich` | Generic | AES-256-GCM, its own key | 1M | Immich's photo library, quota 800 GiB |
+| `tank/archive` | Generic | AES-256-GCM, its own key | 1M | the files the warehouse's rows point at - chat media, mail attachments, whatever is dropped into its inbox ([pipelines/files.md](../../pipelines/files.md)), quota 200 GiB |
 
 - **The pool root is not encrypted; `personal` is.** TrueNAS's own docs advise
   against root encryption, and the G5400 has no AVX, so ZFS falls back to its
@@ -268,9 +269,10 @@ and a lone special (metadata) vdev would take the whole pool with it if it died.
   with restricted ACLs, which Linux clients cannot work with; Multiprotocol
   serves Windows as well and keeps Linux access possible. It also makes an NFS
   share, though - see [the cluster's shares](#the-clusters-shares).
-- **Generic for `immich`.** Plain POSIX permissions: Immich sets file modes
-  as it files photos away, which an NFSv4 ACL can refuse. Its key was
-  exported to the password manager as `personal`'s was.
+- **Generic for `immich` and `archive`.** Plain POSIX permissions: Immich
+  sets file modes as it files photos away, and the archive's DAG hard-links
+  files from its inbox into place, either of which an NFSv4 ACL can refuse.
+  Their keys were exported to the password manager as `personal`'s was.
 
 Periodic snapshot tasks on `tank`, recursive:
 
@@ -287,11 +289,18 @@ Download File, with *Export Password Secret Seed*) is the backup of record for
 everything above, the dataset key included. It is a secret: it lives in the
 password manager, not in a download folder.
 
-### The Windows share
+### The Windows shares
 
 | Share | Path | Purpose | Access |
 |---|---|---|---|
 | `personal` | `/mnt/tank/personal` | Default Share | the local user `baakh`, owner of the dataset |
+| `archive-inbox` | `/mnt/tank/archive/inbox` | Default Share | the local user `archive`, owner of the dataset |
+| `archive` | `/mnt/tank/archive` | Default Share, *Export Read Only* | the same |
+
+The two archive shares are how files go into the archive and come out of
+it ([pipelines/files.md](../../pipelines/files.md)): the inbox writable,
+the whole dataset read-only, so no file under `objects/` is changed from a
+PC.
 
 From the Windows PC, in PowerShell:
 
@@ -307,16 +316,21 @@ start at all: keep the log in the user's profile.
 
 ### The cluster's shares
 
-Two datasets reach the cluster over NFSv4, mounted by the nodes through
-csi-driver-nfs (`clusters/lab/csi-driver-nfs/`): the photo library and the
-films.
+Three datasets reach the cluster over NFSv4, mounted by the nodes through
+csi-driver-nfs (`clusters/lab/csi-driver-nfs/`): the photo library, the
+films, and the archive.
 
 | Local user | UID | GID | Owns |
 |---|---|---|---|
 | `immich` | 3000 | 3001 | `tank/immich`, mode 770 |
 | `media` | 3001 | 3002 | `tank/media`, and its `films` and `series` folders |
+| `archive` | 3002 | 3003 | `tank/archive`, mode 770, and its `inbox`, `objects` and `tmp` folders |
 
-Both have the password disabled, the `nologin` shell and no SMB access.
+All three have the `nologin` shell. `immich` and `media` have the password
+disabled and no SMB access; `archive` has SMB access and a password, kept in
+the password manager, because it is also the login to the two archive
+shares above - files dropped in from a PC and files the cluster stores
+belong to the same user.
 TrueNAS numbers new users from 3000, clear of 1000, which is `baakh` here and
 the agent pods' user in the cluster. The pods that write run as these ids
 (`clusters/lab/immich/`, `clusters/lab/plex/`).
@@ -327,6 +341,7 @@ The NFS service runs NFSv4 only, bound to `192.168.68.105`, started at boot.
 |---|---|---|---|
 | `/mnt/tank/immich` | `192.168.68.102/32`, `.103/32`, `.104/32` | `immich` | Immich, read-write |
 | `/mnt/tank/media` | the same three | `media` | Plex, read-only |
+| `/mnt/tank/archive` | the same three | `archive` | Airflow, read-write |
 
 **Mapall** turns every request from a client into the share's own user, root
 included (`all_squash`). NFS believes whatever user id a client sends, so
@@ -347,6 +362,7 @@ The library folders, over SSH:
 
 ```
 sudo install -d -o media -g media /mnt/tank/media/films /mnt/tank/media/series
+sudo install -d -m 770 -o archive -g archive /mnt/tank/archive/inbox /mnt/tank/archive/objects /mnt/tank/archive/tmp
 ```
 
 The check, also over SSH:
@@ -356,10 +372,10 @@ sudo cat /etc/exports
 sudo ss -tn '( sport = :2049 )'
 ```
 
-`exports` lists exactly the two shares, each for the three node addresses
+`exports` lists exactly the three shares, each for the three node addresses
 with `all_squash`: `anonuid=3000,anongid=3001` on `immich`,
-`anonuid=3001,anongid=3002` on `media`. `ss` shows connections from node
-addresses and nothing else.
+`anonuid=3001,anongid=3002` on `media`, `anonuid=3002,anongid=3003` on
+`archive`. `ss` shows connections from node addresses and nothing else.
 
 ## Verification checklist
 
@@ -383,7 +399,9 @@ addresses and nothing else.
 - Both snapshot tasks appear under Data Protection and have taken snapshots.
 - The Windows PC maps `\\nas.lab\personal` as `baakh`, and a second `robocopy`
   run copies nothing.
-- `/etc/exports` holds the `immich` and `media` shares and nothing else, each
-  for the three node addresses with `all_squash` to its own user.
-- `tank/immich` is encrypted, unlocked after a reboot, and its exported key
-  opens it.
+- `/etc/exports` holds the `immich`, `media` and `archive` shares and nothing
+  else, each for the three node addresses with `all_squash` to its own user.
+- `tank/immich` and `tank/archive` are encrypted, unlocked after a reboot,
+  and their exported keys open them.
+- As `archive`, the PC writes a file into `\\nas.lab\archive-inbox`, and is
+  refused writing one into `\\nas.lab\archive`.

@@ -10,6 +10,7 @@ minute, so a merged change is live a minute later.
       proton.py      a Proton Mail export, loaded by hand from a packed file
       vk.py          the VK data archive, loaded by hand from a packed file
       google.py      the Google account, four DAGs (google.md)
+      archive.py     files onto the NAS under their hash, a row for each (files.md)
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
@@ -23,8 +24,9 @@ minute, so a merged change is live a minute later.
     proton.md        loading a Proton Mail export, and cleaning up after
     vk.md            loading the VK data archive
     google.md        what Google sends, its consent and renewal
+    files.md         the NAS archive: where files go, the inbox, finding a file from a row
     sensitive.md     what is masked before data reaches the warehouse, and how
-    tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
+    tests/           tests for sensitive.py, the pack tools and archive.py: `uv run --with pytest pytest pipelines/tests`
     dbt/
       models/ods/    raw parsed into typed tables, one system at a time
       models/ads/    joins and aggregates across systems
@@ -36,7 +38,8 @@ minute, so a merged change is live a minute later.
 
     service API --ingest_<source>--> Kafka raw.<source> --> ClickHouse raw.<source>
     Home Assistant, Alloy ---------> Kafka raw.<source> --> ClickHouse raw.<source>
-                                                                  |
+    NAS inbox ------ingest_files---> Kafka raw.files ----> ClickHouse raw.files
+       \--> the file, on the NAS under its hash                   |
                                                      warehouse:  ods -> ads -> dm
 
 `raw` is the record of what arrived: the payload exactly as produced, never
@@ -62,11 +65,11 @@ Five patterns cover the sources:
   because the whole history is millions of points. `ods.dawarich_points` is
   incremental and keeps each point as first seen, so a point deleted at
   the source stays.
-- **Messages sent once** (Telegram, Proton Mail) - each message is sent
-  when it is new and again when edited (Telegram) or exported again (Proton
-  Mail), and `ods.telegram_messages` and `ods.proton_messages` keep every
-  message's newest copy across all runs. Rebuilt every run; a message deleted at the
-  source stays.
+- **Messages sent once** (Telegram, Proton Mail, the NAS archive's files) -
+  each message is sent when it is new and again when edited (Telegram) or
+  exported again (Proton Mail), and `ods.telegram_messages`,
+  `ods.proton_messages` and `ods.files` keep every message's newest copy
+  across all runs. Rebuilt every run; a message deleted at the source stays.
 - **Changes** (Gmail, Google's activity exports) - the DAG sends only what
   is new or changed, and a tombstone for what was deleted, because a full
   snapshot would be far too large. `accumulated_records()` returns the newest
