@@ -64,10 +64,14 @@ spec:
       dnsConfig:
         nameservers: [127.0.0.1]
       initContainers:
-        # The first-start settings above, only if there are none yet.
+        # The first-start settings above, only if there are none yet; and
+        # the download folders on the share. qBittorrent would make them at
+        # its first download, but Radarr and Sonarr check for them before
+        # that and warn until they exist. On the share every write is the
+        # NAS's `media` user, whoever makes it.
         - name: defaults
           image: docker.io/library/busybox:1.37.0
-          command: ["sh", "-c", "mkdir -p /config/qBittorrent && [ -f /config/qBittorrent/qBittorrent.conf ] || cp /defaults/qBittorrent.conf /config/qBittorrent/"]
+          command: ["sh", "-c", "mkdir -p /data/downloads/films /data/downloads/series /config/qBittorrent && { [ -f /config/qBittorrent/qBittorrent.conf ] || cp /defaults/qBittorrent.conf /config/qBittorrent/; }"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -77,6 +81,8 @@ spec:
               mountPath: /config
             - name: defaults
               mountPath: /defaults
+            - name: media
+              mountPath: /data
         # The VPN, as a sidecar that starts first: qBittorrent starts only
         # once the tunnel is up and its health check passes.
         - name: gluetun
