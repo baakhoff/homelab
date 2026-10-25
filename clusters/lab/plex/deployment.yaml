@@ -37,13 +37,13 @@ spec:
           env:
             - name: TZ
               value: Europe/Copenhagen
-            # The NAS's `media` user, which its share maps every client to.
-            # The share is mounted read-only here, so this is only the owner
-            # of the database files; it matches so the two never disagree.
+            # The NAS's `media` user and group, which its share maps every
+            # client to. The share is mounted read-only here, so these only
+            # own the database files; they match so the two never disagree.
             - name: PLEX_UID
               value: "3001"
             - name: PLEX_GID
-              value: "3001"
+              value: "3002"
           ports:
             - name: http
               containerPort: 32400
