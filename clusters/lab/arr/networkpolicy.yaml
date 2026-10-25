@@ -1,0 +1,92 @@
+# In, per app:
+#   Radarr, Sonarr   ingress-nginx (behind the gate); Prowlarr, which pushes
+#                    the torrent sites into them; Airflow's scheduler, for
+#                    ingest_radarr and ingest_sonarr
+#   Prowlarr         ingress-nginx; Radarr and Sonarr, which search through
+#                    it
+# Nothing else, and no rule for the agents, brand-jobs or n8n namespaces.
+#
+# Out: open but for the NAS (networkpolicy-no-nas.yaml) - film and series
+# metadata, the torrent sites, and qBittorrent in `torrents`, whose own
+# policy admits Radarr and Sonarr by name.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: radarr
+  namespace: arr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: radarr
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prowlarr
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 7878
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sonarr
+  namespace: arr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prowlarr
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 8989
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prowlarr
+  namespace: arr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [radarr, sonarr]
+      ports:
+        - protocol: TCP
+          port: 9696

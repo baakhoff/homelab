@@ -1,0 +1,9 @@
+# No Pod Security label, and that is the one thing about this namespace to
+# know. The VPN container beside qBittorrent needs NET_ADMIN, to make the
+# tunnel and the firewall that keeps every byte inside it, and baseline does
+# not allow it. So qBittorrent sits alone in a namespace of its own, and
+# Radarr, Sonarr and Prowlarr stay in `arr`, which enforces baseline.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: torrents

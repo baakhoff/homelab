@@ -1,0 +1,116 @@
+# Radarr: films. Pick a film, and it finds a release through Prowlarr, sends
+# it to qBittorrent, and when the download finishes hard-links it into
+# /data/films under a clean name, where Plex finds it on its next scan. It
+# keeps watching for a better release while the profile allows.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr
+  namespace: arr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: radarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: radarr
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      # No runAsUser and no dropped capabilities: the image starts as root to
+      # take the PUID and PGID below, then runs Radarr as them.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: radarr
+          # The tag is Radarr's release and linuxserver's build;
+          # renovate.json5 reads both.
+          image: ghcr.io/linuxserver/radarr:6.4.4.10685-ls323
+          env:
+            - name: TZ
+              value: Europe/Copenhagen
+            # The NAS's `media` user and group - the share's owner.
+            - name: PUID
+              value: "3001"
+            - name: PGID
+              value: "3002"
+            # No login of its own: the admin gate in front is the login
+            # (ingress.yaml). The API still needs the key, which comes from
+            # the Secret so Prowlarr and Airflow can be given it in advance.
+            - name: RADARR__AUTH__METHOD
+              value: External
+            - name: RADARR__AUTH__APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr
+                  key: RADARR_API_KEY
+          ports:
+            - name: http
+              containerPort: 7878
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: radarr-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: arr-media
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radarr
+  namespace: arr
+spec:
+  selector:
+    app.kubernetes.io/name: radarr
+  ports:
+    - name: http
+      port: 7878
+      targetPort: http
+---
+# Radarr's database - the films it follows, their files, the history - and
+# its settings. SQLite, so on Ceph, never on the NAS.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: radarr-config
+  namespace: arr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 5Gi

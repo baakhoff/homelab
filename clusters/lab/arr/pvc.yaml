@@ -1,0 +1,42 @@
+# The NAS's tank/media, writable, mounted whole at /data in Radarr and
+# Sonarr - the same share and the same layout qBittorrent sees
+# (clusters/lab/torrents/pvc.yaml), so a finished download in
+# /data/downloads is hard-linked into /data/films or /data/series rather than
+# copied. One claim, both pods.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: arr-media
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: arr
+    name: arr-media
+  mountOptions:
+    - nfsvers=4.2
+    - hard
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeHandle: 192.168.68.105/mnt/tank/media##arr
+    volumeAttributes:
+      server: 192.168.68.105
+      share: /mnt/tank/media
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arr-media
+  namespace: arr
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: arr-media
+  resources:
+    requests:
+      storage: 1Ti

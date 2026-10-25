@@ -1,0 +1,22 @@
+# No pod here reaches the NAS; everything else stays as open as before.
+#
+# The NAS's NFS share admits the node addresses, and pod traffic leaves a
+# node under that node's address, so without this any pod here would pass
+# for a node. The kubelet mounts NFS from the host network, where no policy
+# applies, so mounts are unaffected. Why every open namespace carries its
+# own copy: docs/network.md, "Pods and the LAN".
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: no-nas
+  namespace: arr
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 192.168.68.105/32
