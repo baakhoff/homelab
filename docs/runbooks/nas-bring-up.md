@@ -252,7 +252,8 @@ and a lone special (metadata) vdev would take the whole pool with it if it died.
 | Dataset | Preset | Encryption | Record size | For |
 |---|---|---|---|---|
 | `tank/personal` | Multiprotocol | AES-256-GCM, key | default | family files |
-| `tank/media` | Multiprotocol | none | 1M | large files that can be fetched again |
+| `tank/media` | Multiprotocol | none | 1M | large files that can be fetched again: films and series, for Plex |
+| `tank/immich` | Generic | AES-256-GCM, its own key | 1M | Immich's photo library, quota 800 GiB |
 
 - **The pool root is not encrypted; `personal` is.** TrueNAS's own docs advise
   against root encryption, and the G5400 has no AVX, so ZFS falls back to its
@@ -265,7 +266,11 @@ and a lone special (metadata) vdev would take the whole pool with it if it died.
   dataset cannot be opened on any other system.
 - **Multiprotocol, not SMB.** The SMB preset makes a dataset case-insensitive
   with restricted ACLs, which Linux clients cannot work with; Multiprotocol
-  serves Windows as well and keeps Linux access possible.
+  serves Windows as well and keeps Linux access possible. It also makes an NFS
+  share, though - see [the cluster's shares](#the-clusters-shares).
+- **Generic for `immich`.** Plain POSIX permissions: Immich sets file modes
+  as it files photos away, which an NFSv4 ACL can refuse. Its key was
+  exported to the password manager as `personal`'s was.
 
 Periodic snapshot tasks on `tank`, recursive:
 
@@ -300,6 +305,62 @@ that copies nothing proves the first one finished. A log under `C:\` itself
 fails with *Access is denied* for a normal user, and robocopy then refuses to
 start at all: keep the log in the user's profile.
 
+### The cluster's shares
+
+Two datasets reach the cluster over NFSv4, mounted by the nodes through
+csi-driver-nfs (`clusters/lab/csi-driver-nfs/`): the photo library and the
+films.
+
+| Local user | UID | GID | Owns |
+|---|---|---|---|
+| `immich` | 3000 | 3001 | `tank/immich`, mode 770 |
+| `media` | 3001 | 3002 | `tank/media`, and its `films` and `series` folders |
+
+Both have the password disabled, the `nologin` shell and no SMB access.
+TrueNAS numbers new users from 3000, clear of 1000, which is `baakh` here and
+the agent pods' user in the cluster. The pods that write run as these ids
+(`clusters/lab/immich/`, `clusters/lab/plex/`).
+
+The NFS service runs NFSv4 only, bound to `192.168.68.105`, started at boot.
+
+| Share | Networks | Mapall user and group | Mounted by |
+|---|---|---|---|
+| `/mnt/tank/immich` | `192.168.68.102/32`, `.103/32`, `.104/32` | `immich` | Immich, read-write |
+| `/mnt/tank/media` | the same three | `media` | Plex, read-only |
+
+**Mapall** turns every request from a client into the share's own user, root
+included (`all_squash`). NFS believes whatever user id a client sends, so
+with Mapall there is only one it can be. The node addresses alone are no
+fence: pod traffic leaves a node under that node's address, which is why
+every open namespace in the cluster carries a `no-nas` NetworkPolicy
+([Pods and the LAN](../network.md#pods-and-the-lan)). Maproot stays empty;
+TrueNAS refuses both at once.
+
+**The Multiprotocol preset makes an NFS share as well.** Creating `personal`
+with it had added a share for `/mnt/tank/personal`, open to every address and
+writable, beside the SMB one. It did nothing while the NFS service was off,
+went live the evening the service was switched on for Immich, and was found
+in `/etc/exports` and deleted the next morning. After creating a dataset with
+that preset, look under Shares → Unix (NFS) Shares and delete what it made.
+
+The library folders, over SSH:
+
+```
+sudo install -d -o media -g media /mnt/tank/media/films /mnt/tank/media/series
+```
+
+The check, also over SSH:
+
+```
+sudo cat /etc/exports
+sudo ss -tn '( sport = :2049 )'
+```
+
+`exports` lists exactly the two shares, each for the three node addresses
+with `all_squash`: `anonuid=3000,anongid=3001` on `immich`,
+`anonuid=3001,anongid=3002` on `media`. `ss` shows connections from node
+addresses and nothing else.
+
 ## Verification checklist
 
 - The board boots pure UEFI into TrueNAS from the NVMe; FreeDOS no longer
@@ -322,3 +383,7 @@ start at all: keep the log in the user's profile.
 - Both snapshot tasks appear under Data Protection and have taken snapshots.
 - The Windows PC maps `\\nas.lab\personal` as `baakh`, and a second `robocopy`
   run copies nothing.
+- `/etc/exports` holds the `immich` and `media` shares and nothing else, each
+  for the three node addresses with `all_squash` to its own user.
+- `tank/immich` is encrypted, unlocked after a reboot, and its exported key
+  opens it.
