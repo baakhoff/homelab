@@ -1,0 +1,66 @@
+# Plex's own data: the library database, the posters and descriptions it
+# fetched, watch history and settings. On Ceph, never on the NAS - the
+# database is SQLite, which needs file locking that NFS does not give it.
+#
+# 30Gi: a household library's metadata is a few gigabytes, and the one
+# setting that would make it hundreds - video preview thumbnails - is off
+# (README). Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-config
+  namespace: plex
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 30Gi
+---
+# The films and series: the NAS's tank/media, over NFSv4 through
+# csi-driver-nfs, as clusters/lab/immich/pvc.yaml does for the photos.
+# Read-only here: Plex only reads them, and a read-only mount means no
+# setting in Plex can delete a file. What writes into the share - the
+# download client - gets a volume of its own.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: plex-media
+spec:
+  # The disk is the limit, not this; Kubernetes does not enforce it for NFS.
+  capacity:
+    storage: 1Ti
+  accessModes:
+    - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: plex
+    name: plex-media
+  mountOptions:
+    - nfsvers=4.2
+    - hard
+  csi:
+    driver: nfs.csi.k8s.io
+    readOnly: true
+    # Any string unique in the cluster; the same share will have a second
+    # volume for the download client.
+    volumeHandle: 192.168.68.105/mnt/tank/media##plex
+    volumeAttributes:
+      server: 192.168.68.105
+      share: /mnt/tank/media
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-media
+  namespace: plex
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: ""
+  volumeName: plex-media
+  resources:
+    requests:
+      storage: 1Ti

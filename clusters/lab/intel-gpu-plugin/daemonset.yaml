@@ -1,0 +1,95 @@
+# Intel's GPU device plugin: each node's UHD 770 becomes a resource a pod
+# can ask for, `gpu.intel.com/i915`, and a pod that asks gets /dev/dri inside
+# it - and nothing else from the host. No privileged pod, no hostPath in the
+# app's namespace.
+#
+# Upstream's DaemonSet (deployments/gpu_plugin/base, v0.37.1) as published,
+# plus one argument. Not the operator: that is a second controller and Node
+# Feature Discovery to deploy one DaemonSet on three identical nodes.
+#
+# The nodes need nothing installed for it. The i915 driver is in Ubuntu's
+# kernel and its firmware in linux-firmware, which the server install
+# carries.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: intel-gpu-plugin
+  namespace: intel-gpu-plugin
+  labels:
+    app: intel-gpu-plugin
+spec:
+  selector:
+    matchLabels:
+      app: intel-gpu-plugin
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: intel-gpu-plugin
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: intel-gpu-plugin
+          image: intel/intel-gpu-plugin:0.37.1
+          imagePullPolicy: IfNotPresent
+          # Each GPU can be handed to two pods at once rather than one: Plex
+          # transcoding and, later, Immich's video conversion and machine
+          # learning. The GPU itself shares fine; the default of one would
+          # make the second pod wait for a node with a free GPU forever.
+          args: ["-shared-dev-num", "2"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          securityContext:
+            seLinuxOptions:
+              type: container_device_plugin_t
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 40m
+              memory: 45Mi
+            limits:
+              cpu: 100m
+              memory: 115Mi
+          volumeMounts:
+            - name: devfs
+              mountPath: /dev/dri
+              readOnly: true
+            - name: sysfsdrm
+              mountPath: /sys/class/drm
+              readOnly: true
+            - name: kubeletsockets
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: cdipath
+              mountPath: /var/run/cdi
+      volumes:
+        - name: devfs
+          hostPath:
+            path: /dev/dri
+        - name: sysfsdrm
+          hostPath:
+            path: /sys/class/drm
+        - name: kubeletsockets
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: cdipath
+          hostPath:
+            path: /var/run/cdi
+            type: DirectoryOrCreate
+      nodeSelector:
+        kubernetes.io/arch: amd64

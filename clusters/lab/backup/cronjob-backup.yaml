@@ -111,6 +111,7 @@ spec:
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     minecraft/minecraft-data
+                    plex/plex-config
                     cloudbeaver/data-cloudbeaver-postgres-0
                     cloudbeaver/cloudbeaver-workspace
                     data/data-clickhouse-0

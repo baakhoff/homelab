@@ -1,0 +1,12 @@
+# Pod Security baseline, like Immich's. Not restricted: Plex's image starts
+# as root, sets its own user's id and the GPU's group, then drops to that
+# user - restricted refuses the start. baseline still refuses anything
+# privileged, host networking and host paths; the GPU comes in through the
+# device plugin (clusters/lab/intel-gpu-plugin/), which needs none of them.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: plex
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
