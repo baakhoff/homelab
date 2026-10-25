@@ -43,6 +43,7 @@ share at the same path. Everything on the share belongs to the NAS's
 |---|---|
 | `namespace.yaml` | the namespace, at Pod Security `baseline` |
 | `radarr.yaml`, `sonarr.yaml`, `prowlarr.yaml` | each app with its Service and its database volume on Ceph |
+| `flaresolverr.yaml` | a headless browser that gets Prowlarr past Cloudflare's challenge on RuTracker's login |
 | `pvc.yaml` | the NAS share `tank/media`, writable, for Radarr and Sonarr |
 | `ingress.yaml` | the three hosts, behind the admin gate |
 | `networkpolicy.yaml` | who may reach each app |
@@ -116,9 +117,14 @@ Connection, show the same one.
 
 **4. Prowlarr**, at <https://indexers.lab.baakhoff.com>:
 
-- *Indexers → Add Indexer → RuTracker.org*: your RuTracker login. Turn on
-  *Strip Russian letters*, which helps Radarr and Sonarr read release names.
-  *Test*, *Save*.
+- *Settings → Indexers → Add (+) → FlareSolverr*: host
+  `http://flaresolverr.arr.svc.cluster.local:8191`, tag `flaresolverr`.
+  *Test*, *Save*. RuTracker's login is behind a Cloudflare challenge that
+  turns away anything but a browser; requests from indexers carrying this
+  tag go through FlareSolverr's browser instead.
+- *Indexers → Add Indexer → RuTracker.org*: your RuTracker login, the tag
+  `flaresolverr`. Turn on *Strip Russian letters*, which helps Radarr and
+  Sonarr read release names. *Test*, *Save*.
 - *Settings → Apps → Radarr*: Prowlarr server
   `http://prowlarr.arr.svc.cluster.local:9696`, Radarr server
   `http://radarr.arr.svc.cluster.local:7878`, API key from Radarr's
@@ -169,6 +175,10 @@ logins: those stay in Prowlarr.
   seeding costs no extra space; remove a torrent in qBittorrent only once
   it has seeded its share. Deleting a film in Radarr removes the library's
   name for it; the space comes back once the torrent is removed too.
+- **RuTracker depends on FlareSolverr** getting through Cloudflare. When
+  Cloudflare changes its challenge, searches fail with a 403 or a timeout
+  until FlareSolverr catches up - a Renovate PR, usually within days. A
+  different *Base Url* in the indexer's settings sometimes helps meanwhile.
 - **Plex scans every hour**, so a finished download can take up to an hour
   to show up there.
 - **The library is on one disk with no copy elsewhere**, by choice: what was
