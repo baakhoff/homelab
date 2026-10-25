@@ -105,6 +105,15 @@
       versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[0-9a-f]+$",
     },
     {
+      // one version, so a rebuild of the same release (a base-image fix)
+      // is offered too, not only a new release.
+      versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-ls(?<revision>\\d+)$",
+    },
+    {
+      // only ever counts up, are what decide.
+      versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)_v[0-9.]+-ls(?<build>\\d+)$",
+    },
+    {
       // SearXNG publishes a build most days. A monthly offer is plenty for a
       // search page; a search engine that breaks in between is the reason to
       // bump by hand (clusters/lab/searxng/README.md).

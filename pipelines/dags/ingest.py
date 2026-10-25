@@ -239,6 +239,28 @@ def _plex_pages(session: requests.Session, url: str):
         start += PAGE_SIZE
 
 
+    history {"page", "pageSize", "totalRecords", "records": [...]} by page
+    number. The list endpoints ignore the paging parameters.
+    """
+    page = 1
+    while True:
+        r = session.get(url, params={"page": page, "pageSize": PAGE_SIZE}, timeout=TIMEOUT)
+        r.raise_for_status()
+        try:
+            body = r.json()
+        except ValueError:
+            raise RuntimeError(f"{url} did not answer JSON")
+        if isinstance(body, list):
+            yield from body
+            return
+        if not isinstance(body, dict) or not isinstance(body.get("records"), list):
+            raise RuntimeError(f"{url} answered neither a list nor a page of records")
+        yield from body["records"]
+        if page * PAGE_SIZE >= body.get("totalRecords", 0):
+            return
+        page += 1
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -344,6 +366,12 @@ SOURCES = {
         "endpoints": ["library/sections", "status/sessions/history/all"],
         "ids": {"library/sections": "uuid", "status/sessions/history/all": "historyKey"},
         "schedule": "55 */6 * * *",
+    },
+    # them. Each app's key is set in advance in its Secret, and the same
+        "schedule": "5 */6 * * *",
+    },
+        "endpoints": ["series", "history"],
+        "schedule": "10 */6 * * *",
     },
 }
 
