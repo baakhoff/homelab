@@ -1,0 +1,33 @@
+# Behind the admin gate (lab-admins only): qBittorrent's own login is off
+# for the pod network (deployment.yaml), so the gate is the login.
+#
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qbittorrent
+  namespace: torrents
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # .torrent files uploaded from the web UI.
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: qBittorrent
+    gethomepage.dev/group: Platform
+    gethomepage.dev/icon: qbittorrent.png
+    gethomepage.dev/description: Downloads, through the VPN
+    gethomepage.dev/href: https://torrents.lab.baakhoff.com
+spec:
+  rules:
+    - host: torrents.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: qbittorrent
+                port:
+                  number: 8080

@@ -112,6 +112,9 @@ spec:
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     minecraft/minecraft-data
                     plex/plex-config
+                    arr/radarr-config
+                    arr/sonarr-config
+                    arr/prowlarr-config
                     cloudbeaver/data-cloudbeaver-postgres-0
                     cloudbeaver/cloudbeaver-workspace
                     data/data-clickhouse-0

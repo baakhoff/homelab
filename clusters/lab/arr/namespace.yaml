@@ -1,0 +1,11 @@
+# Radarr, Sonarr and Prowlarr, at Pod Security baseline. Not restricted:
+# linuxserver's images start as root to take the ids given in PUID and PGID,
+# then drop to them. The torrent client is apart, in `torrents`, because its
+# VPN container needs a capability baseline refuses.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arr
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest

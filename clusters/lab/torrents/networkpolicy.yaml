@@ -1,0 +1,35 @@
+# In: ingress-nginx, behind the admin gate, and Radarr and Sonarr, which
+# hand it torrents and watch them finish. Nothing else - qBittorrent trusts
+# the pod network without a login, so this list is its login.
+#
+# Out: open but for the NAS (networkpolicy-no-nas.yaml), and in practice
+# narrower still: the VPN container's firewall lets out nothing but the
+# tunnel to PIA.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qbittorrent
+  namespace: torrents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: arr
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [radarr, sonarr]
+      ports:
+        - protocol: TCP
+          port: 8080

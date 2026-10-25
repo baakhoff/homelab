@@ -64,6 +64,10 @@ accounts, the only login its TV apps know.
 | [Photon](https://github.com/komoot/photon) | Turns Dawarich's coordinates into streets, cities and places, from OpenStreetMap, without sending them out of the lab. |
 | [Immich](https://immich.app) | The family's photos and videos: phones back up to it, with faces, places and search in any language, and the library on the NAS. |
 | [Plex](https://www.plex.tv) | Films and series from the NAS to the TVs, phones and browsers, converting on the cluster's Intel graphics what a device cannot play. |
+| [Radarr](https://radarr.video) | Films on request: pick one, and it finds, downloads and files it for Plex, upgrading the quality later. |
+| [Sonarr](https://sonarr.tv) | The same for series, fetching each new episode as it airs. |
+| [Prowlarr](https://prowlarr.com) | The torrent sites, kept in one place for Radarr and Sonarr. |
+| [qBittorrent](https://www.qbittorrent.org) | The torrent client they hand downloads to, only ever through the VPN. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
 | [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
@@ -112,6 +116,9 @@ accounts, the only login its TV apps know.
   Plex for films and series, also from the NAS, transcoding on the nodes'
   Intel graphics through Intel's device plugin
   ([how](clusters/lab/plex/README.md)), and
+  Radarr, Sonarr and Prowlarr filling that library from the torrent sites,
+  through a qBittorrent that reaches the internet only over a VPN
+  ([how](clusters/lab/arr/README.md)), and
   Outline for notes and documents ([how](clusters/lab/notes/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
   feeding ClickHouse, where every source's raw data is kept for querying

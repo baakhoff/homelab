@@ -40,7 +40,7 @@ layers by hand.
 | Every pod's log lines | the Alloy collectors, `clusters/lab/logging/alloy.yaml` - OTLP JSON, the line plus its namespace, pod, container and node | `raw.logs` |
 | Kubernetes events | the same collectors, one of them at a time - OTLP JSON, the event as JSON in the body | `raw.k8s-events` |
 | Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
-| Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline, Immich, Plex | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's; Outline's documents with their text; Immich's counts per account only; Plex's libraries and every play), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich`, `raw.outline`, `raw.immich`, `raw.plex` |
+| Firefly, Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline, Immich, Plex, Radarr, Sonarr | Airflow's `ingest_<source>` DAGs, `pipelines/dags/ingest.py` - full API snapshots (Dawarich's points: the last week's; Outline's documents with their text; Immich's counts per account only; Plex's libraries and every play; Radarr's and Sonarr's films, series and history), one record per message in a small envelope | `raw.firefly`, `raw.vikunja`, `raw.mealie`, `raw.paperless`, `raw.sparkyfitness`, `raw.dawarich`, `raw.outline`, `raw.immich`, `raw.plex`, `raw.radarr`, `raw.sonarr` |
 | CloudBeaver's usage | Airflow's `ingest_cloudbeaver` DAG, `pipelines/dags/cloudbeaver.py` - its ClickHouse queries from `system.query_log`, its sessions and sign-ins from its own database. Its Postgres statements come in with the log lines | `raw.cloudbeaver` |
 | Telegram | Airflow's `ingest_telegram` DAG, `pipelines/dags/telegram.py` - each logged-in account's private chats, logged in as the account; each message once, again when edited | `raw.telegram` |
 | Proton Mail | Airflow's `ingest_proton` DAG, `pipelines/dags/proton.py`, triggered by hand - a mailbox export packed on the machine that holds it, each message's headers, plain-text body and attachment names | `raw.proton` |
@@ -80,7 +80,7 @@ only that range. `raw.logs` rows are deleted after 90 days; every other
 table keeps everything.
 
 The sources are `SOURCES` in `clickhouse-schema.yaml`:
-`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver outline telegram proton google vk immich plex`. Topic
+`homeassistant logs k8s-events firefly vikunja mealie paperless sparkyfitness dawarich cloudbeaver outline telegram proton google vk immich plex radarr sonarr`. Topic
 `raw.<name>`, table `raw.<name>`, a dash becoming an underscore
 (`raw.k8s-events` -> `raw.k8s_events`). Adding a source is one word there:
 the next run creates its topic, its table and its consumer. Removing one is
