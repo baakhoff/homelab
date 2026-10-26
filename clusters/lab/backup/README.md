@@ -320,7 +320,58 @@ snapshot is taken while the workload writes, so what comes back is the
 power-cut case — SQLite's WAL recovery handles it, and that is the guarantee
 being relied on, not one this rehearsal verified.
 
+## When the check finds missing packs
+
+The weekly prune runs `restic check` before it deletes anything and again at
+the end. Either one failing with `pack <id>: does not exist`, `<id> not found
+in repository` or `packs from index missing in repo` means a pack file the
+index still lists is gone from the bucket.
+
+Get it back before repairing anything. The bucket is versioned (Object Lock,
+see node01's README), so a deleted pack is a delete marker over a noncurrent
+version that the lifecycle rule keeps for **30 days**. Copying that version
+back over its key restores it, and only adds to the bucket. Put the pack IDs
+from the check's output in `P`:
+
+```
+P="<pack id> <pack id>"
+kubectl -n backup run s3-restore --restart=Never --image=amazon/aws-cli:2.38.5 \
+  --overrides='{"spec":{"containers":[{"name":"s3-restore","image":"amazon/aws-cli:2.38.5","command":["/bin/sh","-c"],"args":["set -e; E=--endpoint-url=https://fsn1.your-objectstorage.com; B=baakhoff-lab-backup; for p in '"$P"'; do k=lab/data/$(echo $p | cut -c1-2)/$p; d=$(aws s3api list-object-versions $E --bucket $B --prefix $k --query DeleteMarkers[0].LastModified --output text); v=$(aws s3api list-object-versions $E --bucket $B --prefix $k --query Versions[0].VersionId --output text); echo == $k deleted=$d version=$v; if [ x$v != xNone ]; then aws s3api copy-object $E --bucket $B --key $k --copy-source $B/$k?versionId=$v --query CopyObjectResult.LastModified --output text; fi; done; echo DONE"],"env":[{"name":"AWS_DEFAULT_REGION","value":"fsn1"}],"envFrom":[{"secretRef":{"name":"restic-repo"}}]}]}}'
+kubectl -n backup logs -f s3-restore
+kubectl -n backup delete pod s3-restore
+```
+
+`deleted=` is when the pack went, which names the run that deleted it.
+`version=None` means there is no old version to bring back. Then rebuild the
+index from what is in the bucket, and check:
+
+```
+kubectl -n backup run restic-check --restart=Never --image=restic/restic:0.19.1 \
+  --overrides='{"spec":{"containers":[{"name":"restic-check","image":"restic/restic:0.19.1","command":["/bin/sh","-c"],"args":["restic repair index && restic check"],"envFrom":[{"secretRef":{"name":"restic-repo"}}]}]}}'
+kubectl -n backup logs -f restic-check
+kubectl -n backup delete pod restic-check
+```
+
+A check stops at the first missing packs it lists, so a second round can turn
+up more. Repeat until it ends `no errors were found`. Only a pack with no
+version left calls for `restic repair snapshots --forget`, which cuts what
+it held out of the snapshots that used it. The next nightly backup uploads
+that data again if the volume still has it.
+
+On 2026-10-26 this recovered ten packs deleted by the prunes of 10-11, 10-18
+and 10-25. One snapshot, Dawarich's storage of 10-23, had been dropped with
+`restic forget` before the old versions were found. Nothing else was lost.
+
 ## Known limitations
+
+- **The prune has deleted packs that were still needed, cause unknown.** The
+  prunes of 2026-10-11, -18 and -25 each deleted packs that live snapshots
+  still referenced, with no backup running at the time. The suspect is an
+  incomplete S3 listing during the prune, a failure the restic forum describes
+  on S3-compatible stores, but nothing here proves it. What contains it: the
+  bucket keeps a deleted pack for 30 days, and the prune checks the repository
+  before and after, so a loss shows up within a week and is recovered as in
+  the section above.
 
 - **The swap has not been rehearsed, only the restore.** Steps 1–3 above ran on
   2026-09-19; pointing a live workload at a restored claim and starting it has
