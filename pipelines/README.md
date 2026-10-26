@@ -10,6 +10,7 @@ minute, so a merged change is live a minute later.
       proton.py      a Proton Mail export, loaded by hand from a packed file
       vk.py          the VK data archive, loaded by hand from a packed file
       google.py      the Google account, four DAGs (google.md)
+      immich_sort.py Immich's photos described and given a type by Claude, the useless set aside
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/

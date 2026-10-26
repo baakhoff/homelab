@@ -40,6 +40,7 @@ layers by hand.
 | Every pod's log lines | the Alloy collectors, `clusters/lab/logging/alloy.yaml` - OTLP JSON, the line plus its namespace, pod, container and node | `raw.logs` |
 | Kubernetes events | the same collectors, one of them at a time - OTLP JSON, the event as JSON in the body | `raw.k8s-events` |
 | Home Assistant | its Apache Kafka integration, `clusters/lab/home-assistant/README.md` - one JSON state object per change | `raw.homeassistant` |
+| Immich's sorting | Airflow's `immich_sort` DAG, `pipelines/dags/immich_sort.py` - one record per photo or video it looked at: its file name, when and where it was taken, its type and Claude's description of it; and one per run, with the counts and the tokens Claude took | `raw.immich` |
 | CloudBeaver's usage | Airflow's `ingest_cloudbeaver` DAG, `pipelines/dags/cloudbeaver.py` - its ClickHouse queries from `system.query_log`, its sessions and sign-ins from its own database. Its Postgres statements come in with the log lines | `raw.cloudbeaver` |
 | Telegram | Airflow's `ingest_telegram` DAG, `pipelines/dags/telegram.py` - each logged-in account's private chats, logged in as the account; each message once, again when edited | `raw.telegram` |
 | Proton Mail | Airflow's `ingest_proton` DAG, `pipelines/dags/proton.py`, triggered by hand - a mailbox export packed on the machine that holds it, each message's headers, plain-text body and attachment names | `raw.proton` |

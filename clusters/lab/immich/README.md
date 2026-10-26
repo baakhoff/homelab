@@ -3,8 +3,9 @@
 [Immich](https://immich.app), the family's photos and videos in one place:
 the phones back up to it, old libraries are imported into it, and it finds
 faces, places and things in the pictures - "dog on the beach" - in any of
-the household's languages. The machine learning runs here, on the CPU;
-nothing is sent out to be recognised.
+the household's languages. That machine learning runs here, on the CPU.
+The one thing sent out is the [sorting by type](#sorting-by-type): each
+picture's preview, to Claude, for a description and a type.
 
 At <https://photos.lab.baakhoff.com>, and on Homepage under Everyday →
 Home. The phones use the same address at home and, over Tailscale, away.
@@ -167,6 +168,28 @@ optimisation off for both apps, or the backup stops in the background; on
 an iPhone, keep Background App Refresh on and Low Power Mode off. Do the
 first backup at home, charging, with the app open.
 
+**8. The sorting's keys**, for [sorting by type](#sorting-by-type), any
+time after step 6. In Immich, Account settings → API keys → New, named
+`sorting`, with only `asset.read`, `asset.view`, `tag.read`, `tag.create`,
+`tag.asset`, `album.read`, `album.create` and `albumAsset.create`. And a key
+from the Claude Console, <https://console.anthropic.com> → API keys,
+ideally in a workspace of its own with a monthly spend limit. Then, one
+`read` at a time:
+
+```bash
+read -rsp 'immich sorting key: ' IK; echo
+read -rsp 'anthropic api key: ' AK; echo
+sops set clusters/lab/airflow/sources.sops.yaml '["data"]["IMMICH_SORT_API_KEY"]' "\"$(printf %s "$IK" | base64 | tr -d '\n')\""
+sops set clusters/lab/airflow/sources.sops.yaml '["data"]["ANTHROPIC_API_KEY"]' "\"$(printf %s "$AK" | base64 | tr -d '\n')\""
+unset IK AK
+```
+
+Commit and push, and restart the scheduler as in step 6 - after the
+*airflow image* workflow in GitHub Actions has finished, if it is running:
+the image carries what shrinks the previews, and a scheduler without it
+sends them full size, at more than twice the cost. Until the keys exist,
+`immich_sort` fails, harmlessly.
+
 ## Importing old photos
 
 With [immich-go](https://github.com/simulot/immich-go), on a computer that
@@ -187,15 +210,63 @@ while it uploads; when it is done they run, for hours on a large import, at
 the concurrency set in step 4. Files already in Immich are skipped, so
 running it twice, or importing overlapping sources, is safe.
 
+## Sorting by type
+
+Every hour at :05, `immich_sort` ([`pipelines/dags/immich_sort.py`](../../../pipelines/dags/immich_sort.py))
+takes the photos and videos that have no type yet, newest first, and shows
+each to Claude Haiku. Claude sees the preview (for a video, one frame),
+shrunk to 768 pixels, and the file's name, size, camera, date, and whether
+anyone in it has a name here. Claude answers three things:
+
+- **What it shows**, in one to three sentences: who and what is in it,
+  the kind of place, what is happening, the gist of any text. That goes
+  into the warehouse, below, not into Immich.
+- **Its type.** This becomes a tag under **Type**, in the sidebar's Tags:
+  Type/Food, Type/Screenshots, Type/Memes. Claude makes the types itself,
+  up to 25, and after that only uses those.
+- **Whether nobody would miss it.** That means memes, screenshots whose use
+  is over, chat videos saved to pass on, and failed shots. These also go
+  into the album **To delete**.
+
+The album is for a look, not a bin: nothing is deleted, archived or changed
+by the sorting. In the album, select what can go and delete it; it waits
+30 days in Immich's trash. Take what is worth keeping out of the album, or
+add it to another one.
+
+- **A favourite is never set aside.** The locked folder is never looked at.
+- **A picture is sorted once.** Once it has a type it is never looked at
+  again, so taking it out of *To delete* is final. Removing its Type tag
+  sends it round once more.
+- **Types are tags, yours to change.** Rename one in Immich and the next
+  run uses the new name. Delete one and its pictures are sorted again.
+- **The first runs work through the library**, 2,000 pictures or 40
+  minutes a run. After that, a new upload is sorted within the hour; one
+  without a preview yet, straight off the phone, waits for the next run.
+- **It costs about $0.002 a picture** at Haiku's list price. That makes a
+  library of 30,000 about $60 once, then cents a month, and a run at most
+  about $4. `ods.immich_sort_runs` has each run's tokens and an estimate in
+  dollars; the Console's spend limit is the hard stop.
+- **The previews leave the house**, to Anthropic's API, which does not
+  train on what it is sent. A picture's own text is treated as part of the
+  picture, never as an instruction.
+
 ## What reaches the warehouse
 
-Counts, and the accounts - nothing about any photo. `ods.immich_usage` has
-each account's photos, videos and bytes, from the server's statistics, and
-`ods.immich_users` the accounts' names, roles and dates, without their
-emails. No file names, places, faces, people or albums are ingested, so the
-warehouse, which the brand agent reads, cannot say what the photos are of.
-Immich's log lines name all of those, so they stop at Loki and never reach
-Kafka (`clusters/lab/logging/alloy.yaml`).
+- **`ods.immich_photos`**: one row per photo or video the sorting has
+  looked at - its file name and Immich id, when it was taken, where (city,
+  country and coordinates, Immich's own from the file), its type, Claude's
+  description, and whether it was set aside. So the warehouse, which the
+  brand agent reads, can say what the photos are of and where they were
+  taken.
+- **`ods.immich_usage`**: each account's photos, videos and bytes, from
+  the server's statistics.
+- **`ods.immich_users`**: the accounts' names, roles and dates, without
+  their emails.
+- **`ods.immich_sort_runs`**: each sorting run's counts and tokens.
+
+Faces, people's names and albums are not ingested. Immich's log lines
+name files and people, so they stop at Loki and never reach Kafka
+(`clusters/lab/logging/alloy.yaml`).
 
 ## Things to know
 

@@ -12,6 +12,7 @@ model is live a minute later, with no restart.
 | `ingest_proton` | A Proton Mail export, packed on the workstation and copied into the scheduler pod, into `raw.proton` ([how](../../../pipelines/proton.md)) | by hand |
 | `ingest_vk` | The VK data archive, packed on the workstation and copied into the scheduler pod, into `raw.vk` ([how](../../../pipelines/vk.md)) | by hand |
 | `ingest_google`, `ingest_google_gmail`, `ingest_google_portability`, `ingest_google_takeout` | The Google account into `raw.google`: Calendar, Contacts, Tasks and Drive as snapshots; Gmail metadata as changes; My Activity, Chrome and the rest as Data Portability exports; a Takeout export by hand, for mail bodies ([`pipelines/google.md`](../../../pipelines/google.md)) | 6-hourly, hourly, daily, by hand |
+| `immich_sort` | Immich's photos and videos without a type, shown to Claude: each is described and gets a type tag, and what nobody would miss goes into the album *To delete*; each picture's row, and each run's counts, into `raw.immich` ([how](../immich/README.md#sorting-by-type)) | hourly, at :05 |
 | `warehouse` | The dbt project: `raw` -> `ods` -> `ads` -> `dm`, one task per model and per model's tests, rendered by [Cosmos](https://github.com/astronomer/astronomer-cosmos) | hourly, at :45 |
 
 UI: <https://airflow.lab.baakhoff.com>, behind the admin gate. That gate is
@@ -120,7 +121,8 @@ Firefly needs no token here: the broker holds it. SparkyFitness's and
 Dawarich's keys are added later, into the same Secret - step 5 of
 `clusters/lab/sparkyfitness/README.md` and of `clusters/lab/dawarich/README.md` -
 and so is Outline's API key, step 4 of `clusters/lab/notes/README.md`, and
-Immich's, step 6 of `clusters/lab/immich/README.md`, and Plex's, step 6 of
+Immich's, steps 6 and 8 of `clusters/lab/immich/README.md` (step 8's
+with the Claude API key), and Plex's, step 6 of
 Telegram's login, by `pipelines/tools/telegram_login.py` (`pipelines/telegram.md`).
 So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
 `clusters/lab/cloudbeaver/README.md` - and Google's client and tokens, by

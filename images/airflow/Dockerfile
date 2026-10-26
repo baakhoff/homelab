@@ -15,6 +15,8 @@ FROM apache/airflow:3.2.2-python3.12
 #   confluent-kafka   - the ingest DAGs' producer; the constraints pin it
 #   telethon          - ingest_telegram's client (pipelines/dags/telegram.py);
 #                       not in the constraints, so pinned here
+#   pillow            - immich_sort shrinks each photo's preview before it is
+#                       sent (pipelines/dags/immich_sort.py)
 ARG COSMOS_VERSION=1.15.1
 ARG TELETHON_VERSION=1.45.0
 RUN AIRFLOW_VERSION=$(python -c 'import airflow; print(airflow.__version__)') \
@@ -23,6 +25,7 @@ RUN AIRFLOW_VERSION=$(python -c 'import airflow; print(airflow.__version__)') \
       "astronomer-cosmos==${COSMOS_VERSION}" \
       confluent-kafka \
       "telethon==${TELETHON_VERSION}" \
+      pillow \
       --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-3.12.txt"
 
 # dbt in its own virtualenv at /opt/dbt. dbt and Airflow pin overlapping

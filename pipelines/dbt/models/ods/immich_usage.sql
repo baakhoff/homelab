@@ -1,6 +1,6 @@
 -- One row per Immich account: how many photos and videos it holds and the
--- bytes they take, from the server's statistics. Counts only - nothing
--- about any photo reaches the warehouse (clusters/lab/immich/README.md).
+-- bytes they take, from the server's statistics. Each photo's own row,
+-- once it is described, is in immich_photos.
 select
   id as user_id,
   JSONExtractString(record, 'userName') as user_name,

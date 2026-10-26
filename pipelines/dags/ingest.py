@@ -343,10 +343,9 @@ SOURCES = {
         "schedule": "45 */6 * * *",
     },
     # Counts and sizes only: how many photos and videos each account holds,
-    # and the accounts. Nothing about any photo - no file names, places,
-    # faces or albums - so nothing here says what the photos are of
-    # (clusters/lab/immich/README.md). An admin's key limited to
-    # server.statistics and adminUser.read.
+    # and the accounts. Each photo's own row - its name, place, type and
+    # description - comes from immich_sort.py instead. An admin's key limited
+    # to server.statistics and adminUser.read.
     "immich": {
         "base": "http://immich-server.immich.svc.cluster.local/api",
         "auth": ("x-api-key:", "IMMICH_API_KEY"),
