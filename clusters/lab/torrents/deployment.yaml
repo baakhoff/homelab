@@ -176,6 +176,25 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          # The speed schedule, set at every start over localhost, where no
+          # login is asked: from 08:00 to 02:00 the alternative limits - 20
+          # Mbit/s down, 5 Mbit/s up, of a line of about 65 and 40 - and no
+          # limit from 02:00 to 08:00 (README, "Slower by day"). The API
+          # takes bytes per second; day 0 is every day. A change made in the
+          # web UI lasts until the next start; this is where it stays.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    i=0
+                    until curl -sf -o /dev/null http://127.0.0.1:8080/api/v2/app/version || [ $i -ge 60 ]; do
+                      i=$((i + 1)); sleep 5
+                    done
+                    curl -sf -o /dev/null http://127.0.0.1:8080/api/v2/app/setPreferences --data-urlencode 'json={"alt_dl_limit":2498560,"alt_up_limit":624640,"scheduler_enabled":true,"schedule_from_hour":8,"schedule_from_min":0,"schedule_to_hour":2,"schedule_to_min":0,"scheduler_days":0}'
+                    exit 0
           readinessProbe:
             tcpSocket:
               port: http

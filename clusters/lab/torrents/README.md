@@ -50,7 +50,27 @@ It must print a PIA address, never the house's.
   admin gate is the login, and `networkpolicy.yaml` decides which pods can
   reach it at all - ingress-nginx, Radarr and Sonarr.
 - **Settings live in the web UI** after the first start: the ConfigMap is
-  copied in only when there are none yet.
+  copied in only when there are none yet. The speed schedule below is the
+  exception.
+
+## Slower by day
+
+From 08:00 to 02:00 qBittorrent keeps to its alternative limits, **20
+Mbit/s down and 5 Mbit/s up**; from 02:00 to 08:00 it has no limit. The
+house's line measured about 65 down and 40 up, so by day the rest of the
+house keeps most of it - and upload most of all, because a full upload
+makes everything laggy, video calls and the Plex streams family watch
+through Relay included.
+
+- **To unlock it**, click the turtle in the web UI's status bar: full speed
+  until the next 08:00, when the limit comes back by itself. Click it again
+  to lock it sooner. A lock outside the limited hours lasts until 02:00.
+- **A restart takes the schedule back.** A pod start sets it, so an
+  unlock is lost when the pod restarts.
+- **It is set at every start** by `deployment.yaml` (the qBittorrent
+  container's `postStart`), over qBittorrent's API. Changing the limits or
+  the hours in the web UI lasts until the next start; change them there to
+  keep them. The API takes bytes per second: KiB/s times 1024.
 
 ## Backup
 
