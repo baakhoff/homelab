@@ -29,7 +29,8 @@ try:
 except ImportError:
     _requests = types.ModuleType("requests")
     _requests.Session = object
-    _requests.HTTPError = type("HTTPError", (Exception,), {})
+    for _name in ("HTTPError", "ConnectionError", "Timeout"):
+        setattr(_requests, _name, type(_name, (Exception,), {}))
     sys.modules["requests"] = _requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dags"))
@@ -38,7 +39,7 @@ import immich_sort as s  # noqa: E402
 ASSET = {
     "id": "a1",
     "type": "VIDEO",
-    "duration": "0:00:12.345000",
+    "duration": 3_725_400,
     "originalFileName": "VID-20240101-WA0003.mp4",
     "fileCreatedAt": "2024-01-01T10:00:00.000Z",
     "localDateTime": "2024-01-01T11:00:00.000Z",
@@ -58,6 +59,8 @@ def test_type_name_tidies_and_reuses():
     assert s.type_name("food/drink", existing) == "Food drink"
     assert s.type_name("pets", existing) == "Pets"
     assert s.type_name(" / ", existing) is None
+    long_ = {"Very long type name the owner made in Immich by hand": "t3"}
+    assert s.type_name("very long type name the owner made in immich by hand", long_) == next(iter(long_))
 
 
 def test_tool_makes_types_until_the_cap():
@@ -78,7 +81,7 @@ def test_a_favourite_is_never_set_aside():
 def test_facts_name_no_person_and_no_place():
     text = s.facts(ASSET, ["Memes"])
     assert "VID-20240101-WA0003.mp4" in text
-    assert "video, 0:00:12 long" in text
+    assert "video, 1:02:05 long" in text
     assert "Camera: none recorded" in text
     assert "Has people the owner named: yes" in text
     assert "Existing types: Memes" in text
@@ -89,7 +92,7 @@ def test_facts_name_no_person_and_no_place():
 def test_photo_record_has_the_place_from_immich():
     rec = s.photo_record(ASSET, {"description": "A cat on a sofa.", "to_delete": True}, "Memes", False)
     assert rec["asset_id"] == "a1" and rec["file_name"] == "VID-20240101-WA0003.mp4"
-    assert rec["kind"] == "video" and rec["duration"] == "0:00:12.345000"
+    assert rec["kind"] == "video" and rec["duration_ms"] == 3_725_400
     assert (rec["city"], rec["country"], rec["latitude"], rec["longitude"]) == ("Belgrade", "Serbia", 44.8, 20.46)
     assert rec["type"] == "Memes" and rec["description"] == "A cat on a sofa."
     assert rec["to_delete"] is True and rec["set_aside"] is False
@@ -121,7 +124,8 @@ def test_ask_waits_out_a_rate_limit(monkeypatch):
     answer = {"description": "A receipt.", "type": "Receipts", "to_delete": False}
     session = FakeSession([
         FakeResponse(429, headers={"retry-after": "1"}),
-        FakeResponse(200, {"content": [{"type": "tool_use", "input": answer}],
+        FakeResponse(529),
+        FakeResponse(200, {"content": [{"type": "tool_use", "input": answer}], "stop_reason": "tool_use",
                            "usage": {"input_tokens": 900, "output_tokens": 60}}),
     ])
     got = s._ask(session, b"jpeg", "image/jpeg", "facts", [])
@@ -131,10 +135,30 @@ def test_ask_waits_out_a_rate_limit(monkeypatch):
     assert body["messages"][0]["content"][0]["source"]["media_type"] == "image/jpeg"
 
 
-def test_ask_skips_a_picture_claude_refuses():
-    assert s._ask(FakeSession([FakeResponse(400, {})]), b"x", "image/jpeg", "facts", []) is None
+def test_ask_skips_a_picture_claude_cannot_read():
+    bad = FakeResponse(400, {"error": {"type": "invalid_request_error", "message": "Could not process image"}})
+    assert s._ask(FakeSession([bad]), b"x", "image/jpeg", "facts", []) == (None, {})
 
 
+def test_ask_fails_the_run_at_the_spend_limit():
+    limit = FakeResponse(400, {"error": {"type": "invalid_request_error",
+                                         "message": "You have reached your specified API usage limits."}})
+    with pytest.raises(RuntimeError, match="usage limits"):
+        s._ask(FakeSession([limit]), b"x", "image/jpeg", "facts", [])
+
+
+def test_ask_counts_the_tokens_of_a_cut_off_answer():
+    cut = FakeResponse(200, {"content": [{"type": "tool_use", "input": {"description": "A"}}],
+                             "stop_reason": "max_tokens", "usage": {"input_tokens": 900, "output_tokens": 400}})
+    assert s._ask(FakeSession([cut]), b"x", "image/jpeg", "facts", []) == (None, {"input_tokens": 900, "output_tokens": 400})
+
+
+def test_shrink_without_pillow_sends_the_preview_as_it_is(monkeypatch):
+    monkeypatch.setitem(sys.modules, "PIL", None)
+    assert s._shrink(b"webp", "image/webp") == (b"webp", "image/webp")
+
+
+# Runs with Pillow there: uv run --with pytest --with pillow pytest pipelines/tests
 def test_shrink_fits_the_square():
     PIL = pytest.importorskip("PIL.Image")
     big = io.BytesIO()

@@ -22,7 +22,7 @@ select
   asset_id,
   JSONExtractString(record, 'file_name') as file_name,
   JSONExtractString(record, 'kind') as kind,
-  nullIf(JSONExtractString(record, 'duration'), '') as duration,
+  JSONExtract(record, 'duration_ms', 'Nullable(UInt64)') as duration_ms,
   {{ ts("JSONExtractString(record, 'taken_at')") }} as taken_at,
   nullIf(JSONExtractString(record, 'city'), '') as city,
   nullIf(JSONExtractString(record, 'state'), '') as state,

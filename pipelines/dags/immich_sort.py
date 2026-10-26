@@ -16,7 +16,7 @@ run. A picture with a type is never looked at again, so taking it out of
 "To delete" is final; removing its Type/ tag sends it round once more.
 
 Never shown to Claude: the locked folder, the hidden halves of live photos,
-the trash. Never set aside: a favourite.
+the trash, a partner's shared photos. Never set aside: a favourite.
 
 Every answer reaches the warehouse: one record per picture on raw.immich,
 endpoint `photos`, id the Immich asset id - the file's name, photo or
@@ -24,8 +24,9 @@ video, when and where it was taken, the type, Claude's description, and
 whether it was set aside. The place is Immich's own, from the file, and is
 not sent to Claude. The record is delivered before the picture is tagged,
 so a picture with a type always has its row. Each run also sends one
-record, endpoint `sort`, with its counts and the tokens used. The task's
-log has only the counts, never a file name.
+record, endpoint `sort`, with its counts and the tokens used - a failed run
+too, with what it spent. The task's log has only the counts, never a file
+name.
 
 The keys come from the airflow-sources Secret: IMMICH_SORT_API_KEY, the
 owner's own Immich key with the permissions in the README, and
@@ -110,14 +111,16 @@ def type_name(raw: str, existing: dict[str, str]) -> str | None:
     """Claude's answer as a tag name: tidied, and an existing type's own
     spelling when it is that one in another case or number. None when
     nothing is left."""
-    name = " ".join(raw.replace("/", " ").split())[:40]
+    name = " ".join(raw.replace("/", " ").split())
     if not name:
         return None
-    # "Meme" for "Memes", "memes" for "Memes": the existing one.
+    # "Meme" for "Memes", "memes" for "Memes": the existing one, however
+    # long its name.
     forms = {name.lower(), name.lower() + "s", name.lower().removesuffix("s")}
     for known in existing:
-        if known.lower() in forms:
+        if " ".join(known.split()).lower() in forms:
             return known
+    name = name[:40]
     return name[0].upper() + name[1:]
 
 
@@ -155,7 +158,7 @@ def photo_record(asset: dict, answer: dict, type_: str, aside: bool) -> dict:
         "asset_id": asset["id"],
         "file_name": asset.get("originalFileName"),
         "kind": "video" if asset.get("type") == "VIDEO" else "photo",
-        "duration": asset.get("duration") if asset.get("type") == "VIDEO" else None,
+        "duration_ms": asset.get("duration") if asset.get("type") == "VIDEO" else None,
         "taken_at": asset.get("fileCreatedAt"),
         "taken_at_local": asset.get("localDateTime"),
         "city": exif.get("city"),
@@ -171,6 +174,12 @@ def photo_record(asset: dict, answer: dict, type_: str, aside: bool) -> dict:
     }
 
 
+def _length(ms: int | None) -> str:
+    """A video's length, which Immich gives in milliseconds, as h:mm:ss."""
+    secs = int(ms or 0) // 1000
+    return f"{secs // 3600}:{secs // 60 % 60:02d}:{secs % 60:02d}"
+
+
 def facts(asset: dict, types: list[str]) -> str:
     """What Claude is told besides the picture. No people's names, no place:
     whether anyone in it has a name in Immich is enough."""
@@ -179,7 +188,7 @@ def facts(asset: dict, types: list[str]) -> str:
     lines = [
         f"File name: {asset.get('originalFileName')}",
         f"Kind: {'video' if asset.get('type') == 'VIDEO' else 'photo'}"
-        + (f", {asset['duration'].split('.')[0]} long" if asset.get("type") == "VIDEO" and asset.get("duration") else ""),
+        + (f", {_length(asset['duration'])} long" if asset.get("type") == "VIDEO" and asset.get("duration") else ""),
         f"Size: {exif.get('exifImageWidth') or asset.get('width')}x{exif.get('exifImageHeight') or asset.get('height')}",
         f"Camera: {camera}",
         f"Taken: {(asset.get('localDateTime') or asset.get('fileCreatedAt') or '')[:10]}",
@@ -213,6 +222,16 @@ class _Immich:
         r.raise_for_status()
         return r.json() if r.content and "json" in r.headers.get("content-type", "") else r
 
+    def bulk(self, path: str, asset_id: str) -> bool:
+        """Add one picture to a tag or an album. False when the picture is
+        gone; any other refusal fails the run rather than pass unseen."""
+        for result in self.call("PUT", path, json={"ids": [asset_id]}):
+            if not result["success"] and result.get("error") != "duplicate":
+                if result.get("error") == "not_found":
+                    return False
+                raise RuntimeError(f"Immich refused {path}: {result.get('error')}")
+        return True
+
     def types(self) -> dict[str, str]:
         """The existing types: tag name -> id, for the tags under PARENT."""
         return {t["name"]: t["id"] for t in self.call("GET", "/tags")
@@ -231,27 +250,42 @@ class _Immich:
             "description": "Set aside by the sorting in the lab: delete, or move elsewhere.",
         })["id"]
 
-    def unsorted(self, type_ids: list[str], cursor: str | None) -> tuple[list[dict], str | None]:
-        """A page of pictures without any of these types, newest first. The
-        same type_ids for every page of a run: the cursor walks one listing."""
+    def unsorted(self, type_ids: list[str], limit: int) -> list[dict]:
+        """Up to limit of the key owner's pictures without any of these
+        types, newest first. Listed whole before any is tagged: the cursor
+        is an offset, and tagging while paging would shift it past
+        pictures still to do."""
+        me = self.call("GET", "/users/me")["id"]
         flt = {
             "type": {"in": ["IMAGE", "VIDEO"]},
-            # Not the locked folder, not the hidden halves of live photos.
+            # Not the locked folder, not the hidden halves of live photos,
+            # not the trash.
             "visibility": {"in": ["timeline", "archive"]},
+            "trashedAt": {"eq": None},
         }
         if type_ids:
             flt["tagIds"] = {"none": type_ids}
-        body = {"filter": flt, "size": 100, "withExif": True, "withPeople": True,
-                "orderBy": {"field": "fileCreatedAt", "direction": "desc"}}
-        if cursor:
-            body["cursor"] = cursor
-        page = self.call("POST", "/search/metadata", json=body)["assets"]
-        return page["items"], page.get("nextCursor")
+        found, cursor = [], None
+        while len(found) < limit:
+            body = {"filter": flt, "size": 250, "withExif": True, "withPeople": True,
+                    "orderBy": {"field": "fileCreatedAt", "direction": "desc"}}
+            if cursor:
+                body["cursor"] = cursor
+            page = self.call("POST", "/search/metadata", json=body)["assets"]
+            # A partner's shared photos are listed too, and cannot be tagged
+            # by this key.
+            found += [a for a in page["items"] if a.get("ownerId") == me and not a.get("isTrashed")]
+            cursor = page.get("nextCursor")
+            if not cursor:
+                break
+        return found[:limit]
 
 
 def _ask(session: requests.Session, image: bytes, media_type: str, text: str, types: list[str]):
-    """Claude's answer and the tokens it took, or None for a picture it
-    cannot take. Waits out rate limits and overload."""
+    """(Claude's answer, the tokens it took). The answer is None for a
+    picture Claude cannot take, or a reply that is not a whole answer.
+    Waits out rate limits, overload and dropped connections; fails the run
+    on any other refusal - a spend limit reached, a bad key."""
     body = {
         "model": MODEL,
         "max_tokens": 400,
@@ -265,17 +299,32 @@ def _ask(session: requests.Session, image: bytes, media_type: str, text: str, ty
         ]}],
     }
     for attempt in range(6):
-        r = session.post(ANTHROPIC, json=body, timeout=120)
-        if r.status_code in (429, 500, 502, 503, 529):
-            time.sleep(float(r.headers.get("retry-after") or 2 ** attempt * 5))
+        wait = 2 ** attempt * 5
+        try:
+            r = session.post(ANTHROPIC, json=body, timeout=120)
+        except (requests.ConnectionError, requests.Timeout):
+            time.sleep(wait)
             continue
-        if r.status_code == 400:  # this picture: unreadable, too large
-            return None
+        if r.status_code in (408, 409, 429) or r.status_code >= 500:
+            time.sleep(float(r.headers.get("retry-after") or wait))
+            continue
+        if r.status_code == 400:
+            try:
+                message = r.json()["error"]["message"]
+            except (ValueError, KeyError, TypeError):
+                message = r.text[:200]
+            # This picture: unreadable, too large, not what it says it is.
+            if "image" in message.lower():
+                return None, {}
+            raise RuntimeError(f"Claude refused the request: {message}")
         r.raise_for_status()
         reply = r.json()
-        answer = next((c["input"] for c in reply["content"] if c["type"] == "tool_use"), None)
-        return answer, reply.get("usage", {})
-    r.raise_for_status()
+        usage = reply.get("usage", {})
+        answer = next((c["input"] for c in reply.get("content", []) if c.get("type") == "tool_use"), None)
+        whole = (reply.get("stop_reason") == "tool_use" and isinstance(answer, dict)
+                 and all(k in answer for k in ("description", "type", "to_delete")))
+        return (answer if whole else None), usage
+    raise RuntimeError("Claude did not answer after six tries - overloaded, or unreachable")
 
 
 @dag(
@@ -285,7 +334,9 @@ def _ask(session: requests.Session, image: bytes, media_type: str, text: str, ty
     catchup=False,
     max_active_runs=1,
     tags=["immich"],
-    default_args={"retries": 1, "retry_delay": pendulum.duration(minutes=10)},
+    # No retry: the next hour's run carries on, and PER_RUN stays the most
+    # one run can spend.
+    default_args={"retries": 0},
 )
 def immich_sort():
     @task(execution_timeout=timedelta(minutes=50))
@@ -300,7 +351,8 @@ def immich_sort():
         claude = requests.Session()
         claude.headers.update({"x-api-key": os.environ["ANTHROPIC_API_KEY"],
                                "anthropic-version": "2023-06-01"})
-        run_id = get_current_context()["run_id"]
+        context = get_current_context()
+        run_id, try_number = context["run_id"], context["ti"].try_number
         producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP, "compression.type": "zstd"})
 
         def send(endpoint: str, rid: str, record: dict) -> None:
@@ -315,63 +367,69 @@ def immich_sort():
             if producer.flush(60) or errors:
                 raise RuntimeError(f"a record for {TOPIC} was not delivered: {errors[:1]}")
 
-        existing = immich.types()
-        # The types as the run began: a picture given a new one this run is
-        # behind the cursor already.
-        sorted_by = list(existing.values())
-        album = None
+        tally = {"sorted": 0, "to_delete": 0, "failed": 0, "input_tokens": 0, "output_tokens": 0}
         counts: dict[str, int] = {}
         made: list[str] = []
-        done = put_aside = failed = tokens_in = tokens_out = 0
-        started, cursor = time.monotonic(), None
-        while done + failed < PER_RUN and time.monotonic() - started < BUDGET.total_seconds():
-            page, cursor = immich.unsorted(sorted_by, cursor)
-            if not page:
-                break
-            for asset in page:
-                if done + failed >= PER_RUN or time.monotonic() - started > BUDGET.total_seconds():
+
+        def sort_some() -> None:
+            existing = immich.types()
+            album = None
+            started = time.monotonic()
+            for asset in immich.unsorted(list(existing.values()), PER_RUN):
+                if time.monotonic() - started > BUDGET.total_seconds():
                     break
                 try:
                     preview = immich.call("GET", f"/assets/{asset['id']}/thumbnail", params={"size": "preview"})
-                except requests.HTTPError:  # no preview yet: a fresh upload
-                    failed += 1
+                except requests.HTTPError as e:
+                    # No preview yet - a fresh upload - or gone since it was
+                    # listed. Anything else is not this picture's trouble.
+                    if e.response is None or e.response.status_code != 404:
+                        raise
+                    tally["failed"] += 1
                     continue
                 media_type = preview.headers.get("content-type", "image/jpeg").split(";")[0]
                 image, media_type = _shrink(preview.content, media_type)
-                got = _ask(claude, image, media_type, facts(asset, list(existing)), list(existing))
-                if got is None or not got[0]:
-                    failed += 1
-                    continue
-                answer, usage = got
-                tokens_in += usage.get("input_tokens", 0)
-                tokens_out += usage.get("output_tokens", 0)
-                name = type_name(str(answer.get("type", "")), existing)
-                if name is None:
-                    failed += 1
+                answer, usage = _ask(claude, image, media_type, facts(asset, list(existing)), list(existing))
+                tally["input_tokens"] += usage.get("input_tokens", 0)
+                tally["output_tokens"] += usage.get("output_tokens", 0)
+                name = type_name(str(answer.get("type", "")), existing) if answer else None
+                # The cap holds here, not only in what Claude is offered.
+                if name is None or (name not in existing and len(existing) >= MAX_TYPES):
+                    tally["failed"] += 1
                     continue
                 aside = set_aside(answer, asset)
-                # The row first: a picture with a type is never looked at
-                # again, so one tagged without its row would never get it.
+                # The row first, the tag last: a picture with a type is
+                # never looked at again, so one tagged without its row, or
+                # without its album, would never get them.
                 send("photos", asset["id"], photo_record(asset, answer, name, aside))
                 if name not in existing:
                     existing[name] = immich.type_id(name)
                     made.append(name)
-                immich.call("PUT", f"/tags/{existing[name]}/assets", json={"ids": [asset["id"]]})
                 if aside:
                     album = album or immich.album()
-                    immich.call("PUT", f"/albums/{album}/assets", json={"ids": [asset["id"]]})
-                    put_aside += 1
+                    if not immich.bulk(f"/albums/{album}/assets", asset["id"]):
+                        continue
+                    tally["to_delete"] += 1
+                if not immich.bulk(f"/tags/{existing[name]}/assets", asset["id"]):
+                    continue
                 counts[name] = counts.get(name, 0) + 1
-                done += 1
-            if not cursor:
-                break
+                tally["sorted"] += 1
 
-        send("sort", run_id, {
-            "model": MODEL, "sorted": done, "to_delete": put_aside, "failed": failed,
-            "types": counts, "new_types": made, "input_tokens": tokens_in, "output_tokens": tokens_out,
+        failure = None
+        try:
+            sort_some()
+        except Exception as e:  # the run's record still goes out, with what it spent
+            failure = e
+        # One record per try, so a failed one's tokens are counted too.
+        send("sort", f"{run_id}/{try_number}", {
+            **tally, "model": MODEL, "try": try_number, "types": counts, "new_types": made,
+            "error": f"{type(failure).__name__}: {failure}"[:300] if failure else None,
         })
-        print(f"sorted {done}, {put_aside} into '{ALBUM}', {failed} skipped; new types: "
-              f"{', '.join(made) or 'none'}; {tokens_in} tokens in, {tokens_out} out")
+        print(f"sorted {tally['sorted']}, {tally['to_delete']} into '{ALBUM}', {tally['failed']} skipped; "
+              f"new types: {', '.join(made) or 'none'}; "
+              f"{tally['input_tokens']} tokens in, {tally['output_tokens']} out")
+        if failure:
+            raise failure
 
     sort()
 

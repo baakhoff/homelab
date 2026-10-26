@@ -34,7 +34,7 @@ container's log.
   (`parallelism`). The warehouse DAG's models queue behind each other; a
   full run takes a few minutes longer and never takes the scheduler down.
 - **Its own image** (`images/airflow/`): the official one plus Cosmos, the
-  Kafka client, Telethon for Telegram, and dbt in a separate virtualenv at `/opt/dbt` so that
+  Kafka client, Telethon for Telegram, Pillow for `immich_sort`'s previews, and dbt in a separate virtualenv at `/opt/dbt` so that
   dbt's and Airflow's dependencies never meet.
 - **Its own Postgres** (`postgres.yaml`) for run history. Losing it loses
   history, not data.
@@ -45,7 +45,8 @@ container's log.
 ## What it can reach
 
 `networkpolicy.yaml` lets Airflow out to the internet on 443 - GitHub for
-git-sync, Google's APIs for the Google DAGs - and inside the lab to exactly
+git-sync, Google's APIs for the Google DAGs, Anthropic's API for
+`immich_sort` - and inside the lab to exactly
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
 those admits the scheduler pod by name in its own policy. A new source needs
 a door on both sides. Telegram is outside the lab, so `ingest_telegram` goes

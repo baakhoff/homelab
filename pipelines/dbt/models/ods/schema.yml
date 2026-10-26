@@ -61,7 +61,7 @@ models:
         tests: [not_null, unique]
   - name: immich_sort_runs
     columns:
-      - name: run_id
+      - name: attempt_key
         tests: [not_null, unique]
   - name: immich_photos
     columns:

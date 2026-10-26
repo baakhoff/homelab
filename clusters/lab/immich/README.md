@@ -170,8 +170,9 @@ first backup at home, charging, with the app open.
 
 **8. The sorting's keys**, for [sorting by type](#sorting-by-type), any
 time after step 6. In Immich, Account settings → API keys → New, named
-`sorting`, with only `asset.read`, `asset.view`, `tag.read`, `tag.create`,
-`tag.asset`, `album.read`, `album.create` and `albumAsset.create`. And a key
+`sorting`, with only `user.read`, `asset.read`, `asset.view`, `tag.read`,
+`tag.create`, `tag.asset`, `album.read`, `album.create` and
+`albumAsset.create`. And a key
 from the Claude Console, <https://console.anthropic.com> → API keys,
 ideally in a workspace of its own with a monthly spend limit. Then, one
 `read` at a time:
@@ -187,7 +188,7 @@ unset IK AK
 Commit and push, and restart the scheduler as in step 6 - after the
 *airflow image* workflow in GitHub Actions has finished, if it is running:
 the image carries what shrinks the previews, and a scheduler without it
-sends them full size, at more than twice the cost. Until the keys exist,
+sends them full size, at about 1.7 times the cost. Until the keys exist,
 `immich_sort` fails, harmlessly.
 
 ## Importing old photos
@@ -233,7 +234,8 @@ by the sorting. In the album, select what can go and delete it; it waits
 30 days in Immich's trash. Take what is worth keeping out of the album, or
 add it to another one.
 
-- **A favourite is never set aside.** The locked folder is never looked at.
+- **A favourite is never set aside.** The locked folder, the trash and a
+  partner's shared photos are never looked at.
 - **A picture is sorted once.** Once it has a type it is never looked at
   again, so taking it out of *To delete* is final. Removing its Type tag
   sends it round once more.
@@ -245,7 +247,9 @@ add it to another one.
 - **It costs about $0.002 a picture** at Haiku's list price. That makes a
   library of 30,000 about $60 once, then cents a month, and a run at most
   about $4. `ods.immich_sort_runs` has each run's tokens and an estimate in
-  dollars; the Console's spend limit is the hard stop.
+  dollars; the Console's spend limit is the hard stop. Once it is reached,
+  each run fails at its first picture, saying so in its log, until the
+  limit is raised or the month turns.
 - **The previews leave the house**, to Anthropic's API, which does not
   train on what it is sent. A picture's own text is treated as part of the
   picture, never as an instruction.
