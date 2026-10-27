@@ -413,26 +413,44 @@ SOURCES = {
 # sources.json in the ConfigMap airflow-extra that another Flux source adds
 # and the scheduler mounts at /opt/airflow/extra (clusters/lab/private/).
 # "pages" names a pager in PAGERS, "auth" is a [scheme, variable] pair, and
-# a source of the same name here is replaced. Absent, there are none. A file
-# that does not read is reported and left out, rather than taking every
-# other ingest DAG down with it.
+# a source of the same name here is replaced. Absent, there are none. A file,
+# or an entry, that does not read is reported and left out, rather than
+# taking every other ingest DAG down with it.
 EXTRA = os.path.join(os.environ.get("AIRFLOW_EXTRA", "/opt/airflow/extra"), "sources.json")
 PAGERS = {"records": _records_pages, "offset": _offset_pages, "skip": _skip_pages}
+
+
+def _extra_source(cfg) -> dict:
+    """One entry of sources.json, checked and made the shape of SOURCES'."""
+    if not (isinstance(cfg, dict) and isinstance(cfg.get("base"), str) and isinstance(cfg.get("schedule"), str)
+            and isinstance(cfg.get("endpoints"), list) and cfg["endpoints"]
+            and all(isinstance(e, str) for e in cfg["endpoints"]) and cfg.get("pages") in PAGERS):
+        raise ValueError("needs base, schedule, endpoints and a known pages")
+    auth = cfg.get("auth")
+    if auth is not None and not (isinstance(auth, list) and len(auth) == 2 and all(isinstance(x, str) for x in auth)):
+        raise ValueError("auth is a [scheme, variable] pair or null")
+    return {**cfg, "pages": PAGERS[cfg["pages"]], "auth": tuple(auth) if auth else None}
 
 
 def _extra_sources() -> dict:
     try:
         with open(EXTRA, encoding="utf-8") as f:
             extra = json.load(f)
-        for cfg in extra.values():
-            cfg["pages"] = PAGERS[cfg["pages"]]
-            cfg["auth"] = tuple(cfg["auth"]) if cfg.get("auth") else None
-        return extra
     except FileNotFoundError:
         return {}
-    except (ValueError, KeyError, TypeError, AttributeError) as e:
-        print(f"{EXTRA} left out: {type(e).__name__}: {e}")
+    except ValueError as e:
+        print(f"{EXTRA} left out: {e}")
         return {}
+    if not isinstance(extra, dict):
+        print(f"{EXTRA} left out: not an object")
+        return {}
+    found = {}
+    for name, cfg in extra.items():
+        try:
+            found[name] = _extra_source(cfg)
+        except ValueError as e:  # this one is left out, the others stay
+            print(f"{EXTRA}: {name} left out: {e}")
+    return found
 
 
 SOURCES.update(_extra_sources())
