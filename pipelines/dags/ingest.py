@@ -263,6 +263,35 @@ def _records_pages(session: requests.Session, url: str):
         page += 1
 
 
+def _offset_pages(session: requests.Session, url: str):
+    """{"data": [...], "total": n}, paged by row offset ("start") and page
+    size ("length"); without a length such an API answers everything at
+    once.
+    """
+    start = 0
+    while True:
+        r = session.get(url, params={"start": start, "length": PAGE_SIZE}, timeout=TIMEOUT)
+        body = _json(r, "data", url)
+        yield from body["data"]
+        start += PAGE_SIZE
+        if start >= body.get("total", 0) or not body["data"]:
+            return
+
+
+def _skip_pages(session: requests.Session, url: str):
+    """{"pageInfo": {"results": n, ...}, "results": [...]}, paged by "take"
+    and "skip".
+    """
+    skip = 0
+    while True:
+        r = session.get(url, params={"take": PAGE_SIZE, "skip": skip}, timeout=TIMEOUT)
+        body = _json(r, "results", url)
+        yield from body["results"]
+        skip += PAGE_SIZE
+        if skip >= body.get("pageInfo", {}).get("results", 0) or not body["results"]:
+            return
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -397,7 +426,7 @@ SOURCES = {
 # that does not read is reported and left out, rather than taking every
 # other ingest DAG down with it.
 EXTRA = os.path.join(os.environ.get("AIRFLOW_EXTRA", "/opt/airflow/extra"), "sources.json")
-PAGERS = {"records": _records_pages}
+PAGERS = {"records": _records_pages, "offset": _offset_pages, "skip": _skip_pages}
 
 
 def _extra_sources() -> dict:
