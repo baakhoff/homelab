@@ -153,8 +153,7 @@ to Plex itself.
   settings are greyed out and Plex converts on up to four CPU cores. Most
   films play directly on a modern TV or phone and never need converting.
 - **The films are read-only to Plex.** It cannot delete or rename anything
-  on the NAS, whatever its settings say. The download client, when it comes,
-  writes into `tank/media` through a volume of its own.
+  on the NAS, whatever its settings say.
 - **Logins go through plex.tv.** If plex.tv is down, apps that are already
   signed in usually keep playing in the house; new sign-ins wait.
 - **When the NAS is away, playback stops and resumes** with it: the share is

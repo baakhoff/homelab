@@ -369,23 +369,6 @@ SOURCES = {
         "ids": {"library/sections": "uuid", "status/sessions/history/all": "historyKey"},
         "schedule": "55 */6 * * *",
     },
-    # The films and series followed, and what was grabbed and imported for
-    # them. Each app's key is set in advance in its Secret, and the same
-    # value in Airflow's (clusters/lab/arr/README.md, step 1).
-    "radarr": {
-        "base": "http://radarr.arr.svc.cluster.local:7878/api/v3",
-        "auth": ("X-Api-Key:", "RADARR_API_KEY"),
-        "pages": _records_pages,
-        "endpoints": ["movie", "history"],
-        "schedule": "5 */6 * * *",
-    },
-    "sonarr": {
-        "base": "http://sonarr.arr.svc.cluster.local:8989/api/v3",
-        "auth": ("X-Api-Key:", "SONARR_API_KEY"),
-        "pages": _records_pages,
-        "endpoints": ["series", "history"],
-        "schedule": "10 */6 * * *",
-    },
 }
 
 
