@@ -40,7 +40,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: workspace
-          image: docker.io/dbeaver/cloudbeaver:26.2.2
+          image: docker.io/dbeaver/cloudbeaver:26.2.3
           command: ["sh", "/config/init.sh"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -101,7 +101,7 @@ spec:
               readOnly: true
       containers:
         - name: cloudbeaver
-          image: docker.io/dbeaver/cloudbeaver:26.2.2
+          image: docker.io/dbeaver/cloudbeaver:26.2.3
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
