@@ -239,8 +239,10 @@ def _plex_pages(session: requests.Session, url: str):
         start += PAGE_SIZE
 
 
-    history {"page", "pageSize", "totalRecords", "records": [...]} by page
-    number. The list endpoints ignore the paging parameters.
+def _records_pages(session: requests.Session, url: str):
+    """A plain list, or {"page", "pageSize", "totalRecords", "records": [...]}
+    by page number - an API whose list endpoints answer whole and ignore the
+    paging parameters, and whose long ones page.
     """
     page = 1
     while True:
@@ -368,12 +370,43 @@ SOURCES = {
         "schedule": "55 */6 * * *",
     },
     # them. Each app's key is set in advance in its Secret, and the same
+        "pages": _records_pages,
         "schedule": "5 */6 * * *",
     },
+        "pages": _records_pages,
         "endpoints": ["series", "history"],
         "schedule": "10 */6 * * *",
     },
 }
+
+
+# Sources kept outside this repository: a JSON object shaped like SOURCES,
+# sources.json in the ConfigMap airflow-extra that another Flux source adds
+# and the scheduler mounts at /opt/airflow/extra (clusters/lab/private/).
+# "pages" names a pager in PAGERS, "auth" is a [scheme, variable] pair, and
+# a source of the same name here is replaced. Absent, there are none. A file
+# that does not read is reported and left out, rather than taking every
+# other ingest DAG down with it.
+EXTRA = os.path.join(os.environ.get("AIRFLOW_EXTRA", "/opt/airflow/extra"), "sources.json")
+PAGERS = {"records": _records_pages}
+
+
+def _extra_sources() -> dict:
+    try:
+        with open(EXTRA, encoding="utf-8") as f:
+            extra = json.load(f)
+        for cfg in extra.values():
+            cfg["pages"] = PAGERS[cfg["pages"]]
+            cfg["auth"] = tuple(cfg["auth"]) if cfg.get("auth") else None
+        return extra
+    except FileNotFoundError:
+        return {}
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
+        print(f"{EXTRA} left out: {type(e).__name__}: {e}")
+        return {}
+
+
+SOURCES.update(_extra_sources())
 
 
 def _session(auth, headers: dict | None = None) -> requests.Session:

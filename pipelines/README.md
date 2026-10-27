@@ -110,3 +110,11 @@ columns' descriptions in a `schema.yml` are what fill it in.
   `SOURCES` in `clusters/lab/data/clickhouse-schema.yaml`, a table in
   `dbt/models/sources.yml`, and NetworkPolicy doors on both sides
   (`clusters/lab/airflow/README.md`).
+- **A source kept private**: the same, from the private Flux source
+  (`clusters/lab/private/README.md`). Its `sources.json` and its models are
+  mounted at `/opt/airflow/extra`, where `dags/ingest.py` and dbt read them;
+  its sources are declared under a dbt source of their own, which
+  `snapshot_records(table, endpoint, source_name)` takes as its third
+  argument. Cosmos keeps the warehouse DAG's task list cached by this
+  project's files, so a model added there shows up once this project
+  changes, or once the Airflow Variable holding the cache is deleted.

@@ -76,7 +76,9 @@ accounts, the only login its TV apps know.
 ## Where things run
 
 - **node02, node03, node04** — k3s with embedded etcd, all three as servers,
-  reconciled by Flux from `clusters/lab/`. Rook-Ceph runs an OSD on each and
+  reconciled by Flux from `clusters/lab/`, and from a second, private
+  repository for what is better not published
+  ([how](clusters/lab/private/README.md)). Rook-Ceph runs an OSD on each and
   serves replicated block storage as the cluster's default StorageClass, with a
   CSI snapshot class on top of it; csi-driver-nfs mounts NAS shares, one
   static volume per share and no StorageClass. cert-manager and ingress-nginx,

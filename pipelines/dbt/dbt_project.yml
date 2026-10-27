@@ -6,7 +6,11 @@ version: "1.0.0"
 profile: warehouse
 config-version: 2
 
-model-paths: ["models"]
+# models/ here, and the models another Flux source mounts into Airflow at
+# /opt/airflow/extra (clusters/lab/private/) - absent anywhere else, which
+# dbt takes as no models. .dbtignore keeps out the ConfigMap's hidden
+# folders, which hold every file a second time.
+model-paths: ["models", "/opt/airflow/extra"]
 macro-paths: ["macros"]
 target-path: target
 clean-targets: ["target", "dbt_packages"]

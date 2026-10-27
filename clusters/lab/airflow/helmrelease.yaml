@@ -86,10 +86,15 @@ spec:
     jwtSecretName: airflow-core
 
     # The sources' API tokens and dbt's ClickHouse password, into every
-    # Airflow container as environment variables (README, "Setup").
+    # Airflow container as environment variables (README, "Setup"); and the
+    # tokens of the sources another Flux source adds (clusters/lab/private/),
+    # if that Secret exists.
     extraEnvFrom: |
       - secretRef:
           name: airflow-sources
+      - secretRef:
+          name: airflow-extra
+          optional: true
 
     config:
       core:
@@ -146,6 +151,18 @@ spec:
         # this together with parallelism, never one without the other.
         limits:
           memory: 2560Mi
+      # Ingest sources and dbt models another Flux source adds
+      # (clusters/lab/private/), if its ConfigMap exists: read where the
+      # tasks run, and by the DAG processor below.
+      extraVolumes:
+        - name: extra
+          configMap:
+            name: airflow-extra
+            optional: true
+      extraVolumeMounts:
+        - name: extra
+          mountPath: /opt/airflow/extra
+          readOnly: true
       logGroomerSidecar:
         resources:
           requests:
@@ -171,6 +188,17 @@ spec:
           memory: 384Mi
         limits:
           memory: 1Gi
+      # The same extra sources and models as the scheduler's: the ingest
+      # DAGs and the warehouse's task list are read from them here.
+      extraVolumes:
+        - name: extra
+          configMap:
+            name: airflow-extra
+            optional: true
+      extraVolumeMounts:
+        - name: extra
+          mountPath: /opt/airflow/extra
+          readOnly: true
       logGroomerSidecar:
         resources:
           requests:
