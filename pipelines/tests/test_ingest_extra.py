@@ -76,3 +76,13 @@ def test_a_bad_file_is_left_out_not_fatal(monkeypatch, tmp_path, content, capsys
     ingest = load(monkeypatch, tmp_path, content)
     assert "vikunja" in ingest.SOURCES
     assert "left out" in capsys.readouterr().out
+
+
+def test_one_bad_entry_leaves_the_others(monkeypatch, tmp_path, capsys):
+    extra = {
+        "good": {"base": "http://good/api", "auth": None, "pages": "skip", "endpoints": ["a"], "schedule": "0 * * * *"},
+        "bad": {"base": "http://bad/api", "pages": "records", "endpoints": "not-a-list", "schedule": "0 * * * *"},
+    }
+    ingest = load(monkeypatch, tmp_path, json.dumps(extra))
+    assert "good" in ingest.SOURCES and "bad" not in ingest.SOURCES
+    assert "bad left out" in capsys.readouterr().out
