@@ -38,6 +38,10 @@ container's log.
   dbt's and Airflow's dependencies never meet.
 - **Its own Postgres** (`postgres.yaml`) for run history. Losing it loses
   history, not data.
+- **Extra sources and models at `/opt/airflow/extra`**, in the scheduler
+  and the DAG processor: the ConfigMap `airflow-extra` and its tokens in the
+  Secret `airflow-extra`, both from the private Flux source and both
+  optional (`clusters/lab/private/README.md`).
 - **dbt connects as the `dbt` ClickHouse user**: it reads `raw` and owns
   `ods`, `ads` and `dm`, nothing else. The data namespace's schema job
   creates it.

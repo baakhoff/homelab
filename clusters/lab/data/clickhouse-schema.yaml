@@ -1,7 +1,8 @@
 # The schema job: creates the Kafka topics, the warehouse's databases, and
 # the raw tables that consume the topics. Idempotent, so it runs every hour
 # and whenever it is started by hand (README) - a new source is one entry
-# in SOURCES below.
+# in SOURCES below, or in SOURCES of the ConfigMap clickhouse-extra that
+# another Flux source may add (clusters/lab/private/).
 #
 # The warehouse has four layers, one ClickHouse database each:
 #
@@ -35,6 +36,7 @@ data:
 
   topics.sh: |
     set -eu
+    SOURCES="$SOURCES ${SOURCES_EXTRA:-}"
     # One quick check first, so an unreachable broker fails this run in
     # half a minute with one clear line - not once per topic, each after
     # the admin client's own long timeout.
@@ -50,6 +52,7 @@ data:
 
   schema.sh: |
     set -eu
+    SOURCES="$SOURCES ${SOURCES_EXTRA:-}"
     ch() {
       clickhouse-client --host clickhouse.data.svc.cluster.local --user admin \
         --password "$CLICKHOUSE_PASSWORD" --multiquery "$@"
@@ -230,6 +233,14 @@ spec:
                     configMapKeyRef:
                       name: clickhouse-schema
                       key: SOURCES
+                # More sources, from another Flux source
+                # (clusters/lab/private/), if that ConfigMap exists.
+                - name: SOURCES_EXTRA
+                  valueFrom:
+                    configMapKeyRef:
+                      name: clickhouse-extra
+                      key: SOURCES
+                      optional: true
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
@@ -253,6 +264,14 @@ spec:
                     configMapKeyRef:
                       name: clickhouse-schema
                       key: SOURCES
+                # More sources, from another Flux source
+                # (clusters/lab/private/), if that ConfigMap exists.
+                - name: SOURCES_EXTRA
+                  valueFrom:
+                    configMapKeyRef:
+                      name: clickhouse-extra
+                      key: SOURCES
+                      optional: true
                 - name: CLICKHOUSE_PASSWORD
                   valueFrom:
                     secretKeyRef:

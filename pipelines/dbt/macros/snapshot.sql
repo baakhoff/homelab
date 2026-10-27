@@ -9,8 +9,10 @@
   once.
 
   Columns: id, record (the API's JSON for the record), extracted_at.
+  source_name is the dbt source the table is declared under: raw, unless
+  the models come from elsewhere (dbt_project.yml, model-paths).
 #}
-{% macro snapshot_records(source_table, endpoint) -%}
+{% macro snapshot_records(source_table, endpoint, source_name='raw') -%}
   with rows as (
     select
       JSONExtractString(payload, 'run_id') as run_id,
@@ -18,7 +20,7 @@
       JSONExtractRaw(payload, 'record') as record,
       parseDateTime64BestEffortOrNull(JSONExtractString(payload, 'extracted_at'), 3, 'UTC') as extracted_at,
       kafka_ts
-    from {{ source('raw', source_table) }}
+    from {{ source(source_name, source_table) }}
     where JSONExtractString(payload, 'endpoint') = '{{ endpoint }}'
   ),
   latest as (
