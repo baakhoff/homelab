@@ -27,5 +27,5 @@ RUN corepack enable \
 
 # Static files only. The server config - which paths go to the API, and the
 # headers the page needs - lives with the Deployment, in a ConfigMap.
-FROM nginxinc/nginx-unprivileged:1.31.6-alpine
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine
 COPY --from=build /src/web/build /usr/share/nginx/html
