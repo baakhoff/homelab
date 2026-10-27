@@ -53,28 +53,17 @@ nothing that holds data can be pruned on the way, by two marks:
   A Secret pruned anyway is applied again by the private source within ten
   minutes; the pods using it have read it already.
 
-The order:
+The order, with the exact commands and the checks between the steps, is in
+the private repository's `HANDOVER.md`, since it names what moves:
 
-1. **Merge the PR that adds the private source on its own.** Never merge the
-   PR that removes the objects into its branch first: GitHub moves that PR
-   onto `main` once this one's branch is deleted.
-2. `flux get kustomization private` shows Ready, at the private repository's
-   newest commit.
-3. `flux suspend kustomization flux-system`, then `flux reconcile
-   kustomization private --with-source`.
-4. **The check.** Every line must end in `disabled`:
-
-   ```bash
-   C='-o custom-columns=KIND:.kind,NAME:.metadata.name,BY:.metadata.labels.kustomize\.toolkit\.fluxcd\.io/name,PRUNE:.metadata.annotations.kustomize\.toolkit\.fluxcd\.io/prune'
-   ```
-
-5. Merge the removal PR, then the private repository's warehouse PR, and
-   `flux reconcile kustomization private --with-source` again; it shows
-   Ready. The private repository's ConfigMaps and Secret are there:
-   `kubectl -n backup get cm backup-extra`, `kubectl -n data get cm
-   clickhouse-extra`, `kubectl -n airflow get cm,secret airflow-extra`.
-6. The check of step 4 again, then `flux resume kustomization flux-system`.
-   pvc,deploy` list what they listed before.
+1. The PR that adds the private source is merged on its own - never the
+   removal merged into its branch first.
+2. The private Kustomization is Ready; flux-system is suspended; the private
+   one is reconciled.
+3. A check: everything that moves carries the mark.
+4. The removal is merged here, then the private repository's own changes;
+   the private Kustomization is reconciled and Ready again.
+5. The check again, then flux-system is resumed.
 
 flux-system resumed early by mistake prunes nothing that holds data; carry
 on from step 3. `commonMetadata` comes out of `source.yaml` once nothing
