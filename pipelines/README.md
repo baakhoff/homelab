@@ -117,6 +117,6 @@ columns' descriptions in a `schema.yml` are what fill it in.
   mounted at `/opt/airflow/extra`, where `dags/ingest.py` and dbt read them;
   its sources are declared under a dbt source of their own, which
   `snapshot_records(table, endpoint, source_name)` takes as its third
-  argument. Cosmos keeps the warehouse DAG's task list cached by this
-  project's files, so a model added there shows up once this project
-  changes, or once the Airflow Variable holding the cache is deleted.
+  argument. dbt reaches them through `dbt/extra`, a link to the mount; the
+  warehouse DAG fingerprints them, so a changed model there renews Cosmos's
+  cached task list like a change here.

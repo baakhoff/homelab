@@ -336,6 +336,10 @@ kind: RoleBinding
 metadata:
   name: backup-driver
   namespace: arr
+  # Never pruned while it moves to the private repository
+  # (clusters/lab/private/README.md).
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
 subjects:
   - kind: ServiceAccount
     name: backup-driver

@@ -40,18 +40,46 @@ rm -f /tmp/flux-private /tmp/flux-private.pub
 
 ## Handing objects over
 
-Objects that move from this repository to the private one keep running: the
-private source applies them, marked never to be pruned (`commonMetadata` in
-`source.yaml`), before they leave here, so flux-system's clean-up passes
-them by. The order:
+Objects that move from this repository to the private one keep running, and
+nothing that holds data can be pruned on the way, by two marks:
 
-1. Both sources hold the objects; both apply them.
-2. `flux suspend kustomization flux-system`, then `flux reconcile
-   kustomization private --with-source`: the objects now carry the private
-   source's labels and the never-prune mark.
-3. The change that removes them here is merged.
-4. `flux resume kustomization flux-system`. Its clean-up finds the objects
-   marked and leaves them.
+- **On the objects themselves.** Everything that moves, but the encrypted
+  Secrets, carries `kustomize.toolkit.fluxcd.io/prune: disabled` in both
+  repositories (a patch in its directory's `kustomization.yaml`; the backup
+  RoleBinding has it written in). Flux never prunes an object so marked,
+  whichever source applied it last.
+- **On everything the private source applies** (`commonMetadata` in
+  `source.yaml`), the Secrets included - for as long as it applied them last.
+  A Secret pruned anyway is applied again by the private source within ten
+  minutes; the pods using it have read it already.
 
-`commonMetadata` comes out of `source.yaml` once nothing else is being
-handed over.
+The order:
+
+1. **Merge the PR that adds the private source on its own.** Never merge the
+   PR that removes the objects into its branch first: GitHub moves that PR
+   onto `main` once this one's branch is deleted.
+2. `flux get kustomization private` shows Ready, at the private repository's
+   newest commit.
+3. `flux suspend kustomization flux-system`, then `flux reconcile
+   kustomization private --with-source`.
+4. **The check.** Every line must end in `disabled`:
+
+   ```bash
+   C='-o custom-columns=KIND:.kind,NAME:.metadata.name,BY:.metadata.labels.kustomize\.toolkit\.fluxcd\.io/name,PRUNE:.metadata.annotations.kustomize\.toolkit\.fluxcd\.io/prune'
+   kubectl get ns/arr ns/torrents pv/arr-media pv/torrents-media $C
+   kubectl -n arr get pvc,deploy $C; kubectl -n torrents get pvc,deploy $C
+   ```
+
+5. Merge the removal PR, then the private repository's warehouse PR, and
+   `flux reconcile kustomization private --with-source` again; it shows
+   Ready. The private repository's ConfigMaps and Secret are there:
+   `kubectl -n backup get cm backup-extra`, `kubectl -n data get cm
+   clickhouse-extra`, `kubectl -n airflow get cm,secret airflow-extra`.
+6. The check of step 4 again, then `flux resume kustomization flux-system`.
+7. A last look: `kubectl -n arr get pvc,deploy` and `kubectl -n torrents get
+   pvc,deploy` list what they listed before.
+
+flux-system resumed early by mistake prunes nothing that holds data; carry
+on from step 3. `commonMetadata` comes out of `source.yaml` once nothing
+else is being handed over; the marks on the objects stay in the private
+repository on the namespaces and volumes, as a guard.
