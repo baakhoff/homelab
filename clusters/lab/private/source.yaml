@@ -32,8 +32,9 @@ spec:
       name: sops-age
   # Everything it applies is marked never to be pruned - by this
   # Kustomization or by flux-system - while objects that used to be applied
-  # from here are handed over to it (README, "Handing objects over"). Taken
-  # out once that is done.
+  # from here are handed over to it (README, "Handing objects over"). The
+  # objects carry the same mark themselves; this one also covers their
+  # encrypted Secrets. Taken out once that is done.
   commonMetadata:
     annotations:
       kustomize.toolkit.fluxcd.io/prune: disabled
