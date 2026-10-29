@@ -138,11 +138,29 @@ spec:
               command: ["/gluetun-entrypoint", "healthcheck"]
             periodSeconds: 5
             failureThreshold: 60
+          # And is qBittorrent listening on the port PIA forwarded. When
+          # the tunnel restarts on another server, gluetun can reuse the old
+          # server's port lease, fail to renew it and never try again
+          # (upstream issue 3470); after its down command qBittorrent is then
+          # left on `lo`, port 0, every torrent stalled, with the tunnel
+          # itself healthy. That happened on 2026-10-28 and went unnoticed
+          # for a day. A restart of this container clears it: its files are
+          # its own, so the stale lease goes with it, and the up command
+          # tells qBittorrent the new port. Ten tries, five minutes, rides
+          # out a reconnect and qBittorrent's own start.
           livenessProbe:
             exec:
-              command: ["/gluetun-entrypoint", "healthcheck"]
+              command:
+                - /bin/sh
+                - -c
+                - >-
+                  /gluetun-entrypoint healthcheck &&
+                  p=$(cat /tmp/gluetun/forwarded_port) && [ -n "$p" ] &&
+                  wget -qO- http://127.0.0.1:8080/api/v2/app/preferences |
+                  grep -qE "\"listen_port\":$p[,}]"
             periodSeconds: 30
-            failureThreshold: 4
+            timeoutSeconds: 10
+            failureThreshold: 10
           # Every byte of every torrent passes through here, encrypted or
           # decrypted by OpenVPN, and the tunnel's buffers count against this
           # container. At 256Mi it was killed for memory 19 times in its
@@ -154,9 +172,6 @@ spec:
               memory: 128Mi
             limits:
               memory: 1Gi
-          volumeMounts:
-            - name: gluetun
-              mountPath: /gluetun
       containers:
         - name: qbittorrent
           # The tag is qBittorrent, libtorrent and linuxserver's build;
@@ -205,7 +220,3 @@ spec:
         - name: defaults
           configMap:
             name: qbittorrent-defaults
-        # PIA's server list and the forwarded port's lease. Rebuilt at each
-        # start; the port may change, and the up-command tells qBittorrent.
-        - name: gluetun
-          emptyDir: {}
