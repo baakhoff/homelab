@@ -1,9 +1,13 @@
 -- One row per attachment of a Proton Mail message: name, type and size.
--- Metadata only - the files stayed in the export (pipelines/proton.md).
+-- The file itself goes to the NAS archive when the export is packed with
+-- --files and the folder dropped into its inbox (pipelines/proton.md).
 -- Inline ones are mostly images in an HTML body: logos, signatures.
 select
   message_key,
   num as position,
+  -- Its row in ods.files once the file is stored. An empty attachment has
+  -- none.
+  concat('proton:', message_key, '/', toString(position)) as file_key,
   JSONExtractString(att, 'name') as file_name,
   JSONExtractString(att, 'mime_type') as mime_type,
   JSONExtractInt(att, 'size') as size_bytes,

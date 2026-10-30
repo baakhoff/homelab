@@ -56,7 +56,7 @@ attachment belongs to, its name before it was saved - writes a
 `files.jsonl` into the batch folder, one line per file:
 
 ```json
-{"file": "m1/1", "endpoint": "proton", "id": "m1/1", "record": {"name": "invoice.pdf", "mime_type": "application/pdf"}}
+{"file": "12/1", "endpoint": "proton", "id": "Xq3vT9bLw0==/1", "record": {"name": "invoice.pdf", "mime_type": "application/pdf", "inline": false}}
 ```
 
 `file` is the path in the batch; the row gets `source` = `endpoint` and
@@ -68,12 +68,11 @@ which then stays in the inbox untouched.
 
 ## Where files come from
 
-Each `source` besides `inbox`, and how its `ref` finds what the file
-belongs to:
-
-| `source` | The files | `ref` |
-|---|---|---|
-| `telegram` | Photos, videos, voice messages, video notes, audio and documents in private Telegram chats, from `ingest_telegram` ([telegram.md](telegram.md)) | the message's `message_key` in `ods.telegram_messages`, `<chat id>/<message id>`, with `<account>:` in front for an account other than `main`; that row's `file_key` is this one's |
+| `source` | What | `ref` | Joins |
+|---|---|---|---|
+| `inbox` | anything dropped in that no manifest names | its path in the inbox, the batch folder first | - |
+| `telegram` | photos, videos, voice messages, video notes, audio and documents in private Telegram chats, from `ingest_telegram` ([telegram.md](telegram.md)) | the message's `message_key`: `<chat id>/<message id>`, with `<account>:` in front for an account other than `main` | `ods.telegram_messages.file_key` |
+| `proton` | Proton Mail attachments, packed with `--files` ([proton.md](proton.md)) | `<message_key>/<position>`: the message's Proton id, and the attachment's place in it from 1 | `ods.proton_attachments.file_key` |
 
 ## Finding a file from a row
 
@@ -86,6 +85,15 @@ WHERE source = 'inbox' AND batch = 'receipts-2026';
 `object` is the path in the read-only share `\\nas.lab\archive`, logged in
 as `archive`: `\\nas.lab\archive\objects\2d\2d7116…`. Copy it out and give
 it its `file_name` back - stored files have no extension.
+
+A model with a `file_key` column joins on it:
+
+```sql
+SELECT a.file_name, f.object
+FROM ods.proton_attachments AS a
+JOIN ods.files AS f ON f.file_key = a.file_key
+WHERE a.message_key = '…';
+```
 
 ## Things to know
 
