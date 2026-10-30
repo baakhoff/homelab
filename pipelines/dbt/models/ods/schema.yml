@@ -47,18 +47,6 @@ models:
     columns:
       - name: history_key
         tests: [not_null, unique]
-    columns:
-      - name: film_id
-        tests: [not_null, unique]
-    columns:
-      - name: event_id
-        tests: [not_null, unique]
-    columns:
-      - name: series_id
-        tests: [not_null, unique]
-    columns:
-      - name: event_id
-        tests: [not_null, unique]
   - name: immich_sort_runs
     columns:
       - name: attempt_key

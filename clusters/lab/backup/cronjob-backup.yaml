@@ -123,6 +123,16 @@ spec:
                     agents/slot-2
                     agents/slot-3
                     agents/slot-4
+                # More targets, from another Flux source (clusters/lab/private/):
+                # the ConfigMap backup-extra, if it exists, backed up after the
+                # ones above. Its namespaces need a RoleBinding and a
+                # restic-repo Secret like any other - from that source too.
+                - name: BACKUP_TARGETS_EXTRA
+                  valueFrom:
+                    configMapKeyRef:
+                      name: backup-extra
+                      key: BACKUP_TARGETS
+                      optional: true
                 # Namespaces whose restic pod runs as this uid under the
                 # `restricted` Pod Security profile instead of as root - see
                 # the driver. agents enforces `restricted` and refuses root

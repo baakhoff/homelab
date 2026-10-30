@@ -8,6 +8,7 @@ model is live a minute later, with no restart.
 
 | DAG | What it does | When |
 |---|---|---|
+| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline`, `ingest_immich`, `ingest_plex` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, the rest every 6 hours |
 | `ingest_telegram` | Each logged-in Telegram account's private chats into `raw.telegram`, logged in as the account: new messages, and the last 3 days again for edits; the history in 40-minute portions on the first runs ([how](../../../pipelines/telegram.md)) | hourly, at :20 |
 | `ingest_proton` | A Proton Mail export, packed on the workstation and copied into the scheduler pod, into `raw.proton` ([how](../../../pipelines/proton.md)) | by hand |
 | `ingest_vk` | The VK data archive, packed on the workstation and copied into the scheduler pod, into `raw.vk` ([how](../../../pipelines/vk.md)) | by hand |
@@ -38,6 +39,10 @@ container's log.
   dbt's and Airflow's dependencies never meet.
 - **Its own Postgres** (`postgres.yaml`) for run history. Losing it loses
   history, not data.
+- **Extra sources and models at `/opt/airflow/extra`**, in the scheduler
+  and the DAG processor: the ConfigMap `airflow-extra` and its tokens in the
+  Secret `airflow-extra`, both from the private Flux source and both
+  optional (`clusters/lab/private/README.md`).
 - **dbt connects as the `dbt` ClickHouse user**: it reads `raw` and owns
   `ods`, `ads` and `dm`, nothing else. The data namespace's schema job
   creates it.
@@ -48,6 +53,7 @@ container's log.
 git-sync, Google's APIs for the Google DAGs, Anthropic's API for
 `immich_sort` - and inside the lab to exactly
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
+Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline, Immich, Plex. Each of
 those admits the scheduler pod by name in its own policy. A new source needs
 a door on both sides. Telegram is outside the lab, so `ingest_telegram` goes
 out through the same internet rule as git-sync, on 443. The dbt docs pod uses
@@ -124,6 +130,7 @@ Dawarich's keys are added later, into the same Secret - step 5 of
 and so is Outline's API key, step 4 of `clusters/lab/notes/README.md`, and
 Immich's, steps 6 and 8 of `clusters/lab/immich/README.md` (step 8's
 with the Claude API key), and Plex's, step 6 of
+`clusters/lab/plex/README.md`, and
 Telegram's login, by `pipelines/tools/telegram_login.py` (`pipelines/telegram.md`).
 So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
 `clusters/lab/cloudbeaver/README.md` - and Google's client and tokens, by
