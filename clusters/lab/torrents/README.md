@@ -34,7 +34,16 @@ Homepage under Ops → Platform.
   probe, so qBittorrent starts only once the tunnel is up.
 - **A port, forwarded by PIA.** gluetun asks PIA's Netherlands servers for a
   forwarded port and tells qBittorrent over localhost each time it gets
-  one, which is why qBittorrent's localhost login is off.
+  one, which is why qBittorrent's localhost login is off. When the tunnel
+  drops, it parks qBittorrent on `lo`, port 0, until the next port.
+- **No port for five minutes restarts gluetun.** Its liveness probe also
+  asks qBittorrent which port it listens on, and fails unless that is the
+  one PIA forwarded. gluetun can lose port forwarding for good after a
+  reconnect to another server: it reuses the old server's lease, the
+  renewal fails, and it never tries again. qBittorrent stayed parked, every
+  torrent stalled, for a day on 2026-10-28. A fresh gluetun container has no
+  old lease and gets a new port. The port can change with each restart;
+  the up command tells qBittorrent.
 
 The check, after any change here:
 
