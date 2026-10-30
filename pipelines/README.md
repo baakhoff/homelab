@@ -10,6 +10,8 @@ minute, so a merged change is live a minute later.
       proton.py      a Proton Mail export, loaded by hand from a packed file
       vk.py          the VK data archive, loaded by hand from a packed file
       google.py      the Google account, four DAGs (google.md)
+      files.py       the NAS archive's inbox, into the archive and the warehouse (files.md)
+      archive.py     files onto the NAS under their hash, a row for each: the helpers
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
@@ -23,8 +25,9 @@ minute, so a merged change is live a minute later.
     proton.md        loading a Proton Mail export, and cleaning up after
     vk.md            loading the VK data archive
     google.md        what Google sends, its consent and renewal
+    files.md         the NAS archive: where files go, the inbox, finding a file from a row
     sensitive.md     what is masked before data reaches the warehouse, and how
-    tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
+    tests/           tests for sensitive.py, the pack tools and archive.py: `uv run --with pytest pytest pipelines/tests`
     dbt/
       models/ods/    raw parsed into typed tables, one system at a time
       models/ads/    joins and aggregates across systems
@@ -36,7 +39,8 @@ minute, so a merged change is live a minute later.
 
     service API --ingest_<source>--> Kafka raw.<source> --> ClickHouse raw.<source>
     Home Assistant, Alloy ---------> Kafka raw.<source> --> ClickHouse raw.<source>
-                                                                  |
+    NAS inbox ------ingest_files---> Kafka raw.files ----> ClickHouse raw.files
+       \--> the file, on the NAS under its hash                   |
                                                      warehouse:  ods -> ads -> dm
 
 `raw` is the record of what arrived: the payload exactly as produced, never
@@ -47,7 +51,7 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `immich_usage`, `immich_users`, `plex_libraries`, `plex_plays`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `vk_messages`, `vk_conversations`, `vk_audio`, `vk_items`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `immich_usage`, `immich_users`, `plex_libraries`, `plex_plays`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `vk_messages`, `vk_conversations`, `vk_audio`, `vk_items`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `searxng_searches`, `files`, `ha_states`, `logs`, `k8s_events` |
 | `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily`, `google_daily`, `people` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
@@ -63,11 +67,11 @@ Five patterns cover the sources:
   because the whole history is millions of points. `ods.dawarich_points` is
   incremental and keeps each point as first seen, so a point deleted at
   the source stays.
-- **Messages sent once** (Telegram, Proton Mail) - each message is sent
-  when it is new and again when edited (Telegram) or exported again (Proton
-  Mail), and `ods.telegram_messages` and `ods.proton_messages` keep every
-  message's newest copy across all runs. Rebuilt every run; a message deleted at the
-  source stays.
+- **Messages sent once** (Telegram, Proton Mail, the NAS archive's files) -
+  each message is sent when it is new and again when edited (Telegram) or
+  exported again (Proton Mail), and `ods.telegram_messages`,
+  `ods.proton_messages` and `ods.files` keep every message's newest copy
+  across all runs. Rebuilt every run; a message deleted at the source stays.
 - **Changes** (Gmail, Google's activity exports) - the DAG sends only what
   is new or changed, and a tombstone for what was deleted, because a full
   snapshot would be far too large. `accumulated_records()` returns the newest

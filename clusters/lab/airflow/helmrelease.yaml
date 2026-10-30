@@ -151,15 +151,21 @@ spec:
         # this together with parallelism, never one without the other.
         limits:
           memory: 2560Mi
-      # Ingest sources and dbt models another Flux source adds
-      # (clusters/lab/private/), if its ConfigMap exists: read where the
+      # The NAS archive (archive.yaml), for the tasks that store files; and
+      # the ingest sources and dbt models another Flux source adds
+      # (clusters/lab/private/), if its ConfigMap exists - read where the
       # tasks run, and by the DAG processor below.
       extraVolumes:
+        - name: archive
+          persistentVolumeClaim:
+            claimName: archive
         - name: extra
           configMap:
             name: airflow-extra
             optional: true
       extraVolumeMounts:
+        - name: archive
+          mountPath: /archive
         - name: extra
           mountPath: /opt/airflow/extra
           readOnly: true

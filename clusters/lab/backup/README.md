@@ -122,6 +122,7 @@ applied to this cluster:
 | `photon/photon-data` | Photon's geocoding index, downloaded and built again by its next start (`clusters/lab/photon/README.md`) |
 | `immich/immich-ml-cache` | Immich's machine-learning models, downloaded again on first use |
 | `plex-media`, the films and series | an NFS volume on the NAS, like the photo library, and the films can be had again |
+| `archive`, the files the warehouse points at | an NFS volume on the NAS, snapshotted there like the photo library (`pipelines/files.md`) |
 | `immich-library`, the photo library | an NFS volume on the NAS, which this driver cannot snapshot. The NAS snapshots it with ZFS; its off-site copy is the NAS's own business, not this repository's (`clusters/lab/immich/README.md`, Backup) |
 
 Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its
