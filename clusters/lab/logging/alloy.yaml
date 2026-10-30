@@ -348,7 +348,8 @@ spec:
           //
           // Nor do Immich's. Its lines name photo files, people and albums,
           // and the warehouse's ods.logs is readable by the brand agent;
-          // Immich's own feed there is counts only (clusters/lab/immich/).
+          // Immich's own feed there has each photo's name, place and
+          // description, never its people or albums (clusters/lab/immich/).
           loki.process "to_kafka" {
             stage.match {
               selector = "{namespace=\"logging\"}"

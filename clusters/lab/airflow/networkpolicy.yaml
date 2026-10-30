@@ -4,8 +4,9 @@
 # component reaches Postgres), and the UI through the admin gate.
 #
 # Out: the internet, for git-sync to pull pipelines/ from GitHub, for
-# ingest_telegram, whose client reaches Telegram's servers on 443, and for
-# the Google DAGs to reach Google's APIs. Inside the
+# ingest_telegram, whose client reaches Telegram's servers on 443, for
+# the Google DAGs to reach Google's APIs, and for immich_sort to reach
+# Anthropic's. Inside the
 # lab, only the doors the DAGs need, each matched by a rule on the far side
 # that admits the scheduler by name:
 #

@@ -36,7 +36,7 @@ sources:
       - name: vk
         description: The VK account's data archive (deleted 2020), loaded by hand - messages, conversations, the music list and every other section's entries, one record per message in the ingest envelope.
       - name: immich
-        description: Immich API snapshots - photo and video counts and bytes per account, and the accounts - one record per message in the ingest envelope. Nothing about any photo.
+        description: Immich API snapshots - photo and video counts and bytes per account, and the accounts - and immich_sort's answers - each photo's name, place, type and Claude's description of it, and each run's counts - one record per message in the ingest envelope.
       - name: plex
         description: Plex API snapshots - the libraries, and the whole watch history, one play per record - one record per message in the ingest envelope.
       - name: google
