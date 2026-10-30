@@ -1,7 +1,8 @@
 -- Google Fit's recorded activities - walks, runs, rides, workouts - one row
 -- each, from Takeout exports. `metrics` holds every total Fit kept for the
 -- session by name; the common ones have columns. The GPS tracks
--- (Activities/*.tcx) are not loaded.
+-- (Activities/*.tcx) are files, in the NAS archive when the export is
+-- packed with --files (pipelines/google.md).
 with sessions as (
   select
     id,
@@ -25,5 +26,8 @@ select
   nullIf(arrayFirst(m -> m.1 like '%calories%', metric_list).2, 0) as calories_kcal,
   nullIf(arrayFirst(m -> m.1 like '%heart_minutes%', metric_list).2, 0) as heart_points,
   CAST(metric_list, 'Map(String, Float64)') as metrics,
+  -- Its track's row in ods.files, once the file is stored. Not every
+  -- session has one.
+  concat('google/fit:', id) as file_key,
   extracted_at
 from sessions

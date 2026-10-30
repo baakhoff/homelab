@@ -9,14 +9,14 @@ One Google account's data, in the warehouse: `raw.google`, then
 | `ingest_google` | Calendar (every calendar, events a year ahead), Contacts and their groups, Tasks, Drive's file list, Gmail's labels | full snapshot, like the other sources | every 6 hours |
 | `ingest_google_gmail` | Gmail: sender, recipients, subject, date, labels, size - **no bodies** | the whole mailbox once, then only changes | hourly |
 | `ingest_google_portability` | My Activity (Search, YouTube, Maps, Play, Shopping, ads seen), Chrome history and bookmarks, YouTube subscriptions, playlists, comments and music, Maps saved places and reviews, Play installs and purchases, Discover, Alerts | Google's [Data Portability API](https://developers.google.com/data-portability): an export job per resource; activity only since the last export | daily |
-| `ingest_google_takeout` | Gmail **with bodies**; My Activity and Chrome history for an account the Portability API is closed to; Fit, Keep, Chat, Pay, Maps places, Saved lists and the sign-in log | a [Google Takeout](https://takeout.google.com) export, packed on the workstation | by hand |
+| `ingest_google_takeout` | Gmail **with bodies**; My Activity and Chrome history for an account the Portability API is closed to; Fit, Keep, Chat, Pay, Maps places, Saved lists and the sign-in log. The export's files - mail attachments, Keep's images, Fit's tracks, Drive - go to the NAS archive instead, through its inbox | a [Google Takeout](https://takeout.google.com) export, packed on the workstation | by hand |
 
 | Model | One row per |
 |---|---|
 | `ods.google_gmail_messages` | message (deleted ones drop out; spam and trash keep their label) |
-| `ods.google_gmail_bodies` | message from a Takeout export, with its body as plain text and its attachments' names |
-| `ods.google_fit_daily`, `ods.google_fit_sessions` | day of Fit's history: steps, distance, calories, heart, weight; recorded activity |
-| `ods.google_keep_notes` | Keep note, checklists included |
+| `ods.google_gmail_bodies` | message from a Takeout export, with its body as plain text, its attachments' names and their `attachment_file_keys` in `ods.files` |
+| `ods.google_fit_daily`, `ods.google_fit_sessions` | day of Fit's history: steps, distance, calories, heart, weight; recorded activity, with its track's `file_key` in `ods.files` |
+| `ods.google_keep_notes` | Keep note, checklists included, with its images' and recordings' `attachment_file_keys` in `ods.files` |
 | `ods.google_chat_messages` | Google Chat / Hangouts message |
 | `ods.google_pay_transactions` | purchase through Google, money sent or requested |
 | `ods.google_maps_places` | saved, starred, reviewed, labelled (Home, Work) or followed place |
@@ -46,7 +46,9 @@ FROM raw.google GROUP BY endpoint ORDER BY endpoint
   `gmail.metadata`, so Google refuses a body even if one is asked for - the
   other scope is "restricted" and wants an app review. Bodies come from a
   Takeout export instead, as of the day it was made.
-- **Drive file contents and photos/videos**: files, not rows.
+- **Drive's files, photos and videos**: files, not rows. Drive's go into
+  the NAS archive from a Takeout export (below); the photos and videos are
+  Immich's.
 - **Location Timeline**: Google moved it onto the phone and out of reach of
   any API.
 - **Google Fit**: being shut down. Health data comes in through SparkyFitness
@@ -131,18 +133,21 @@ SELECT * FROM ads.google_daily ORDER BY day DESC LIMIT 14
 
 ## A Takeout export
 
-For the mail bodies, and for My Activity and Chrome history when the
-Portability API is closed to the account. Load it again whenever a newer
-copy is wanted; each item is kept once.
+For the mail bodies, for My Activity and Chrome history when the
+Portability API is closed to the account, and for the account's files,
+into the NAS archive ([`files.md`](files.md)). Load it again whenever a
+newer copy is wanted; each item is kept once.
 
 **1. Export.** <https://takeout.google.com>, signed in as the account.
-Tick everything except what is files rather than data - **Google Photos**,
-**Drive** and **YouTube** - and wherever a product offers *Multiple
-formats*, choose **JSON**, not the default HTML; Mail stays mbox. What the
-loader reads is in `TAKEOUT` at the top of
-`pipelines/tools/google_takeout_pack.py`, plus Mail, My Activity and
-Chrome; the rest of the export is left alone. Calendar, Contacts and
-Tasks are skipped there on purpose: the live DAGs bring them, current.
+Tick everything except **Google Photos** - Immich has the photos - and
+**YouTube**, whose videos are not kept. Wherever a product offers
+*Multiple formats*, choose **JSON**, not the default HTML; Mail stays
+mbox, and Drive keeps its own formats: Docs, Sheets and Slides come
+converted, as .docx, .xlsx and the like. What the loader reads is in
+`TAKEOUT` at the top of `pipelines/tools/google_takeout_pack.py`, plus
+Mail, My Activity and Chrome, and the files below; the rest of the export
+is left alone. Calendar, Contacts and Tasks are skipped there on purpose:
+the live DAGs bring them, current.
 
 Export once, `.zip`, the largest size Google offers. Google mails a link
 when it is built, from minutes to days later. Download every part into
@@ -152,27 +157,45 @@ one folder; unpacking is not needed.
 only:
 
 ```bash
-python3 pipelines/tools/google_takeout_pack.py ~/Downloads/takeout ~/google-takeout.jsonl.gz
+python3 pipelines/tools/google_takeout_pack.py ~/Downloads/takeout ~/google-takeout.jsonl.gz \
+    --files ~/google-takeout-files
 ```
 
 It prints the records per kind and any message it skipped, never contents.
-Attachments, Fit's GPS tracks, Keep's images and every product not listed
-stay behind.
+The export's files go into `~/google-takeout-files` instead, under
+numbers, with the manifest, `files.jsonl`, that says whose each one is:
 
-**3. Copy into the scheduler**, where tasks run:
+| Files | `source` in `ods.files` | Found from |
+|---|---|---|
+| mail attachments | `google/gmail` | `ods.google_gmail_bodies.attachment_file_keys` |
+| the images and recordings of Keep notes | `google/keep` | `ods.google_keep_notes.attachment_file_keys` |
+| Fit's tracks, `Fit/Activities/` | `google/fit` | `ods.google_fit_sessions.file_key` |
+| everything in Drive, as Takeout wrote it | `google/drive` | `ref`, its path under Drive |
+
+How each is keyed is in [`files.md`](files.md#where-files-come-from).
+Every product not listed stays behind, and so does an empty file.
+
+**3. Copy the files into the archive's inbox,** as one batch named for
+the export: `~/google-takeout-files` copied in as `google-takeout-2026-10`,
+say ([how](files.md#putting-files-in)). `ingest_files` takes it at the
+first half past once the copy has been quiet for 30 minutes.
+
+**4. Copy into the scheduler**, where tasks run:
 
 ```bash
 POD=$(kubectl -n airflow get pod -l component=scheduler -o jsonpath='{.items[0].metadata.name}')
 kubectl -n airflow cp ~/google-takeout.jsonl.gz "$POD":/tmp/google-takeout.jsonl.gz -c scheduler
 ```
 
-**4. Run it.** Trigger `ingest_google_takeout`. It masks every record like
+**5. Run it.** Trigger `ingest_google_takeout`. It masks every record like
 every other source (`sensitive.md`), sends it to `raw.google`, and deletes
 the file once all of it is delivered. Then trigger `warehouse`.
 
-**5. Clean up.** The packed file and the zips are the account unmasked:
-`rm ~/google-takeout.jsonl.gz`, and the zips unless they are kept as the
-copy of record.
+**6. Clean up.** The packed file, the files folder and the zips are the
+account unmasked: `rm ~/google-takeout.jsonl.gz`;
+`rm -r ~/google-takeout-files` once the copy into the inbox is done - the
+inbox empties itself as the batch is taken; and the zips unless they are
+kept as the copy of record.
 
 ### Every two months
 
@@ -192,13 +215,27 @@ When the mail saying an export is ready arrives, download its zips into
 pipelines/tools/google_takeout_load.sh
 ```
 
-It does steps 2 to 5 in one go: picks the newest export's parts, packs
-them, copies the file into the scheduler, runs `ingest_google_takeout`,
+It does steps 2 and 4 to 6 in one go: picks the newest export's parts,
+packs them, copies the file into the scheduler, runs `ingest_google_takeout`,
 waits until the file is gone (the DAG deletes it once all of it is
 delivered), starts `warehouse`, deletes the packed file, and asks before
 deleting the zips. Everything already loaded is skipped by id, so only
 what is new since the last export adds rows. It stops with a pointer to
 Airflow if the load fails or the scheduler restarts under it.
+
+The files folder, step 3, is left beside the zips as
+`google-takeout-<time>`, and the script ends by saying to copy it into
+the inbox. Given the inbox as it is mounted on the workstation, after the
+zips' folder, it copies the folder in itself and keeps no copy; the file
+manager mounts `smb://archive@nas.lab/archive-inbox` under
+`/run/user/$UID/gvfs/`:
+
+```bash
+pipelines/tools/google_takeout_load.sh ~/Downloads /run/user/$UID/gvfs/<the archive-inbox share>
+```
+
+Each export brings the whole mailbox's attachments again; the archive
+stores each file once however often it comes, and its row is sent again.
 
 ## People
 

@@ -21,7 +21,10 @@ Four DAGs, because Google's data comes out in four different ways:
                              account the Data Portability API is closed to
                              (it serves the EEA, the UK and Switzerland only).
                              Packed on the machine that holds the export by
-                             pipelines/tools/google_takeout_pack.py.
+                             pipelines/tools/google_takeout_pack.py. The
+                             export's files, from mail attachments to Drive,
+                             go to the NAS archive through its inbox
+                             instead (pipelines/files.md).
 
 Every record goes out in ingest.py's envelope, with two optional fields:
 

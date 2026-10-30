@@ -73,6 +73,10 @@ which then stays in the inbox untouched.
 | `inbox` | anything dropped in that no manifest names | its path in the inbox, the batch folder first | - |
 | `telegram` | photos, videos, voice messages, video notes, audio and documents in private Telegram chats, from `ingest_telegram` ([telegram.md](telegram.md)) | the message's `message_key`: `<chat id>/<message id>`, with `<account>:` in front for an account other than `main` | `ods.telegram_messages.file_key` |
 | `proton` | Proton Mail attachments, packed with `--files` ([proton.md](proton.md)) | `<message_key>/<position>`: the message's Proton id, and the attachment's place in it from 1 | `ods.proton_attachments.file_key` |
+| `google/gmail` | Gmail attachments, from a Takeout export packed with `--files` ([google.md](google.md#a-takeout-export)) | `<message_id_header>/<position>`: the message's Message-ID, and the attachment's place in `attachment_names` | `ods.google_gmail_bodies.attachment_file_keys` |
+| `google/keep` | a Keep note's images and recordings, the same way | `<note_key>/<position>`: the note, and the file's place in its list | `ods.google_keep_notes.attachment_file_keys` |
+| `google/fit` | Fit's tracks, `Fit/Activities/`, the same way | the `session_key` of the session of the same name in `All Sessions`; without one, its path under `Fit`: `Activities/<name>.tcx` | `ods.google_fit_sessions.file_key` |
+| `google/drive` | every file in Drive, the same way, Docs and Sheets as Takeout converted them | its path under `Drive`: `Reports/2026.xlsx` | - |
 
 ## Finding a file from a row
 
