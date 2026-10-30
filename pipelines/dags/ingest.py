@@ -398,14 +398,6 @@ SOURCES = {
         "ids": {"library/sections": "uuid", "status/sessions/history/all": "historyKey"},
         "schedule": "55 */6 * * *",
     },
-    # them. Each app's key is set in advance in its Secret, and the same
-        "pages": _records_pages,
-        "schedule": "5 */6 * * *",
-    },
-        "pages": _records_pages,
-        "endpoints": ["series", "history"],
-        "schedule": "10 */6 * * *",
-    },
 }
 
 
