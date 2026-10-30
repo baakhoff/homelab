@@ -21,7 +21,7 @@ spec:
 # The films and series: the NAS's tank/media, over NFSv4 through
 # csi-driver-nfs, as clusters/lab/immich/pvc.yaml does for the photos.
 # Read-only here: Plex only reads them, and a read-only mount means no
-# setting in Plex can delete a file. What writes into the share - the
+# setting in Plex can delete a file.
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -43,7 +43,8 @@ spec:
   csi:
     driver: nfs.csi.k8s.io
     readOnly: true
-    # Any string unique in the cluster; the same share will have a second
+    # Any string unique in the cluster: another volume on the same share
+    # needs a handle of its own.
     volumeHandle: 192.168.68.105/mnt/tank/media##plex
     volumeAttributes:
       server: 192.168.68.105
