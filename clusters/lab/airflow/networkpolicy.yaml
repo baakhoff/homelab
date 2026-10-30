@@ -186,20 +186,6 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-          podSelector:
-            matchLabels:
-      ports:
-        - protocol: TCP
-    - to:
-        - namespaceSelector:
-            matchLabels:
-          podSelector:
-            matchLabels:
-      ports:
-        - protocol: TCP
-    - to:
-        - namespaceSelector:
-            matchLabels:
               kubernetes.io/metadata.name: cloudbeaver
           podSelector:
             matchLabels:

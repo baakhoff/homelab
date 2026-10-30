@@ -63,6 +63,24 @@ spec:
                     exit "$rc"
                   fi
 
+                  echo "==> checking the repository before anything is deleted"
+                  # The prunes of 2026-10-11, -18 and -25 deleted pack files
+                  # that snapshots still needed, and only the check after the
+                  # third one noticed. Recovery copies the deleted versions
+                  # back from the bucket (README, "When the check finds
+                  # missing packs"), and a prune that runs on an index that
+                  # already points at missing packs makes that harder: it
+                  # drops them from the index and repacks around them. So a
+                  # damaged repository stops the run here, before forget,
+                  # with nothing deleted. Structure only, no data read - that
+                  # is the check at the end.
+                  restic check || rc=$?
+
+                  if [ "$rc" -ne 0 ]; then
+                    echo "==> restic check FAILED with exit $rc, nothing pruned"
+                    exit "$rc"
+                  fi
+
                   echo "==> applying retention policy"
                   # GROUPED BY host AND paths - the DEFAULT - which is the
                   # opposite of what hosts/node01/backup/restic-prune.sh does,

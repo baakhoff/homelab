@@ -239,8 +239,10 @@ def _plex_pages(session: requests.Session, url: str):
         start += PAGE_SIZE
 
 
-    history {"page", "pageSize", "totalRecords", "records": [...]} by page
-    number. The list endpoints ignore the paging parameters.
+def _records_pages(session: requests.Session, url: str):
+    """A plain list, or {"page", "pageSize", "totalRecords", "records": [...]}
+    by page number - an API whose list endpoints answer whole and ignore the
+    paging parameters, and whose long ones page.
     """
     page = 1
     while True:
@@ -259,6 +261,35 @@ def _plex_pages(session: requests.Session, url: str):
         if page * PAGE_SIZE >= body.get("totalRecords", 0):
             return
         page += 1
+
+
+def _offset_pages(session: requests.Session, url: str):
+    """{"data": [...], "total": n}, paged by row offset ("start") and page
+    size ("length"); without a length such an API answers everything at
+    once.
+    """
+    start = 0
+    while True:
+        r = session.get(url, params={"start": start, "length": PAGE_SIZE}, timeout=TIMEOUT)
+        body = _json(r, "data", url)
+        yield from body["data"]
+        start += PAGE_SIZE
+        if start >= body.get("total", 0) or not body["data"]:
+            return
+
+
+def _skip_pages(session: requests.Session, url: str):
+    """{"pageInfo": {"results": n, ...}, "results": [...]}, paged by "take"
+    and "skip".
+    """
+    skip = 0
+    while True:
+        r = session.get(url, params={"take": PAGE_SIZE, "skip": skip}, timeout=TIMEOUT)
+        body = _json(r, "results", url)
+        yield from body["results"]
+        skip += PAGE_SIZE
+        if skip >= body.get("pageInfo", {}).get("results", 0) or not body["results"]:
+            return
 
 
 # Per source: where its API is, how it authenticates, how it pages, and the
@@ -367,13 +398,54 @@ SOURCES = {
         "ids": {"library/sections": "uuid", "status/sessions/history/all": "historyKey"},
         "schedule": "55 */6 * * *",
     },
-    # them. Each app's key is set in advance in its Secret, and the same
-        "schedule": "5 */6 * * *",
-    },
-        "endpoints": ["series", "history"],
-        "schedule": "10 */6 * * *",
-    },
 }
+
+
+# Sources kept outside this repository: a JSON object shaped like SOURCES,
+# sources.json in the ConfigMap airflow-extra that another Flux source adds
+# and the scheduler mounts at /opt/airflow/extra (clusters/lab/private/).
+# "pages" names a pager in PAGERS, "auth" is a [scheme, variable] pair, and
+# a source of the same name here is replaced. Absent, there are none. A file,
+# or an entry, that does not read is reported and left out, rather than
+# taking every other ingest DAG down with it.
+EXTRA = os.path.join(os.environ.get("AIRFLOW_EXTRA", "/opt/airflow/extra"), "sources.json")
+PAGERS = {"records": _records_pages, "offset": _offset_pages, "skip": _skip_pages}
+
+
+def _extra_source(cfg) -> dict:
+    """One entry of sources.json, checked and made the shape of SOURCES'."""
+    if not (isinstance(cfg, dict) and isinstance(cfg.get("base"), str) and isinstance(cfg.get("schedule"), str)
+            and isinstance(cfg.get("endpoints"), list) and cfg["endpoints"]
+            and all(isinstance(e, str) for e in cfg["endpoints"]) and cfg.get("pages") in PAGERS):
+        raise ValueError("needs base, schedule, endpoints and a known pages")
+    auth = cfg.get("auth")
+    if auth is not None and not (isinstance(auth, list) and len(auth) == 2 and all(isinstance(x, str) for x in auth)):
+        raise ValueError("auth is a [scheme, variable] pair or null")
+    return {**cfg, "pages": PAGERS[cfg["pages"]], "auth": tuple(auth) if auth else None}
+
+
+def _extra_sources() -> dict:
+    try:
+        with open(EXTRA, encoding="utf-8") as f:
+            extra = json.load(f)
+    except FileNotFoundError:
+        return {}
+    except ValueError as e:
+        print(f"{EXTRA} left out: {e}")
+        return {}
+    if not isinstance(extra, dict):
+        print(f"{EXTRA} left out: not an object")
+        return {}
+    found = {}
+    for name, cfg in extra.items():
+        try:
+            found[name] = _extra_source(cfg)
+        except ValueError as e:  # this one is left out, the others stay
+            print(f"{EXTRA}: {name} left out: {e}")
+    return found
+
+
+SOURCES.update(_extra_sources())
 
 
 def _session(auth, headers: dict | None = None) -> requests.Session:
