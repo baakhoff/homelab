@@ -1,0 +1,40 @@
+# A second source for Flux: a private repository, read with a deploy key of
+# its own (deploy-key.sops.yaml, README) and applied like this one - same
+# cluster, same SOPS key, its own inventory.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: private
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  secretRef:
+    name: private-repo
+  url: ssh://git@github.com/baakhoff/homelab-private
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: private
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/lab
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: private
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  # Everything it applies is marked never to be pruned - by this
+  # Kustomization or by flux-system - while objects that used to be applied
+  # from here are handed over to it (README, "Handing objects over"). The
+  # objects carry the same mark themselves; this one also covers their
+  # encrypted Secrets. Taken out once that is done.
+  commonMetadata:
+    annotations:
+      kustomize.toolkit.fluxcd.io/prune: disabled
