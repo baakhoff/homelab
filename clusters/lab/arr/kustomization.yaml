@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - flaresolverr.yaml
+  - ingress.yaml
+  - namespace.yaml
+  - networkpolicy-no-nas.yaml
+  - networkpolicy.yaml
+  - prowlarr.yaml
+  - pvc.yaml
+  - radarr.yaml
+  - secret.sops.yaml
+  - sonarr.yaml
+# While these objects move to the private repository, each one but the
+# encrypted Secrets carries the mark that Flux never prunes it - whichever
+# of the two sources applied it last - so no slip in the handover can delete
+# a namespace or a volume (clusters/lab/private/README.md). Applied by a patch,
+# so the files themselves stay as they are.
+patches:
+  - target:
+      kind: "^(Namespace|PersistentVolume|PersistentVolumeClaim|Deployment|Service|Ingress|NetworkPolicy|ConfigMap)$"
+    patch: |-
+      apiVersion: v1
+      kind: Any
+      metadata:
+        name: any
+        annotations:
+          kustomize.toolkit.fluxcd.io/prune: disabled
