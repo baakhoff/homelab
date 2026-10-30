@@ -51,6 +51,7 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `immich_usage`, `immich_users`, `plex_libraries`, `plex_plays`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `vk_messages`, `vk_conversations`, `vk_audio`, `vk_items`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `searxng_searches`, `files`, `ha_states`, `logs`, `k8s_events` |
 | `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily`, `google_daily`, `people` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
@@ -58,7 +59,7 @@ Five patterns cover the sources:
 
 - **API snapshots** (Firefly, Vikunja, Mealie, Paperless, SparkyFitness,
   Dawarich's visits and places, Outline's documents, Immich's counts per
-  with their history, Google's Calendar,
+  account, Plex's libraries and plays, Google's Calendar,
   Contacts, Tasks and Drive) - `snapshot_records()` returns the newest
   run's records, so a record deleted at the source disappears from `ods`
   too. These models are tables, rebuilt every run.
@@ -114,3 +115,11 @@ columns' descriptions in a `schema.yml` are what fill it in.
   `SOURCES` in `clusters/lab/data/clickhouse-schema.yaml`, a table in
   `dbt/models/sources.yml`, and NetworkPolicy doors on both sides
   (`clusters/lab/airflow/README.md`).
+- **A source kept private**: the same, from the private Flux source
+  (`clusters/lab/private/README.md`). Its `sources.json` and its models are
+  mounted at `/opt/airflow/extra`, where `dags/ingest.py` and dbt read them;
+  its sources are declared under a dbt source of their own, which
+  `snapshot_records(table, endpoint, source_name)` takes as its third
+  argument. dbt reaches them through `dbt/extra`, a link to the mount; the
+  warehouse DAG fingerprints them, so a changed model there renews Cosmos's
+  cached task list like a change here.
