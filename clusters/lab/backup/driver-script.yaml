@@ -22,6 +22,10 @@ data:
     # guaranteed. No arrays, no `local`, no pipefail.
     set -eu
 
+    # Targets another Flux source adds, after this repository's own
+    # (cronjob-backup.yaml, BACKUP_TARGETS_EXTRA).
+    BACKUP_TARGETS="$BACKUP_TARGETS ${BACKUP_TARGETS_EXTRA:-}"
+
     log() { printf '==> %s\n' "$*"; }
 
     # Best-effort, exactly as on node01: a healthchecks.io outage must never

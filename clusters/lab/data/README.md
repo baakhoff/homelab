@@ -81,7 +81,9 @@ table keeps everything.
 The sources are `SOURCES` in `clickhouse-schema.yaml`:
 `raw.<name>`, table `raw.<name>`, a dash becoming an underscore
 (`raw.k8s-events` -> `raw.k8s_events`). Adding a source is one word there:
-the next run creates its topic, its table and its consumer. Removing one is
+the next run creates its topic, its table and its consumer. The private
+Flux source adds its own sources in `SOURCES` of the ConfigMap
+`clickhouse-extra` (`clusters/lab/private/README.md`). Removing one is
 by hand - drop its view and queue in `kafka` first, then decide whether its
 raw table goes too.
 

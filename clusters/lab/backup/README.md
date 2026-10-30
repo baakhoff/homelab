@@ -124,7 +124,10 @@ applied to this cluster:
 | `immich-library`, the photo library | an NFS volume on the NAS, which this driver cannot snapshot. The NAS snapshots it with ZFS; its off-site copy is the NAS's own business, not this repository's (`clusters/lab/immich/README.md`, Backup) |
 
 Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its
-namespace, and a copy of the Secret below. Three things have to line up rather
+namespace, and a copy of the Secret below. The private Flux source adds its
+own volumes the same way, through the ConfigMap `backup-extra`
+(`BACKUP_TARGETS_EXTRA`, `clusters/lab/private/README.md`); they are backed
+up after the ones here. Three things have to line up rather
 than one, which is more work than node01's default-include file walk and buys
 something back: a volume cannot end up backed up by accident, and cannot
 quietly stop being backed up either.
