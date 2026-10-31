@@ -6,8 +6,8 @@
 # DAGs with a key each: ingest_immich (pipelines/dags/ingest.py), whose key
 # reads the server's statistics and its users and nothing else, and
 # immich_sort (pipelines/dags/immich_sort.py), whose key reads the owner's
-# photos and their previews and adds tags and the album "To delete"
-# (README, step 8).
+# photos and their previews and adds tags, the types' albums and the album
+# "To delete" (README, step 8).
 #
 # No rule for the agents, brand-jobs or n8n namespaces, and none should be
 # added: the photos are the family's, and those run code that reads text
