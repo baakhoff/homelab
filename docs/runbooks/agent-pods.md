@@ -14,7 +14,12 @@ serves many concurrent sessions, each in its own git worktree of the project.
 **Why one pod per project.** Each one gets its own limits, its own replica
 count (0 = parked), and the scheduler places it on whichever node has room. So
 they are bounded together by the cluster, not by one node, and a node reboot
-takes down a share of them rather than all.
+takes down a share of them rather than all. A spread preference
+(`topologySpreadConstraints`, explained in `homelab.yaml`) keeps them from
+gathering on one node: their requests are small beside what they use, and on
+2026-10-30 seven of the eight sat on node04 at 88% of its memory. It applies
+when a pod is placed, so `kubectl -n agents get pods -o wide` after a node
+comes back may show them uneven until they restart.
 
 **Named pods and general slots.** A pod with a `REPO_URL` clones that repo on
 first start and serves sessions from it. A pod without one is a **general

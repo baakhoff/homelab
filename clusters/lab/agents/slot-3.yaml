@@ -47,6 +47,13 @@ spec:
         app.kubernetes.io/part-of: agents
     spec:
       priorityClassName: agents
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: agents
       # A NATIVE SIDECAR - an initContainer with restartPolicy: Always - not an
       # ordinary container. The difference is ordering: this one is started and
       # ready BEFORE the agent container starts, and is torn down after it
