@@ -26,6 +26,7 @@ minute, so a merged change is live a minute later.
     google.md        what Google sends, its consent and renewal
     sensitive.md     what is masked before data reaches the warehouse, and how
     tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
+    .airflowignore   keeps Airflow's search for DAG files to dags/
     dbt/
       models/ods/    raw parsed into typed tables, one system at a time
       models/ads/    joins and aggregates across systems
@@ -119,4 +120,6 @@ columns' descriptions in a `schema.yml` are what fill it in.
   `snapshot_records(table, endpoint, source_name)` takes as its third
   argument. dbt reaches them through `dbt/extra`, a link to the mount; the
   warehouse DAG fingerprints them, so a changed model there renews Cosmos's
-  cached task list like a change here.
+  cached task list like a change here. Airflow's own search for DAG files
+  skips `dbt/` (`.airflowignore`): through the link it would meet the
+  mount's hidden folder twice, take it for a loop and parse nothing.

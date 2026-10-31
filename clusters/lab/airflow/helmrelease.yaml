@@ -123,8 +123,8 @@ spec:
 
     # The DAGs and the dbt project, from this repository's main branch.
     # subPath `pipelines` makes that directory the DAG folder: dags/ holds
-    # the DAG files, dbt/ the project they run (no .py files, so Airflow
-    # ignores it when looking for DAGs).
+    # the DAG files, dbt/ the project they run; pipelines/.airflowignore
+    # keeps Airflow's search for DAG files to dags/.
     dags:
       gitSync:
         enabled: true
