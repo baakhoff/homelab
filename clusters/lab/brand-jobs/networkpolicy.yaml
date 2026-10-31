@@ -1,9 +1,13 @@
 # The same reach as the brand pod that writes these jobs, and no more: cluster
-# DNS, the internet, the Firefly API broker and Vikunja's API. Not the
+# DNS, the internet, the Firefly API broker, Vikunja's API, ClickHouse's HTTP
+# port and Outline's API. The last two are for the weekly wiki import
+# (wiki-import CronJob): it reads the week's new rows as ClickHouse's
+# read-only `brand` user and writes the owner's notes through Outline's API
+# with an API key, exactly as the brand pod does interactively. Not the
 # Kubernetes API - only the brand pod itself has that - not the house LAN, not
 # the tailnet, not any other lab service. Nothing reaches in.
 #
-# The Firefly broker and Vikunja admit this namespace in their own policies;
+# The Firefly broker, Vikunja, data and notes admit this namespace in their own policies;
 # both halves are needed, as for brand.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -55,3 +59,23 @@ spec:
       ports:
         - protocol: TCP
           port: 3456
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clickhouse
+      ports:
+        - protocol: TCP
+          port: 8123
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: notes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: outline
+      ports:
+        - protocol: TCP
+          port: 3000
