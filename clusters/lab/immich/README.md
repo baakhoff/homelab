@@ -222,25 +222,38 @@ anyone in it has a name here. Claude answers three things:
 - **What it shows**, in one to three sentences: who and what is in it,
   the kind of place, what is happening, the gist of any text. That goes
   into the warehouse, below, not into Immich.
-- **Its type.** This becomes a tag under **Type**, in the sidebar's Tags:
-  Type/Food, Type/Screenshots, Type/Memes. Claude makes the types itself,
-  up to 25, and after that only uses those.
+- **Its type.** This becomes a tag under **Type**, in the sidebar's Tags -
+  Type/Food, Type/Screenshots, Type/Memes - and an album of the same name:
+  Food, Screenshots, Memes. Claude makes the types itself, up to 25, and
+  after that only uses those.
 - **Whether nobody would miss it.** That means memes, screenshots whose use
   is over, chat videos saved to pass on, and failed shots. These also go
   into the album **To delete**.
 
-The album is for a look, not a bin: nothing is deleted, archived or changed
-by the sorting. In the album, select what can go and delete it; it waits
+*To delete* is for a look, not a bin: nothing is deleted, archived or
+changed by the sorting. In the album, select what can go and delete it; it waits
 30 days in Immich's trash. Take what is worth keeping out of the album, or
 add it to another one.
 
 - **A favourite is never set aside.** The locked folder, the trash and a
   partner's shared photos are never looked at.
 - **A picture is sorted once.** Once it has a type it is never looked at
-  again, so taking it out of *To delete* is final. Removing its Type tag
-  sends it round once more.
+  again, so taking it out of *To delete* or its type's album is final.
+  Removing its Type tag sends it round once more.
+- **Every type has its album.** A run first makes the missing ones, each
+  holding every picture its tag has: those sorted before the albums
+  existed, and any tagged by hand. After that only newly sorted pictures
+  go in, so one taken out stays out. Delete a type's album and the next
+  run makes it again, full; to be rid of a type, delete its tag.
+- **The sorting fills only its own albums**, known by the words *the
+  sorting in the lab* in their description - keep them there. An album of
+  yours with a type's name is left alone, and the type gets its own
+  beside it. Share a type's album and every later picture of that type is
+  shared too.
 - **Types are tags, yours to change.** Rename one in Immich and the next
-  run uses the new name. Delete one and its pictures are sorted again.
+  run uses the new name; rename its album with it, or the next run makes
+  a new one under the new name, filled from the tag. Delete a tag and its
+  pictures are sorted again, into the albums of their new types.
 - **The first runs work through the library**, 2,000 pictures or 40
   minutes a run. After that, a new upload is sorted within the hour; one
   without a preview yet, straight off the phone, waits for the next run.

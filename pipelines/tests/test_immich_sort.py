@@ -1,5 +1,5 @@
 """Tests for pipelines/dags/immich_sort.py: how Claude's answers become
-types, rows and the album, without Immich, Claude or Kafka. Airflow,
+types, rows and the albums, without Immich, Claude or Kafka. Airflow,
 pendulum and requests are stood in for when they are not installed. Run
 from the repo root:
 
@@ -59,6 +59,7 @@ def test_type_name_tidies_and_reuses():
     assert s.type_name("food/drink", existing) == "Food drink"
     assert s.type_name("pets", existing) == "Pets"
     assert s.type_name(" / ", existing) is None
+    assert s.type_name("to Delete", existing) is None
     long_ = {"Very long type name the owner made in Immich by hand": "t3"}
     assert s.type_name("very long type name the owner made in immich by hand", long_) == next(iter(long_))
 
@@ -117,6 +118,112 @@ class FakeSession:
     def post(self, url, json, timeout):
         self.bodies.append(json)
         return self.replies.pop(0)
+
+
+class FakeImmich:
+    """Immich's API for the tag and album calls: answers each (method, path)
+    from routes - a body, or a function of the request's body - and keeps
+    every call."""
+
+    def __init__(self, routes):
+        self.routes, self.calls = routes, []
+
+    def request(self, method, url, timeout, json=None, params=None):
+        path = url.removeprefix(s.IMMICH)
+        self.calls.append((method, path, json))
+        body = self.routes[(method, path)]
+        reply = FakeResponse(200, body(json) if callable(body) else body, {"content-type": "application/json"})
+        reply.content = b"{}"
+        return reply
+
+
+def immich_with(routes):
+    immich = s._Immich.__new__(s._Immich)
+    immich.s = FakeImmich(routes)
+    return immich
+
+
+def added(body):
+    return [{"id": i, "success": True} for i in body["ids"]]
+
+
+def test_bulk_adds_a_thousand_at_a_time():
+    sizes = []
+    immich = immich_with({("PUT", "/albums/al/assets"): lambda body: sizes.append(len(body["ids"])) or added(body)})
+    assert immich.bulk("/albums/al/assets", [f"a{i}" for i in range(2500)]) is True
+    assert sizes == [1000, 1000, 500]
+    assert immich.bulk("/albums/al/assets", []) is True and len(sizes) == 3
+
+
+def test_bulk_takes_a_duplicate_and_a_gone_picture_but_no_other_refusal():
+    # Immich 3.3.5 answers a picture deleted or locked since it was listed
+    # with no_permission: every picture here is the key owner's own.
+    immich = immich_with({
+        ("PUT", "/tags/t/assets"): [{"id": "a1", "success": False, "error": "duplicate"}],
+        ("PUT", "/albums/al/assets"): [{"id": "a1", "success": True},
+                                       {"id": "a2", "success": False, "error": "no_permission"}],
+        ("PUT", "/albums/other/assets"): [{"id": "a1", "success": False, "error": "unknown"}],
+    })
+    assert immich.bulk("/tags/t/assets", ["a1"]) is True
+    assert immich.bulk("/albums/al/assets", ["a1", "a2"]) is False
+    with pytest.raises(RuntimeError, match="unknown"):
+        immich.bulk("/albums/other/assets", ["a1"])
+
+
+def test_a_new_type_album_starts_with_the_pictures_the_tag_has():
+    pages = [
+        {"assets": {"items": [{"id": "p1", "ownerId": "me"}, {"id": "shared", "ownerId": "partner"}],
+                    "nextCursor": "2"}},
+        {"assets": {"items": [{"id": "p2", "ownerId": "me"}, {"id": "bin", "ownerId": "me", "isTrashed": True}],
+                    "nextCursor": None}},
+    ]
+    immich = immich_with({
+        ("GET", "/users/me"): {"id": "me"},
+        ("POST", "/albums"): {"id": "al"},
+        ("POST", "/search/metadata"): lambda body: pages.pop(0),
+    })
+    assert immich.type_album("Food", "t1") == "al"
+    calls = immich.s.calls
+    searches = [body for _, path, body in calls if path == "/search/metadata"]
+    assert searches[0]["filter"]["tagIds"] == {"any": ["t1"]}
+    assert searches[0]["filter"]["visibility"] == {"in": ["timeline", "archive"]}
+    assert "withExif" not in searches[0] and searches[1]["cursor"] == "2"
+    # Listed first, then made with its pictures in one call: never an
+    # empty album left behind by a failure in between.
+    assert calls[-1][:2] == ("POST", "/albums")
+    made = calls[-1][2]
+    assert made["albumName"] == "Food" and made["assetIds"] == ["p1", "p2"] and s.MARK in made["description"]
+    assert not any(method == "PUT" for method, _, _ in calls)
+
+
+def test_only_the_sortings_own_albums_are_used_and_each_type_gets_one():
+    mine = f"Pictures of the type Food, from {s.MARK}."
+    immich = immich_with({
+        ("GET", "/albums"): [
+            {"albumName": "Food", "id": "sorting-food", "description": mine, "shared": True},
+            {"albumName": "Pets", "id": "owners-pets", "description": "Our cats", "shared": False},
+            {"albumName": "Family", "id": "owners-family", "description": None, "shared": True},
+        ],
+        ("GET", "/users/me"): {"id": "me"},
+        ("POST", "/search/metadata"): {"assets": {"items": [], "nextCursor": None}},
+        ("POST", "/albums"): lambda body: {"id": "new-" + body["albumName"].lower()},
+    })
+    got = immich.type_albums({"Food": "t1", "Pets": "t2", "To delete": "t3"})
+    assert got == {"Food": "sorting-food", "Pets": "new-pets"}
+    assert [body["albumName"] for method, path, body in immich.s.calls if (method, path) == ("POST", "/albums")] == ["Pets"]
+
+
+def test_unsorted_leaves_out_the_typed_and_asks_for_the_facts():
+    immich = immich_with({
+        ("GET", "/users/me"): {"id": "me"},
+        ("POST", "/search/metadata"): {"assets": {"items": [{"id": "p1", "ownerId": "me"}], "nextCursor": None}},
+    })
+    assert [a["id"] for a in immich.unsorted(["t1", "t2"], 10)] == ["p1"]
+    body = immich.s.calls[-1][2]
+    assert body["filter"]["tagIds"] == {"none": ["t1", "t2"]}
+    assert body["withExif"] and body["withPeople"]
+    immich.unsorted([], 10)
+    assert "tagIds" not in immich.s.calls[-1][2]["filter"]
 
 
 def test_ask_waits_out_a_rate_limit(monkeypatch):

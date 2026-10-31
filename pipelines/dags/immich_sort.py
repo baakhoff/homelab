@@ -5,15 +5,25 @@ Every hour, each photo and video in Immich that has no type yet is shown to
 Claude - its preview, shrunk, and a few facts from the file - and Claude
 answers three things: what the picture shows, its type, and whether it is
 something nobody would miss. The type becomes an Immich tag under Type/
-(Type/Food, Type/Screenshots); what nobody would miss also goes into the
-album "To delete", where the owner deletes it or moves it elsewhere.
-Nothing in Immich is deleted, archived or changed otherwise.
+(Type/Food, Type/Screenshots) and an album of the same name (Food,
+Screenshots); what nobody would miss also goes into the album "To delete",
+where the owner deletes it or moves it elsewhere. Nothing in Immich is
+deleted, archived or changed otherwise.
 
 The types are Claude's own: it is given the ones that exist and picks one,
 or makes a new one when none fits, up to MAX_TYPES; after that it can only
 pick. A tag removed or renamed in Immich is gone from the list the next
 run. A picture with a type is never looked at again, so taking it out of
-"To delete" is final; removing its Type/ tag sends it round once more.
+"To delete" or its type's album is final; removing its Type/ tag sends it
+round once more.
+
+Each run first makes an album for every type that has none, holding at
+once every picture the type's tag has - those tagged before the albums
+existed, or by hand. After that only newly sorted pictures are added, so
+one taken out stays out. The sorting uses only the albums it made, known
+by MARK in their description: an album of the owner's with a type's name
+is left alone, and a type's album the owner deleted is made again, full,
+while the tag is there.
 
 Never shown to Claude: the locked folder, the hidden halves of live photos,
 the trash, a partner's shared photos. Never set aside: a favourite.
@@ -61,6 +71,8 @@ ANTHROPIC = "https://api.anthropic.com/v1/messages"
 MODEL = "claude-haiku-4-5-20251001"
 PARENT = "Type"
 ALBUM = "To delete"
+# In the description of every album the sorting makes, and only of those.
+MARK = "the sorting in the lab"
 # Claude makes types until there are this many, then only picks.
 MAX_TYPES = 25
 # The preview is shrunk to fit this square before it is sent: enough to
@@ -112,7 +124,8 @@ def type_name(raw: str, existing: dict[str, str]) -> str | None:
     spelling when it is that one in another case or number. None when
     nothing is left."""
     name = " ".join(raw.replace("/", " ").split())
-    if not name:
+    # Not the set-aside album's name: the type's album would be that one.
+    if not name or name.lower() == ALBUM.lower():
         return None
     # "Meme" for "Memes", "memes" for "Memes": the existing one, however
     # long its name.
@@ -222,15 +235,20 @@ class _Immich:
         r.raise_for_status()
         return r.json() if r.content and "json" in r.headers.get("content-type", "") else r
 
-    def bulk(self, path: str, asset_id: str) -> bool:
-        """Add one picture to a tag or an album. False when the picture is
-        gone; any other refusal fails the run rather than pass unseen."""
-        for result in self.call("PUT", path, json={"ids": [asset_id]}):
-            if not result["success"] and result.get("error") != "duplicate":
-                if result.get("error") == "not_found":
-                    return False
-                raise RuntimeError(f"Immich refused {path}: {result.get('error')}")
-        return True
+    def bulk(self, path: str, ids: list[str]) -> bool:
+        """Add pictures to a tag or an album, a thousand at a time. False
+        when one of them is gone; any other refusal fails the run rather
+        than pass unseen. Every picture is the key owner's, so Immich's
+        no_permission for one means it was deleted or moved to the locked
+        folder since it was listed."""
+        whole = True
+        for i in range(0, len(ids), 1000):
+            for result in self.call("PUT", path, json={"ids": ids[i:i + 1000]}):
+                if not result["success"] and result.get("error") != "duplicate":
+                    if result.get("error") not in ("no_permission", "not_found"):
+                        raise RuntimeError(f"Immich refused {path}: {result.get('error')}")
+                    whole = False
+        return whole
 
     def types(self) -> dict[str, str]:
         """The existing types: tag name -> id, for the tags under PARENT."""
@@ -241,20 +259,44 @@ class _Immich:
         made = self.call("PUT", "/tags", json={"tags": [f"{PARENT}/{name}"]})
         return next(t["id"] for t in made if t["value"] == f"{PARENT}/{name}")
 
-    def album(self) -> str:
-        for a in self.call("GET", "/albums", params={"isOwned": "true"}):
-            if a["albumName"] == ALBUM:
-                return a["id"]
+    def albums(self) -> dict[str, str]:
+        """The albums the sorting made: name -> id. Never one of the
+        owner's own, shared or not, whatever its name."""
+        return {a["albumName"]: a["id"] for a in self.call("GET", "/albums", params={"isOwned": "true"})
+                if MARK in (a.get("description") or "")}
+
+    def make_album(self, name: str, description: str, ids: list[str] = ()) -> str:
+        """A new album, made with its pictures in one call: it is there
+        whole, or not at all."""
         return self.call("POST", "/albums", json={
-            "albumName": ALBUM,
-            "description": "Set aside by the sorting in the lab: delete, or move elsewhere.",
-        })["id"]
+            "albumName": name, "description": description, "assetIds": list(ids)})["id"]
+
+    def type_album(self, name: str, tag_id: str) -> str:
+        """A new album for a type, holding every picture the type's tag has."""
+        return self.make_album(name, f"Pictures of the type {name}, from {MARK}.", self.tagged(tag_id))
+
+    def type_albums(self, types: dict[str, str]) -> dict[str, str]:
+        """The sorting's albums, with one made for each type that has none."""
+        albums = self.albums()
+        for name, tag_id in types.items():
+            if name not in albums and name.lower() != ALBUM.lower():
+                albums[name] = self.type_album(name, tag_id)
+        return albums
 
     def unsorted(self, type_ids: list[str], limit: int) -> list[dict]:
         """Up to limit of the key owner's pictures without any of these
-        types, newest first. Listed whole before any is tagged: the cursor
-        is an offset, and tagging while paging would shift it past
-        pictures still to do."""
+        types, newest first, with what Claude is told about them."""
+        return self.search({"tagIds": {"none": type_ids}} if type_ids else {}, limit, details=True)
+
+    def tagged(self, tag_id: str) -> list[str]:
+        """The ids of all the key owner's pictures with this tag."""
+        return [a["id"] for a in self.search({"tagIds": {"any": [tag_id]}}, 10**9)]
+
+    def search(self, extra: dict, limit: int, details: bool = False) -> list[dict]:
+        """Up to limit of the key owner's pictures matching extra, newest
+        first. Listed whole before any is changed: the cursor is an
+        offset, and tagging while paging would shift it past pictures
+        still to do."""
         me = self.call("GET", "/users/me")["id"]
         flt = {
             "type": {"in": ["IMAGE", "VIDEO"]},
@@ -262,13 +304,13 @@ class _Immich:
             # not the trash.
             "visibility": {"in": ["timeline", "archive"]},
             "trashedAt": {"eq": None},
+            **extra,
         }
-        if type_ids:
-            flt["tagIds"] = {"none": type_ids}
         found, cursor = [], None
         while len(found) < limit:
-            body = {"filter": flt, "size": 250, "withExif": True, "withPeople": True,
-                    "orderBy": {"field": "fileCreatedAt", "direction": "desc"}}
+            body = {"filter": flt, "size": 250, "orderBy": {"field": "fileCreatedAt", "direction": "desc"}}
+            if details:
+                body |= {"withExif": True, "withPeople": True}
             if cursor:
                 body["cursor"] = cursor
             page = self.call("POST", "/search/metadata", json=body)["assets"]
@@ -372,9 +414,9 @@ def immich_sort():
         made: list[str] = []
 
         def sort_some() -> None:
-            existing = immich.types()
-            album = None
             started = time.monotonic()
+            existing = immich.types()
+            albums = immich.type_albums(existing)
             for asset in immich.unsorted(list(existing.values()), PER_RUN):
                 if time.monotonic() - started > BUDGET.total_seconds():
                     break
@@ -400,17 +442,23 @@ def immich_sort():
                 aside = set_aside(answer, asset)
                 # The row first, the tag last: a picture with a type is
                 # never looked at again, so one tagged without its row, or
-                # without its album, would never get them.
+                # without its albums, would never get them.
                 send("photos", asset["id"], photo_record(asset, answer, name, aside))
                 if name not in existing:
                     existing[name] = immich.type_id(name)
                     made.append(name)
+                if name not in albums:
+                    albums[name] = immich.type_album(name, existing[name])
+                if not immich.bulk(f"/albums/{albums[name]}/assets", [asset["id"]]):
+                    continue
                 if aside:
-                    album = album or immich.album()
-                    if not immich.bulk(f"/albums/{album}/assets", asset["id"]):
+                    if ALBUM not in albums:
+                        albums[ALBUM] = immich.make_album(
+                            ALBUM, f"Set aside by {MARK}: delete, or move elsewhere.")
+                    if not immich.bulk(f"/albums/{albums[ALBUM]}/assets", [asset["id"]]):
                         continue
                     tally["to_delete"] += 1
-                if not immich.bulk(f"/tags/{existing[name]}/assets", asset["id"]):
+                if not immich.bulk(f"/tags/{existing[name]}/assets", [asset["id"]]):
                     continue
                 counts[name] = counts.get(name, 0) + 1
                 tally["sorted"] += 1
