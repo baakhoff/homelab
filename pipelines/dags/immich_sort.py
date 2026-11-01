@@ -42,9 +42,13 @@ A second task, assets, sends one record per photo or video that came from
 Telegram or VK - named TG_... or VK_..., by pipelines/tools/telegram_media.py,
 vk_media.py and ingest_telegram - to raw.immich, endpoint `assets`: its
 Immich id, file name, kind and dates. The name holds the hash that ties it
-to its message (ads.chat_media). Only what is new since its last run, by
-when it reached Immich; Variable immich_assets_since holds that moment, and
-clearing it lists them all again. It needs no Claude.
+to its message (ads.chat_media). Each run lists them all and compares with
+the last run's list, Variable immich_assets_known: a new one gets its
+record, and one gone since - deleted in Immich, the trash included - gets a
+tombstone, so the warehouse drops it, its description in ods.immich_photos
+too. One taken back out of the trash comes back. It needs no Claude.
+Clearing the Variable sends every record again, and loses the tombstones
+for what goes missing before the next run.
 
 The keys come from the airflow-sources Secret: IMMICH_SORT_API_KEY, the
 owner's own Immich key with the permissions in the README, and
@@ -89,7 +93,7 @@ SIDE = 768
 # The files the assets task lists, by the start of their name, and its
 # progress.
 SOURCES = ("TG_", "VK_")
-SINCE = "immich_assets_since"
+KNOWN = "immich_assets_known"
 # A run stops after this long or this many pictures, whichever comes first;
 # the next run carries on. The count caps what one run can spend.
 BUDGET = timedelta(minutes=40)
@@ -509,22 +513,29 @@ def immich_sort():
         if not os.environ.get("IMMICH_SORT_API_KEY"):
             raise RuntimeError("IMMICH_SORT_API_KEY not set - clusters/lab/immich/README.md, step 8")
         immich = _Immich(os.environ["IMMICH_SORT_API_KEY"])
-        since = Variable.get(SINCE, default="")
-        found = [a for prefix in SOURCES for a in immich.search(
-            {"originalFileName": {"startsWith": prefix}, **({"createdAt": {"gt": since}} if since else {})},
-            10**9)]
+        known = set(json.loads(Variable.get(KNOWN, default="[]")))
+        found = {a["id"]: a for prefix in SOURCES
+                 for a in immich.search({"originalFileName": {"startsWith": prefix}}, 10**9)}
+        if known and not found:
+            raise RuntimeError("Immich listed none of the Telegram and VK files it had - "
+                               "not taken as all of them deleted")
+        new, gone = [a for i, a in found.items() if i not in known], sorted(known - found.keys())
         run_id = get_current_context()["run_id"]
         extracted_at = datetime.now(timezone.utc).isoformat()
         errors: list[str] = []
         producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP, "compression.type": "zstd", "linger.ms": 50})
-        for a in found:
-            record, flags = mask_record(asset_record(a))
-            value = json.dumps({"source": "immich", "endpoint": "assets", "extracted_at": extracted_at,
-                                "run_id": run_id, "id": a["id"], "record": record, **flags},
-                               ensure_ascii=False).encode()
+        def envelope(rid: str, record: dict, flags: dict) -> bytes:
+            return json.dumps({"source": "immich", "endpoint": "assets", "extracted_at": extracted_at,
+                               "run_id": run_id, "id": rid, "record": record, **flags},
+                              ensure_ascii=False).encode()
+
+        out = [(a["id"], envelope(a["id"], *mask_record(asset_record(a)))) for a in new]
+        # A tombstone, as the other sources send them: the models drop the id.
+        out += [(i, envelope(i, {}, {"deleted": True})) for i in gone]
+        for rid, value in out:
             while True:
                 try:
-                    producer.produce(TOPIC, key=f"assets:{a['id']}".encode(), value=value,
+                    producer.produce(TOPIC, key=f"assets:{rid}".encode(), value=value,
                                      on_delivery=lambda err, _m: err and errors.append(str(err)))
                     break
                 except BufferError:
@@ -533,9 +544,8 @@ def immich_sort():
         if producer.flush(60) or errors:
             raise RuntimeError(f"records for {TOPIC} not delivered: {errors[:1]}")
         # Moved on only once all of them are in Kafka.
-        if found:
-            Variable.set(SINCE, max(a["createdAt"] for a in found))
-        print(f"assets from Telegram and VK, new since the last run: {len(found)}")
+        Variable.set(KNOWN, json.dumps(sorted(found)))
+        print(f"assets from Telegram and VK: {len(found)} in Immich, {len(new)} new, {len(gone)} gone")
 
     sort()
     assets()

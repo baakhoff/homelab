@@ -303,6 +303,10 @@ add it to another one.
   or VK, by its `TG_`/`VK_` name - Immich id, name and dates - listed by
   `immich_sort`'s second task with the sorting's key. `ads.chat_media`
   joins it to the messages they were sent in (`pipelines/telegram.md`).
+  One deleted in Immich, into the trash or for good, is gone from it, from
+  `ads.chat_media` and from `ods.immich_photos` within the hour; taken back
+  out of the trash, it returns. `raw.immich` still holds its old records,
+  as raw holds everything.
 
 Faces, people's names and albums are not ingested. Immich's log lines
 name files and people, so they stop at Loki and never reach Kafka

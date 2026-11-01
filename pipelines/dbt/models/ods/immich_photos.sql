@@ -7,8 +7,19 @@
 -- The place is Immich's, from the file's GPS and Immich's reverse
 -- geocoding - never Claude's. The newest answer wins: a picture whose
 -- Type/ tag was removed in Immich is looked at again, and its new row
--- replaces the old. A picture deleted in Immich keeps its row.
-with latest as (
+-- replaces the old. A picture deleted in Immich keeps its row - except one
+-- from Telegram or VK, which goes with its tombstone (ods.immich_assets).
+with gone as (
+  select asset_id from (
+    select JSONExtractString(payload, 'id') as asset_id, JSONExtractBool(payload, 'deleted') as deleted
+    from {{ source('raw', 'immich') }}
+    where JSONExtractString(payload, 'endpoint') = 'assets'
+    order by kafka_ts desc
+    limit 1 by asset_id
+  )
+  where deleted
+),
+latest as (
   select
     JSONExtractString(payload, 'id') as asset_id,
     JSONExtractRaw(payload, 'record') as record,
@@ -36,3 +47,4 @@ select
   JSONExtractString(record, 'model') as model,
   extracted_at as described_at
 from latest
+where asset_id not in (select asset_id from gone)

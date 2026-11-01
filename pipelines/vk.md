@@ -97,7 +97,9 @@ tag `Source/VK` - `--dry-run` first:
 immich-go upload from-folder --server=https://photos.lab.baakhoff.com --api-key="$K" --into-album=VK --tag=Source/VK --concurrent-tasks=2 ~/vk-media
 ```
 
-Then delete the key and `rm -r ~/vk-media`. The hourly sorting gives them
+Then delete the key and `rm -r ~/vk-media`: upload once. Fetching again
+later and uploading that would bring back what has been deleted in Immich
+since. The hourly sorting gives them
 types like the rest, and `ads.chat_media` ties each picture to the
 messages it was sent in, by the hash in its name. What was sent in chats is other people's too - the
 same as the messages around them.

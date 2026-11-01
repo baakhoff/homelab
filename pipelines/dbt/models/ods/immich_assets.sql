@@ -3,11 +3,13 @@
 -- file's name, image or video, when it reached Immich and the date it
 -- carries - the message's. The name, TG_<date>_<time>_<hash>.<ext> or
 -- VK_..., holds the hash that ties it to its message: ads.chat_media.
--- A picture deleted in Immich keeps its row.
+-- A picture deleted in Immich - the trash included - is gone from here
+-- within the hour: the task's tombstone is its newest record.
 with latest as (
   select
     JSONExtractString(payload, 'id') as asset_id,
     JSONExtractRaw(payload, 'record') as record,
+    JSONExtractBool(payload, 'deleted') as deleted,
     parseDateTime64BestEffortOrNull(JSONExtractString(payload, 'extracted_at'), 3, 'UTC') as extracted_at
   from {{ source('raw', 'immich') }}
   where JSONExtractString(payload, 'endpoint') = 'assets'
@@ -24,3 +26,4 @@ select
   {{ ts("JSONExtractString(record, 'taken_at')") }} as taken_at,
   extracted_at
 from latest
+where not deleted

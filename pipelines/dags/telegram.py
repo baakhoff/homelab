@@ -38,11 +38,14 @@ A second task, photos, sends the photos and videos in new messages to
 Immich, into the album Telegram: the same media pipelines/tools/
 telegram_media.py fetches - photos, videos, round video messages, images and
 videos sent as files; no stickers or GIFs, no video over 1 GB, nothing
-self-destructing - named and dated the same way, and tagged Source/Telegram. That tool fetches the
-history once; this carries on from where the account's chats stood on its
-first run, which only notes that and uploads nothing. Variable
-telegram_photos (telegram_photos_<name>) holds, per chat, the newest message
-done; a chat new since gets all its media. It runs after sync, with the same
+self-destructing - named and dated the same way, and tagged
+Source/Telegram. That tool fetches the history once; this carries on from
+where the account's chats stood on its first run, which only notes that and
+uploads nothing. It never goes back before that moment - not for a chat
+first seen later, which gives only what was sent since, not when retried -
+so a picture deleted in Immich stays deleted. Variable telegram_photos
+(telegram_photos_<name>) holds, per chat, the newest message done, and the
+moment it started. It runs after sync, with the same
 session, never at the same time, and is skipped until the Secret has
 IMMICH_TELEGRAM_API_KEY: the owner's own Immich key with only asset.upload,
 album.read, album.create, albumAsset.create, tag.create and tag.asset
@@ -87,6 +90,7 @@ SAVE_EVERY = 2000
 # largest video it takes; and the album, the one telegram_media.py's upload
 # goes to.
 PHOTO_STATE = "telegram_photos"
+SINCE = "_since"  # in it: when the task started, for chats first seen later
 PHOTO_BUDGET = timedelta(minutes=10)
 VIDEO_LIMIT = 1 << 30
 IMMICH = "http://immich-server.immich.svc.cluster.local/api"
@@ -409,23 +413,35 @@ async def _photos(immich: _Immich, account: str, session_key: str, state: dict, 
         dialogs = [d async for d in client.iter_dialogs() if is_private(d)]
         if not state:
             # The first run: the history is telegram_media.py's.
-            save({str(d.id): d.message.id if d.message else 0 for d in dialogs})
+            save({SINCE: _iso(datetime.now(timezone.utc)),
+                  **{str(d.id): d.message.id if d.message else 0 for d in dialogs}})
             print(f"{account}: photos start from here")
             return
+        if SINCE not in state:  # from before the moment was kept
+            state[SINCE] = _iso(datetime.now(timezone.utc))
+            save(state)
+        since = datetime.fromisoformat(state[SINCE])
         with tempfile.TemporaryDirectory() as tmp:
             for d in dialogs:
                 key = str(d.id)
                 if d.message is None or d.message.id <= state.get(key, 0):
                     continue
+                if key not in state and d.message.date <= since:
+                    state[key] = d.message.id  # first seen now, but nothing in it since
+                    continue
                 if time.monotonic() - started > PHOTO_BUDGET.total_seconds():
                     print(f"{account}: photo budget spent; the next run carries on")
                     break
+                # A chat first seen after the start gives only what was sent
+                # since: anything older is history, never uploaded here -
+                # so a picture deleted in Immich does not come back.
+                after = {"min_id": state[key]} if key in state else {"offset_date": since}
                 try:
-                    async for m in client.iter_messages(d.entity, reverse=True, min_id=state.get(key, 0)):
+                    async for m in client.iter_messages(d.entity, reverse=True, **after):
                         k = media_kind(m)
                         if k and not (k == "video" and m.file and (m.file.size or 0) > VIDEO_LIMIT):
                             if time.monotonic() - started > PHOTO_BUDGET.total_seconds():
-                                break  # a chat new since, with its whole history
+                                break  # the rest next run
                             name = media_name(owner, d.id, m, k)
                             path = await client.download_media(m, file=os.path.join(tmp, name))
                             immich.upload(path, name, m.date)
@@ -434,6 +450,7 @@ async def _photos(immich: _Immich, account: str, session_key: str, state: dict, 
                         state[key] = m.id
                 finally:
                     save(state)  # what is done stays done, whatever stopped it
+            save(state)
 
 
 @dag(
