@@ -398,8 +398,9 @@ the problem in miniature.
   share a directory and can edit the same files. Giving the slot a `REPO_URL`
   restores the isolation.
 - No cluster access, no LAN, no tailnet from inside, by policy. One
-  exception: the `brand` pod reaches the Firefly API broker and Vikunja's
-  API (`clusters/lab/agents/networkpolicy-brand.yaml`), and the Kubernetes
+  exception: the `brand` pod reaches the Firefly API broker, Vikunja's API,
+  ClickHouse, Outline and Immich
+  (`clusters/lab/agents/networkpolicy-brand.yaml`), and the Kubernetes
   API, where it manages its own CronJobs in the `brand-jobs` namespace and
   nothing else (`clusters/lab/brand-jobs/README.md`).
 - Deleting a project's manifest prunes its volume: the checkout, the login and

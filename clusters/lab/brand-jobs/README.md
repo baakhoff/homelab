@@ -33,10 +33,13 @@ API at all.
 
 ## What a job may reach
 
-The same as brand: cluster DNS, the internet, the Firefly API broker and
-Vikunja's API (`networkpolicy.yaml`, with matching rules in those two
-services' own policies). Not the house LAN, the tailnet or any other lab
-service. Nothing can reach a job.
+Cluster DNS, the internet, the Firefly API broker, Vikunja's API and
+Immich's API (`networkpolicy.yaml`, with matching rules in those three
+services' own policies) - so a scheduled post fetches its photo when it
+fires, with the key in the Secret `immich` here (`IMMICH_API_KEY`, the same
+key as brand's, made by the owner: `clusters/lab/immich/README.md`, step
+9). Not the house LAN, the tailnet or any other lab service. Nothing can
+reach a job.
 
 ## Writing a CronJob that is admitted
 

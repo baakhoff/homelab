@@ -2,16 +2,18 @@
 # machine learning and to Postgres. Redis listens on the server pod's
 # loopback only (deployment.yaml), so it needs no rule.
 #
-# One exception: Airflow's scheduler reaches the server directly, for two
+# Two exceptions. Airflow's scheduler reaches the server directly, for two
 # DAGs with a key each: ingest_immich (pipelines/dags/ingest.py), whose key
 # reads the server's statistics and its users and nothing else, and
 # immich_sort (pipelines/dags/immich_sort.py), whose key reads the owner's
 # photos and their previews and adds tags, the types' albums and the album
 # "To delete" (README, step 8).
 #
-# No rule for the agents, brand-jobs or n8n namespaces, and none should be
-# added: the photos are the family's, and those run code that reads text
-# from outside the house.
+# And the brand agent and its scheduled jobs, with the owner's own
+# key (README, step 9) - reading and downloading every photo, for posts that
+# carry an image and for links in its notes. The owner chose this knowing
+# brand reads text from outside the house and has the open internet; no
+# other agent and no n8n gets in.
 #
 # Egress is open but for the NAS (networkpolicy-no-nas.yaml): the server
 # goes out to Pocket ID for the login, and machine learning to Hugging Face
@@ -44,6 +46,19 @@ spec:
           podSelector:
             matchLabels:
               component: scheduler
+      ports:
+        - protocol: TCP
+          port: 2283
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agents
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: brand
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: brand-jobs
       ports:
         - protocol: TCP
           port: 2283

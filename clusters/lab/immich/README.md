@@ -35,7 +35,7 @@ the rest.
 | `machine-learning.yaml` | smart search, faces and text, on the CPU, with its model cache |
 | `postgres.yaml` | Immich's own Postgres 18 with VectorChord, on Ceph |
 | `pvc.yaml` | the library: the NAS share `tank/immich`, over NFS through csi-driver-nfs |
-| `networkpolicy.yaml` | ingress-nginx and Airflow's scheduler to the server, the server to machine learning and Postgres |
+| `networkpolicy.yaml` | ingress-nginx, Airflow's scheduler and the brand agent and its jobs to the server, the server to machine learning and Postgres |
 | `networkpolicy-no-nas.yaml` | no pod here reaches the NAS ([why](../../../docs/network.md#pods-and-the-lan)) |
 | `service.yaml`, `ingress.yaml` | `photos.lab.baakhoff.com`, with the Homepage tile |
 | `secret.sops.yaml` | the database password - **created by hand, step 3** |
@@ -190,6 +190,25 @@ Commit and push, and restart the scheduler as in step 6 - after the
 the image carries what shrinks the previews, and a scheduler without it
 sends them full size, at about 1.7 times the cost. Until the keys exist,
 `immich_sort` fails, harmlessly.
+
+**9. The brand agent's key**, for posts with a photo and photo links in its
+notes. In Immich, Account settings → API keys → New, named `brand`, with
+only `asset.read`, `asset.view`, `asset.download` and `album.read`. It is
+your own key, so it reads and downloads every photo in your library - the
+owner's choice, made knowing brand reads text from outside the house and
+has the open internet (`networkpolicy.yaml`). Put it in brand's
+`~/.config/brand/secrets.env` as `IMMICH_API_KEY`, and give the scheduled
+posts the same key, typed in and never in the repository:
+
+```bash
+read -rsp 'immich brand key: ' IK; echo
+kubectl -n brand-jobs create secret generic immich --from-literal=IMMICH_API_KEY="$IK"
+unset IK
+```
+
+Then restart brand so it reads the new variable:
+`kubectl -n agents delete pod -l app.kubernetes.io/name=brand`. To take the
+access back, delete the key in Immich; both copies stop working at once.
 
 ## Importing old photos
 
