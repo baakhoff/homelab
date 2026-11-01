@@ -33,15 +33,31 @@ ids and the Variable it had before there was more than one, so its history
 in raw carries on; another account's ids start with "<name>:" and its
 progress is in Variable telegram_sync_<name>. One account's dead session
 fails the run after the others are read, not before.
+
+A second task, photos, sends the photos and videos in new messages to
+Immich, into the album Telegram: the same media pipelines/tools/
+telegram_media.py fetches - photos, videos, round video messages, images and
+videos sent as files; no stickers or GIFs, no video over 1 GB, nothing
+self-destructing - named and dated the same way. That tool fetches the
+history once; this carries on from where the account's chats stood on its
+first run, which only notes that and uploads nothing. Variable
+telegram_photos (telegram_photos_<name>) holds, per chat, the newest message
+done; a chat new since gets all its media. It runs after sync, with the same
+session, never at the same time, and is skipped until the Secret has
+IMMICH_TELEGRAM_API_KEY: the owner's own Immich key with only asset.upload,
+album.read, album.create and albumAsset.create (pipelines/telegram.md).
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
+import tempfile
 import time
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pendulum
 from airflow.sdk import Variable, dag, task
@@ -65,6 +81,17 @@ EDIT_DAYS = 3
 # The newest message id sent is saved every this many messages, so a run
 # that fails part-way through a long chat does not start it over.
 SAVE_EVERY = 2000
+
+# The photos task's progress, as STATE's; its own share of the hour; the
+# largest video it takes; and the album, the one telegram_media.py's upload
+# goes to.
+PHOTO_STATE = "telegram_photos"
+PHOTO_BUDGET = timedelta(minutes=10)
+VIDEO_LIMIT = 1 << 30
+IMMICH = "http://immich-server.immich.svc.cluster.local/api"
+ALBUM = "Telegram"
+# The household's clock, for the names, as in telegram_media.py.
+ZONE = ZoneInfo("Europe/Copenhagen")
 
 
 def _media(m) -> dict | None:
@@ -103,6 +130,60 @@ def _action(m) -> dict | None:
         reason = getattr(m.action, "reason", None)
         action["reason"] = type(reason).__name__.removeprefix("PhoneCallDiscardReason") if reason else None
     return action
+
+
+def media_kind(m) -> str | None:
+    """"photo" or "video" for a message whose file goes to Immich, else None.
+    The same choice as kind() in pipelines/tools/telegram_media.py."""
+    if not m.media or getattr(m.media, "ttl_seconds", None) or m.sticker or m.gif:
+        return None
+    if m.photo:
+        return "photo"
+    if m.video or m.video_note:
+        return "video"
+    mime = (m.file.mime_type or "") if m.file else ""
+    if m.document:
+        if mime.startswith("image/"):
+            return "photo"
+        if mime.startswith("video/"):
+            return "video"
+    return None
+
+
+def media_name(owner: int, chat: int, m, kind: str) -> str:
+    """TG_<date>_<time>_<hash>.<ext>, the name telegram_media.py gives it."""
+    h = hashlib.sha256(f"{owner}/{chat}/{m.id}".encode()).hexdigest()[:12]
+    ext = (m.file.ext if m.file else None) or (".jpg" if kind == "photo" else ".mp4")
+    return f"TG_{m.date.astimezone(ZONE):%Y%m%d_%H%M%S}_{h}{'.jpg' if ext == '.jpeg' else ext}"
+
+
+class _Immich:
+    """Uploads into the album, with the owner's upload-only key."""
+
+    def __init__(self, key: str):
+        import requests
+
+        self.s = requests.Session()
+        self.s.headers["x-api-key"] = key
+        self.album = None
+
+    def call(self, method: str, path: str, **kw):
+        r = self.s.request(method, f"{IMMICH}{path}", timeout=600, **kw)
+        r.raise_for_status()
+        return r.json()
+
+    def upload(self, path: str, name: str, when: datetime) -> None:
+        """The file as the owner's, and into the album. A file Immich has
+        already - from telegram_media.py, or sent in two chats - is not
+        stored twice; it is put in the album all the same."""
+        if self.album is None:
+            owned = self.call("GET", "/albums", params={"isOwned": "true"})
+            self.album = next((a["id"] for a in owned if a["albumName"] == ALBUM), None) \
+                or self.call("POST", "/albums", json={"albumName": ALBUM})["id"]
+        with open(path, "rb") as f:
+            asset = self.call("POST", "/assets", files={"assetData": (name, f)}, data={
+                "fileCreatedAt": _iso(when), "fileModifiedAt": _iso(when), "filename": name})
+        self.call("PUT", f"/albums/{self.album}/assets", json={"ids": [asset["id"]]})
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -312,6 +393,42 @@ async def _sync(raw: _Raw, account: str, session_key: str, state: dict, save, st
                         send("messages", f"{d.id}/{m.id}", message_record(d.id, m))
 
 
+async def _photos(immich: _Immich, account: str, session_key: str, state: dict, save,
+                  started: float, counts: dict) -> None:
+    async with _client(session_key) as client:
+        if not await client.is_user_authorized():
+            raise RuntimeError(f"Telegram no longer accepts {session_key}")
+        owner = (await client.get_me()).id
+        dialogs = [d async for d in client.iter_dialogs() if is_private(d)]
+        if not state:
+            # The first run: the history is telegram_media.py's.
+            save({str(d.id): d.message.id if d.message else 0 for d in dialogs})
+            print(f"{account}: photos start from here")
+            return
+        with tempfile.TemporaryDirectory() as tmp:
+            for d in dialogs:
+                key = str(d.id)
+                if d.message is None or d.message.id <= state.get(key, 0):
+                    continue
+                if time.monotonic() - started > PHOTO_BUDGET.total_seconds():
+                    print(f"{account}: photo budget spent; the next run carries on")
+                    break
+                try:
+                    async for m in client.iter_messages(d.entity, reverse=True, min_id=state.get(key, 0)):
+                        k = media_kind(m)
+                        if k and not (k == "video" and m.file and (m.file.size or 0) > VIDEO_LIMIT):
+                            if time.monotonic() - started > PHOTO_BUDGET.total_seconds():
+                                break  # a chat new since, with its whole history
+                            name = media_name(owner, d.id, m, k)
+                            path = await client.download_media(m, file=os.path.join(tmp, name))
+                            immich.upload(path, name, m.date)
+                            os.unlink(path)
+                            counts[k] = counts.get(k, 0) + 1
+                        state[key] = m.id
+                finally:
+                    save(state)  # what is done stays done, whatever stopped it
+
+
 @dag(
     dag_id="ingest_telegram",
     schedule="20 * * * *",
@@ -350,7 +467,31 @@ def ingest_telegram():
         if failed:
             raise RuntimeError(f"accounts not read: {', '.join(failed)} - see the lines above")
 
-    sync()
+    @task(execution_timeout=timedelta(minutes=15), trigger_rule="all_done")
+    def photos() -> None:
+        if not os.environ.get("IMMICH_TELEGRAM_API_KEY"):
+            print("no IMMICH_TELEGRAM_API_KEY in the Secret - photos skipped, see pipelines/telegram.md")
+            return
+        immich = _Immich(os.environ["IMMICH_TELEGRAM_API_KEY"])
+        started = time.monotonic()
+        failed, counts = [], {}
+        for account, session_key in accounts().items():
+            var = PHOTO_STATE if account == "main" else f"{PHOTO_STATE}_{account}"
+            state = json.loads(Variable.get(var, default="{}"))
+
+            def save(s, var=var):
+                Variable.set(var, json.dumps(s, sort_keys=True))
+
+            try:
+                asyncio.run(_photos(immich, account, session_key, state, save, started, counts))
+            except Exception as e:  # the other accounts are still done
+                print(f"{account}: {e}")
+                failed.append(account)
+        print(f"to Immich: {counts or 'nothing new'}")
+        if failed:
+            raise RuntimeError(f"accounts without photos: {', '.join(failed)} - see the lines above")
+
+    sync() >> photos()
 
 
 ingest_telegram()

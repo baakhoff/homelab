@@ -46,3 +46,17 @@ def test_name(tmp_path):
     assert not telegram_media.have(tmp_path, stem)
     (tmp_path / (stem + ".jpg")).write_bytes(b"x")
     assert telegram_media.have(tmp_path, stem)
+
+
+def test_same_as_the_dag():
+    """The hourly task chooses and names as the tool does, so the history and
+    what comes after look alike in Immich. Airflow is conftest.py's stand-in."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dags"))
+    import telegram
+
+    for m in (_m(photo=True), _m(video=True, gif=True), _m(document=True),
+              _m(video_note=True, file=SimpleNamespace(ext=None, mime_type="video/mp4", size=1))):
+        k = telegram_media.kind(m)
+        assert telegram.media_kind(m) == k
+        if k:
+            assert telegram.media_name(1, 2, m, k) == telegram_media.stem_for(1, 2, m) + telegram_media.ext_for(m, k)

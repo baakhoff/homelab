@@ -16,8 +16,8 @@ then `ods.telegram_chats`, `ods.telegram_messages` and
 - **Private chats only**, one-to-one with people. No groups, no channels,
   no chats with bots.
 - **Text in full.** Photos, voice messages, videos and files as metadata:
-  the kind, size, duration and file name, never the file; the photos and
-  videos can go into Immich instead (below). A shared
+  the kind, size, duration and file name, never the file. The photos and
+  videos go to Immich instead (below). A shared
   location keeps its coordinates. Calls are messages too: `action =
   'PhoneCall'`, with their length and how they ended.
 - **Secret chats are not here.** They exist only on the phones; no login
@@ -161,6 +161,28 @@ the folder and the virtualenv:
 ```bash
 /tmp/tg/bin/python pipelines/tools/telegram_media.py logout tg.session
 ```
+
+For another account, the same with a session file of its own, say
+`tgold.session`, and a folder of its own.
+
+**5. From then on, hourly.** `ingest_telegram` has a second task, `photos`,
+that sends the photos and videos in new messages - every account's - to
+the same album, chosen, named and dated as above. Its first run only notes
+where each chat stands; what came before is this tool's. It needs a key:
+in Immich, Account settings -> API keys -> New, named `telegram`, with only
+`asset.upload`, `album.read`, `album.create` and `albumAsset.create`. Then:
+
+```bash
+read -rsp 'immich telegram key: ' IK; echo
+sops set clusters/lab/airflow/sources.sops.yaml '["data"]["IMMICH_TELEGRAM_API_KEY"]' "\"$(printf %s "$IK" | base64 | tr -d '\n')\""
+unset IK
+```
+
+Commit, push, and restart the scheduler as in step 4. Until the key is
+there, the task says so and does nothing. Its progress is the Variable
+`telegram_photos` (`telegram_photos_<name>`); clearing it starts it over
+from that moment, not from the beginning. Run step 2 once more after its
+first run, and the photos sent between the two are caught too.
 
 ## Things to know
 
