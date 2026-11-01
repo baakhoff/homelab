@@ -21,7 +21,7 @@ only source there will ever be. It is loaded once, by hand, by the DAG
   `happened_at_local`. Other sources are in UTC.
 - **Attachments are descriptions and links.** Photos, voice messages and
   documents were never in the archive, and VK's links to them mostly no
-  longer resolve.
+  longer resolve. The photos that still do can go into Immich (below).
 - **People are names and profile links.** VK gave no phone numbers or
   addresses, so nobody here joins `ads.people`; `sender_vk_id` is the
   user id where the archive linked the profile.
@@ -60,6 +60,46 @@ SELECT name, messages FROM ods.vk_conversations ORDER BY messages DESC LIMIT 10;
 
 **4. Clean up.** `rm ~/vk.jsonl.gz`. Keep the zip itself: it is the only
 copy there is.
+
+## The photos, into Immich
+
+What still answers of the archive's photo and video links - from the
+messages and every other section - can go into Immich, with
+[`tools/vk_media.py`](tools/vk_media.py) on the machine that holds the zip.
+It reads the zip as `vk_pack.py` does. Photos need only the standard
+library; videos, whose links are VK's player pages, go through
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) - installed, or run through
+`uvx` - at the best quality that fits in 1 GB, and one that never fits is
+skipped.
+
+**1. Survey** - how many photo and video links there are, by year, and how
+many of a sample of each still answer. Nothing is saved:
+
+```bash
+python3 pipelines/tools/vk_media.py survey "$HOME/Downloads/Telegram Desktop/VK Data.zip"
+```
+
+**2. Fetch** what answers into a folder. Each file is named
+`VK_<date>_<time>_<hash>.<ext>` and dated by its message or wall entry,
+since VK stripped the files' own dates. Interrupted or run again, it skips what
+it already has:
+
+```bash
+python3 pipelines/tools/vk_media.py fetch "$HOME/Downloads/Telegram Desktop/VK Data.zip" ~/vk-media
+```
+
+**3. Upload** with [immich-go](https://github.com/simulot/immich-go) and a
+temporary all-permissions key, as for any import
+(`clusters/lab/immich/README.md`), into an album of their own - `--dry-run`
+first:
+
+```bash
+immich-go upload from-folder --server=https://photos.lab.baakhoff.com --api-key="$K" --into-album=VK --concurrent-tasks=2 ~/vk-media
+```
+
+Then delete the key and `rm -r ~/vk-media`. The hourly sorting gives them
+types like the rest. What was sent in chats is other people's too - the
+same as the messages around them.
 
 ## Things to know
 
