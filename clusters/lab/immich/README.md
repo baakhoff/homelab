@@ -299,6 +299,10 @@ add it to another one.
 - **`ods.immich_users`**: the accounts' names, roles and dates, without
   their emails.
 - **`ods.immich_sort_runs`**: each sorting run's counts and tokens.
+- **`ods.immich_assets`**: every photo and video that came from Telegram
+  or VK, by its `TG_`/`VK_` name - Immich id, name and dates - listed by
+  `immich_sort`'s second task with the sorting's key. `ads.chat_media`
+  joins it to the messages they were sent in (`pipelines/telegram.md`).
 
 Faces, people's names and albums are not ingested. Immich's log lines
 name files and people, so they stop at Loki and never reach Kafka

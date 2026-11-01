@@ -152,8 +152,9 @@ it skips what it already has:
 ```
 
 **3. Upload** with immich-go, as in [`vk.md`](vk.md), into an album of
-their own - `--into-album=Telegram`, `--dry-run` first. The same photo sent
-in two chats is uploaded once.
+their own and with the tag the hourly task gives too -
+`--into-album=Telegram --tag=Source/Telegram`, `--dry-run` first. The same
+photo sent in two chats is uploaded once.
 
 **4. Log out,** which also removes it from Settings -> Devices. Then delete
 the folder and the virtualenv:
@@ -167,10 +168,12 @@ For another account, the same with a session file of its own, say
 
 **5. From then on, hourly.** `ingest_telegram` has a second task, `photos`,
 that sends the photos and videos in new messages - every account's - to
-the same album, chosen, named and dated as above. Its first run only notes
+the same album, with the tag `Source/Telegram`, chosen, named and dated as
+above. Its first run only notes
 where each chat stands; what came before is this tool's. It needs a key:
 in Immich, Account settings -> API keys -> New, named `telegram`, with only
-`asset.upload`, `album.read`, `album.create` and `albumAsset.create`. Then:
+`asset.upload`, `album.read`, `album.create`, `albumAsset.create`,
+`tag.create` and `tag.asset`. Then:
 
 ```bash
 read -rsp 'immich telegram key: ' IK; echo
@@ -183,6 +186,12 @@ there, the task says so and does nothing. Its progress is the Variable
 `telegram_photos` (`telegram_photos_<name>`); clearing it starts it over
 from that moment, not from the beginning. Run step 2 once more after its
 first run, and the photos sent between the two are caught too.
+
+**6. In the warehouse.** `ads.chat_media` ties each of these pictures to
+its message: the chat and person, when it was sent and which way, the
+text with it, and the picture's Immich link, type and description. The
+hash in the file's name is the tie, so it holds for the history and the
+hourly uploads alike; VK's pictures are in it too ([`vk.md`](vk.md)).
 
 ## Things to know
 

@@ -90,15 +90,16 @@ python3 pipelines/tools/vk_media.py fetch "$HOME/Downloads/Telegram Desktop/VK D
 
 **3. Upload** with [immich-go](https://github.com/simulot/immich-go) and a
 temporary all-permissions key, as for any import
-(`clusters/lab/immich/README.md`), into an album of their own - `--dry-run`
-first:
+(`clusters/lab/immich/README.md`), into an album of their own and with the
+tag `Source/VK` - `--dry-run` first:
 
 ```bash
-immich-go upload from-folder --server=https://photos.lab.baakhoff.com --api-key="$K" --into-album=VK --concurrent-tasks=2 ~/vk-media
+immich-go upload from-folder --server=https://photos.lab.baakhoff.com --api-key="$K" --into-album=VK --tag=Source/VK --concurrent-tasks=2 ~/vk-media
 ```
 
 Then delete the key and `rm -r ~/vk-media`. The hourly sorting gives them
-types like the rest. What was sent in chats is other people's too - the
+types like the rest, and `ads.chat_media` ties each picture to the
+messages it was sent in, by the hash in its name. What was sent in chats is other people's too - the
 same as the messages around them.
 
 ## Things to know
