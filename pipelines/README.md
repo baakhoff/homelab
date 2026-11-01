@@ -15,6 +15,7 @@ minute, so a merged change is live a minute later.
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
       telegram_login.py  the one-time Telegram login, into the Secret
+      telegram_media.py  the photos and videos in Telegram chats, for Immich
       proton_pack.py     a Proton Mail export packed into one file for the DAG
       vk_pack.py         the VK data archive packed into one file for the DAG
       vk_media.py        the VK archive's photos and videos that still answer, for Immich
