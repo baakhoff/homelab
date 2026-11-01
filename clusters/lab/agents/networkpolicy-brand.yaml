@@ -1,18 +1,20 @@
-# The brand pod's five doors into the lab, on top of networkpolicy.yaml's
+# The brand pod's six doors into the lab, on top of networkpolicy.yaml's
 # DNS-and-internet egress. Policies add up, so this widens that one pod and
 # no other: brand reaches the Firefly API broker and Vikunja's API, and
 # manages both through them; the Kubernetes API, where its ServiceAccount
 # may manage CronJobs in brand-jobs and nothing else
 # (clusters/lab/brand-jobs/rbac.yaml); ClickHouse's HTTP port, where
 # its `brand` user reads the ods, ads and dm layers (clusters/lab/data/clickhouse-schema.yaml);
-# and Outline's API, where it reads and writes documents with an API key
-# (clusters/lab/notes/README.md).
+# Outline's API, where it reads and writes documents with an API key
+# (clusters/lab/notes/README.md); and Immich's API, where the owner's key
+# reads and downloads the photos (clusters/lab/immich/README.md, step 9).
 #
 # Each in-cluster door has a matching ingress rule on the far side - in
 # clusters/lab/firefly-broker/networkpolicy.yaml,
 # clusters/lab/vikunja/networkpolicy.yaml,
-# clusters/lab/data/networkpolicy.yaml and
-# clusters/lab/notes/networkpolicy.yaml - and both halves are needed.
+# clusters/lab/data/networkpolicy.yaml,
+# clusters/lab/notes/networkpolicy.yaml and
+# clusters/lab/immich/networkpolicy.yaml - and both halves are needed.
 # Policies are evaluated after Service DNAT, so the destinations are the
 # pods and their container ports, not the Services' port 80.
 apiVersion: networking.k8s.io/v1
@@ -67,6 +69,16 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: immich
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: immich-server
+      ports:
+        - protocol: TCP
+          port: 2283
     # The Kubernetes API. Policies see the destination after the Service
     # DNAT, so this is not 10.43.0.1:443 but the API server itself: k3s runs
     # it on every server node's own address, port 6443, and all three nodes
