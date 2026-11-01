@@ -20,6 +20,7 @@ data:
     IMMICH_API_KEY: ENC[AES256_GCM,data:lWe0r9Y+DPU8+RsW7TcSX5SkRPYBPDOAuFMnGZE2x35N1r0pTohZg9Av4UWSsa260NZy6v4Nv7I=,iv:LO6XVon+lLOb0cylW/uxSyUGu6POy+hrpr8zx3iU2n0=,tag:UmOcGxe3OlJdW23S88n6Mg==,type:str]
     IMMICH_SORT_API_KEY: ENC[AES256_GCM,data:r1ClnfOGYq/gIptuAESpLXnRRQjhwaLBB24fmR4AYuQ/ogLR6dlnqfxiKTArcUl1DdY6nPwajzaH9/qY,iv:/e8fPfhqYe6EJ88jvMUuavycUx63C4KBGHWLiclyRFA=,tag:8KEYRVfQFe6V1XnV54z8Yg==,type:str]
     ANTHROPIC_API_KEY: ENC[AES256_GCM,data:IcnGehFuNNtwAqODXBvE6SHirER35Y8fJsOcj9nc21iw4EfPdx2XV+pltU2raWktLuOoBld0J8GHTLbx7nrkjndtHqKkx6EnvTvSFU2reP6fss+ChkCF9/YSenkCrQrAgtBz1O3SQpg3KVNB7AJgKzGp30WKYPZOQ+8EfeFyfpAkKjvqcOrprmPkfrLjiNos,iv:UjY/00+RXNP3p1o0jEGNMGsYwbObHsEfVWeAtW+s4+c=,tag:dtlFYYMGrSkgL5/Q3frMuQ==,type:str]
+    IMMICH_TELEGRAM_API_KEY: ENC[AES256_GCM,data:CMp4+6jEjZj77j/HcGGzv3I4WfRTBwgVWrFijCrkiVdZ7nQuztKOUtW+6kR5/rBYcdxUJRglJIo=,iv:0jtRDHgtmvzLfoqnhmZfmhcYH+LRQvalU1fesJIo3+o=,tag:eMdWNLMZ16NV9+cZHqfbyA==,type:str]
 kind: Secret
 metadata:
     name: airflow-sources
@@ -45,6 +46,6 @@ sops:
             -----END AGE ENCRYPTED FILE-----
           recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-10-30T23:45:54Z"
-    mac: ENC[AES256_GCM,data:3tMRPFHAzg17Pljpzg5TOC32XcJpPdDLfZsfP+1X6PyNakZGf58JIO6YgHYaHFkJwVPxofTk9G/gBnwpbrfLJSHVmhzSIddH07Buzp0LgV4j1/Uq8/1Y+rkjRKsPSTjxRx/g85fW/ZzX/vOhRTDcLWGvPoyHk1vUa7siYBMNIkU=,iv:eIhxWrfmqpEKsswLvfYkVtE6UyOYpxciUK8SrWBDnLE=,tag:uMPRzGT7Fg0hbppF2FHGxQ==,type:str]
+    lastmodified: "2026-11-01T21:11:42Z"
+    mac: ENC[AES256_GCM,data:q5YO7+IzMUZdEJbv0VGg1FHJIhbAYoOIrRDD8N/g8p+5+dT6f4lC7ApBfcTdmDfR+2thYJiBY0JPeOmXEZZCWUhr20vgmwhZPFUfluAefMX5oER1iqG87GzuP3M71SGAEZU+43UucU731A0fC0UscvAfmx5GmXkiPphrDdldZ8U=,iv:l3MN9xcxGnaz7P4xdWiSJtTn1a6wGVUXuXO1iYnZCVU=,tag:wrRbVvUGC5TgzoUNQ4kLSQ==,type:str]
     version: 3.13.3
