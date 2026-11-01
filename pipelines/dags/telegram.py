@@ -45,9 +45,11 @@ uploads nothing. It never goes back before that moment - not for a chat
 first seen later, which gives only what was sent since, not when retried -
 so a picture deleted in Immich stays deleted. Variable telegram_photos
 (telegram_photos_<name>) holds, per chat, the newest message done, and the
-moment it started. It runs after sync, with the same
-session, never at the same time, and is skipped until the Secret has
-IMMICH_TELEGRAM_API_KEY: the owner's own Immich key with only asset.upload,
+moment it started. Each upload is a record on raw.telegram, endpoint
+`media`: the message and the Immich picture its file became - "duplicate"
+when Immich had that file already, from another message. It runs after
+sync, with the same session, never at the same time, and is skipped until
+the Secret has IMMICH_TELEGRAM_API_KEY: the owner's own Immich key with only asset.upload,
 album.read, album.create, albumAsset.create, tag.create and tag.asset
 (pipelines/telegram.md).
 """
@@ -179,7 +181,7 @@ class _Immich:
         r.raise_for_status()
         return r.json()
 
-    def upload(self, path: str, name: str, when: datetime) -> None:
+    def upload(self, path: str, name: str, when: datetime) -> tuple[str, str]:
         """The file as the owner's, into the album and with the tag. A file
         Immich has already - from telegram_media.py, or sent in two chats -
         is not stored twice; it gets the album and the tag all the same."""
@@ -195,6 +197,7 @@ class _Immich:
                 "fileCreatedAt": _iso(when), "fileModifiedAt": _iso(when), "filename": name})
         self.call("PUT", f"/albums/{self.album}/assets", json={"ids": [asset["id"]]})
         self.call("PUT", f"/tags/{self.tag}/assets", json={"ids": [asset["id"]]})
+        return asset["id"], asset["status"]
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -404,8 +407,9 @@ async def _sync(raw: _Raw, account: str, session_key: str, state: dict, save, st
                         send("messages", f"{d.id}/{m.id}", message_record(d.id, m))
 
 
-async def _photos(immich: _Immich, account: str, session_key: str, state: dict, save,
+async def _photos(immich: _Immich, raw: _Raw, account: str, session_key: str, state: dict, save,
                   started: float, counts: dict) -> None:
+    prefix = "" if account == "main" else f"{account}:"
     async with _client(session_key) as client:
         if not await client.is_user_authorized():
             raise RuntimeError(f"Telegram no longer accepts {session_key}")
@@ -444,11 +448,17 @@ async def _photos(immich: _Immich, account: str, session_key: str, state: dict, 
                                 break  # the rest next run
                             name = media_name(owner, d.id, m, k)
                             path = await client.download_media(m, file=os.path.join(tmp, name))
-                            immich.upload(path, name, m.date)
+                            asset_id, status = immich.upload(path, name, m.date)
                             os.unlink(path)
+                            # Which picture the message's file is: its own,
+                            # or - "duplicate" - one Immich had already.
+                            raw.send("media", f"{prefix}{d.id}/{m.id}", {
+                                "account": account, "chat_id": d.id, "message_id": m.id,
+                                "asset_id": asset_id, "upload": status})
                             counts[k] = counts.get(k, 0) + 1
                         state[key] = m.id
                 finally:
+                    raw.flush()
                     save(state)  # what is done stays done, whatever stopped it
             save(state)
 
@@ -496,7 +506,10 @@ def ingest_telegram():
         if not os.environ.get("IMMICH_TELEGRAM_API_KEY"):
             print("no IMMICH_TELEGRAM_API_KEY in the Secret - photos skipped, see pipelines/telegram.md")
             return
+        from airflow.sdk import get_current_context
+
         immich = _Immich(os.environ["IMMICH_TELEGRAM_API_KEY"])
+        raw = _Raw(get_current_context()["run_id"])
         started = time.monotonic()
         failed, counts = [], {}
         for account, session_key in accounts().items():
@@ -507,7 +520,7 @@ def ingest_telegram():
                 Variable.set(var, json.dumps(s, sort_keys=True))
 
             try:
-                asyncio.run(_photos(immich, account, session_key, state, save, started, counts))
+                asyncio.run(_photos(immich, raw, account, session_key, state, save, started, counts))
             except Exception as e:  # the other accounts are still done
                 print(f"{account}: {e}")
                 failed.append(account)

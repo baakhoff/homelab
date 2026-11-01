@@ -280,4 +280,19 @@ def test_asset_record():
         "id": "a", "originalFileName": "TG_20210601_120000_16256bcae130.jpg", "type": "IMAGE",
         "createdAt": "2026-11-01T20:00:00.000Z", "fileCreatedAt": "2021-06-01T10:00:00.000Z",
     }) == {"file_name": "TG_20210601_120000_16256bcae130.jpg", "kind": "image",
-           "uploaded_at": "2026-11-01T20:00:00.000Z", "taken_at": "2021-06-01T10:00:00.000Z"}
+           "uploaded_at": "2026-11-01T20:00:00.000Z", "taken_at": "2021-06-01T10:00:00.000Z",
+           "status": "active", "duplicate_group": None}
+
+
+def test_asset_changes():
+    found = {"new": {"id": "new"}, "same": {"id": "same"}, "flagged": {"id": "flagged", "duplicateId": "g"}}
+    known = {"same": "", "flagged": "", "deleted": "", "copy": "g"}
+    changed, now = s.asset_changes(known, found)
+    assert dict(changed) == {
+        "new": s.asset_record(found["new"]),
+        "flagged": s.asset_record(found["flagged"]),
+        "deleted": {"status": "deleted"},
+        "copy": {"status": "duplicate"},
+    }
+    assert now == {"new": "", "same": "", "flagged": "g"}
+    assert s.asset_changes(now, found)[0] == []

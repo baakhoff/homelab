@@ -197,7 +197,11 @@ first run, and the photos sent between the two are caught too.
 its message: the chat and person, when it was sent and which way, the
 text with it, and the picture's Immich link, type and description. The
 hash in the file's name is the tie, so it holds for the history and the
-hourly uploads alike; VK's pictures are in it too ([`vk.md`](vk.md)).
+hourly uploads alike; VK's pictures are in it too ([`vk.md`](vk.md)). Its
+`status` is `active`, `deleted` once the picture is deleted in Immich, or
+`duplicate` - removed by Immich's duplicate review, or a copy of a picture
+first sent in another message. A deleted picture keeps its rows, with what
+was in it; only Immich loses the file.
 
 ## Things to know
 
