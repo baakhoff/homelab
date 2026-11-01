@@ -17,7 +17,7 @@ minute, so a merged change is live a minute later.
       telegram_login.py  the one-time Telegram login, into the Secret
       proton_pack.py     a Proton Mail export packed into one file for the DAG
       vk_pack.py         the VK data archive packed into one file for the DAG
-      vk_media.py        the VK archive's photos that still answer, fetched for Immich
+      vk_media.py        the VK archive's photos and videos that still answer, for Immich
       google_auth.py     the Google consent, run once on the workstation
       google_takeout_pack.py  a Google Takeout export packed into one file for the DAG
       google_takeout_load.sh  the newest Takeout export packed, loaded and cleaned up, in one go

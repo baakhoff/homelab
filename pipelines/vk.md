@@ -63,20 +63,25 @@ copy there is.
 
 ## The photos, into Immich
 
-What still answers of the archive's photo links can go into Immich, with
+What still answers of the archive's photo and video links - from the
+messages and every other section - can go into Immich, with
 [`tools/vk_media.py`](tools/vk_media.py) on the machine that holds the zip.
-Standard library only; it reads the zip as `vk_pack.py` does.
+It reads the zip as `vk_pack.py` does. Photos need only the standard
+library; videos, whose links are VK's player pages, go through
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) - installed, or run through
+`uvx` - at the best quality that fits in 1 GB, and one that never fits is
+skipped.
 
 **1. Survey** - how many photo and video links there are, by year, and how
-many of a sample still answer. Nothing is saved:
+many of a sample of each still answer. Nothing is saved:
 
 ```bash
 python3 pipelines/tools/vk_media.py survey "$HOME/Downloads/Telegram Desktop/VK Data.zip"
 ```
 
 **2. Fetch** what answers into a folder. Each file is named
-`VK_<date>_<time>_<hash>.jpg` and dated by its message or wall entry, since
-VK stripped the photos' own dates. Interrupted or run again, it skips what
+`VK_<date>_<time>_<hash>.<ext>` and dated by its message or wall entry,
+since VK stripped the files' own dates. Interrupted or run again, it skips what
 it already has:
 
 ```bash
@@ -93,8 +98,7 @@ immich-go upload from-folder --server=https://photos.lab.baakhoff.com --api-key=
 ```
 
 Then delete the key and `rm -r ~/vk-media`. The hourly sorting gives them
-types like the rest. Videos are only counted: their links are VK's player
-pages, not files. The photos sent in chats are other people's too - the
+types like the rest. What was sent in chats is other people's too - the
 same as the messages around them.
 
 ## Things to know
