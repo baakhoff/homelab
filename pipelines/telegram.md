@@ -16,7 +16,8 @@ then `ods.telegram_chats`, `ods.telegram_messages` and
 - **Private chats only**, one-to-one with people. No groups, no channels,
   no chats with bots.
 - **Text in full.** Photos, voice messages, videos and files as metadata:
-  the kind, size, duration and file name, never the file. A shared
+  the kind, size, duration and file name, never the file; the photos and
+  videos can go into Immich instead (below). A shared
   location keeps its coordinates. Calls are messages too: `action =
   'PhoneCall'`, with their length and how they ended.
 - **Secret chats are not here.** They exist only on the phones; no login
@@ -114,6 +115,52 @@ disuse - which an hourly DAG never is. The DAG then fails with "Telegram
 no longer accepts TELEGRAM_SESSION" (or `TELEGRAM_SESSION_<NAME>`), after
 reading the other accounts. Run step 2 again - with the account's name for
 any but `main` - then 3 and the restart from step 4.
+
+## The photos, into Immich
+
+The files themselves are still on Telegram's servers.
+[`tools/telegram_media.py`](tools/telegram_media.py) downloads the photos,
+videos and round video messages from the same private chats, and the
+images and videos sent as files, the uncompressed originals. It has its own
+login, called *homelab photos*: one session used from two places at once
+can make Telegram end it, and the DAG's has to stay. Run it on the machine
+that will upload, with Telethon:
+
+```bash
+python3 -m venv /tmp/tg && /tmp/tg/bin/pip install telethon==1.45.0
+```
+
+**1. Survey** - how many photos and videos there are, by year, and their
+size. The first run asks for the api_id and api_hash (not echoed; every
+run asks for them), the phone number, the code and the two-step password,
+and keeps the login in `tg.session`, readable by its owner only. Nothing
+else is saved:
+
+```bash
+/tmp/tg/bin/python pipelines/tools/telegram_media.py survey tg.session
+```
+
+`--groups` at the end takes in group chats too.
+
+**2. Fetch** into a folder. Each file is named `TG_<date>_<time>_<hash>.<ext>`
+and dated by its message, since Telegram strips a photo's own date. Videos
+over 1 GB and self-destructing media are skipped. Interrupted or run again,
+it skips what it already has:
+
+```bash
+/tmp/tg/bin/python pipelines/tools/telegram_media.py fetch tg.session ~/tg-media
+```
+
+**3. Upload** with immich-go, as in [`vk.md`](vk.md), into an album of
+their own - `--into-album=Telegram`, `--dry-run` first. The same photo sent
+in two chats is uploaded once.
+
+**4. Log out,** which also removes it from Settings -> Devices. Then delete
+the folder and the virtualenv:
+
+```bash
+/tmp/tg/bin/python pipelines/tools/telegram_media.py logout tg.session
+```
 
 ## Things to know
 
