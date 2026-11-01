@@ -38,14 +38,15 @@ A second task, photos, sends the photos and videos in new messages to
 Immich, into the album Telegram: the same media pipelines/tools/
 telegram_media.py fetches - photos, videos, round video messages, images and
 videos sent as files; no stickers or GIFs, no video over 1 GB, nothing
-self-destructing - named and dated the same way. That tool fetches the
+self-destructing - named and dated the same way, and tagged Source/Telegram. That tool fetches the
 history once; this carries on from where the account's chats stood on its
 first run, which only notes that and uploads nothing. Variable
 telegram_photos (telegram_photos_<name>) holds, per chat, the newest message
 done; a chat new since gets all its media. It runs after sync, with the same
 session, never at the same time, and is skipped until the Secret has
 IMMICH_TELEGRAM_API_KEY: the owner's own Immich key with only asset.upload,
-album.read, album.create and albumAsset.create (pipelines/telegram.md).
+album.read, album.create, albumAsset.create, tag.create and tag.asset
+(pipelines/telegram.md).
 """
 
 from __future__ import annotations
@@ -90,6 +91,7 @@ PHOTO_BUDGET = timedelta(minutes=10)
 VIDEO_LIMIT = 1 << 30
 IMMICH = "http://immich-server.immich.svc.cluster.local/api"
 ALBUM = "Telegram"
+TAG = "Source/Telegram"
 # The household's clock, for the names, as in telegram_media.py.
 ZONE = ZoneInfo("Europe/Copenhagen")
 
@@ -166,6 +168,7 @@ class _Immich:
         self.s = requests.Session()
         self.s.headers["x-api-key"] = key
         self.album = None
+        self.tag = None
 
     def call(self, method: str, path: str, **kw):
         r = self.s.request(method, f"{IMMICH}{path}", timeout=600, **kw)
@@ -173,17 +176,21 @@ class _Immich:
         return r.json()
 
     def upload(self, path: str, name: str, when: datetime) -> None:
-        """The file as the owner's, and into the album. A file Immich has
-        already - from telegram_media.py, or sent in two chats - is not
-        stored twice; it is put in the album all the same."""
+        """The file as the owner's, into the album and with the tag. A file
+        Immich has already - from telegram_media.py, or sent in two chats -
+        is not stored twice; it gets the album and the tag all the same."""
         if self.album is None:
             owned = self.call("GET", "/albums", params={"isOwned": "true"})
             self.album = next((a["id"] for a in owned if a["albumName"] == ALBUM), None) \
                 or self.call("POST", "/albums", json={"albumName": ALBUM})["id"]
+        if self.tag is None:
+            made = self.call("PUT", "/tags", json={"tags": [TAG]})
+            self.tag = next(t["id"] for t in made if t["value"] == TAG)
         with open(path, "rb") as f:
             asset = self.call("POST", "/assets", files={"assetData": (name, f)}, data={
                 "fileCreatedAt": _iso(when), "fileModifiedAt": _iso(when), "filename": name})
         self.call("PUT", f"/albums/{self.album}/assets", json={"ids": [asset["id"]]})
+        self.call("PUT", f"/tags/{self.tag}/assets", json={"ids": [asset["id"]]})
 
 
 def _iso(dt: datetime | None) -> str | None:

@@ -273,3 +273,11 @@ def test_shrink_fits_the_square():
     data, media_type = s._shrink(big.getvalue(), "image/webp")
     assert media_type == "image/jpeg"
     assert max(PIL.open(io.BytesIO(data)).size) == s.SIDE
+
+
+def test_asset_record():
+    assert s.asset_record({
+        "id": "a", "originalFileName": "TG_20210601_120000_16256bcae130.jpg", "type": "IMAGE",
+        "createdAt": "2026-11-01T20:00:00.000Z", "fileCreatedAt": "2021-06-01T10:00:00.000Z",
+    }) == {"file_name": "TG_20210601_120000_16256bcae130.jpg", "kind": "image",
+           "uploaded_at": "2026-11-01T20:00:00.000Z", "taken_at": "2021-06-01T10:00:00.000Z"}
