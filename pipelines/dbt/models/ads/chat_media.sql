@@ -7,11 +7,18 @@
 -- sha256("<account's user id>/<chat id>/<message id>")
 -- (pipelines/tools/telegram_media.py, ingest_telegram), for VK of
 -- sha256(<the link>) (pipelines/tools/vk_media.py). A VK link sent in
--- several messages is one file, and a row for each; the same file sent in
--- two Telegram chats is stored once by Immich, under the first name it
--- came with, so only that message has it. A picture whose message is not
--- in the warehouse - a VK wall or album entry, a Telegram group with
--- --groups - is a row with the message's columns empty.
+-- several messages is one file, and a row for each. The same file sent in
+-- two Telegram messages is stored once by Immich, under the first name it
+-- came with: the hourly upload records which picture the second one is
+-- (raw.telegram, endpoint `media`), so it has its row too; in the history
+-- fetched once, only the first has. A picture whose message is not in the
+-- warehouse - a VK wall or album entry, a Telegram group with --groups - is
+-- a row with the message's columns empty.
+--
+-- `status`: active, the picture is in Immich; deleted, it was deleted
+-- there; duplicate, it was removed as a duplicate in Immich, or this
+-- message's file is a copy of a picture first sent in another. Nothing
+-- leaves: a deleted picture keeps its rows, its description included.
 --
 -- `sent_at` is UTC, for Telegram; VK's archive wrote local time, so for VK
 -- it is empty and `sent_at_local` holds it. `sender` is the chat's person
@@ -19,9 +26,20 @@
 -- picture; `type` and `description` are immich_sort's, once it has looked.
 with
 assets as (
-  select asset_id, file_name, kind, source, file_hash, taken_at
+  select asset_id, file_name, kind, source, file_hash, status, taken_at
   from {{ ref('immich_assets') }}
   where file_hash is not null
+),
+-- The hourly upload's word on each message's file.
+uploads as (
+  select
+    JSONExtractString(payload, 'id') as message_key,
+    JSONExtractString(payload, 'record', 'asset_id') as asset_id,
+    JSONExtractString(payload, 'record', 'upload') = 'duplicate' as is_copy
+  from {{ source('raw', 'telegram') }}
+  where JSONExtractString(payload, 'endpoint') = 'media'
+  order by kafka_ts desc
+  limit 1 by message_key
 ),
 owners as (
   select account, any(user_id) as owner_id
@@ -31,7 +49,8 @@ owners as (
 ),
 telegram as (
   select
-    substring(lower(hex(SHA256(concat(toString(o.owner_id), '/', toString(m.chat_id), '/', toString(m.message_id))))), 1, 12) as file_hash,
+    coalesce(u.asset_id, h.asset_id) as asset_id,
+    coalesce(u.is_copy, false) as is_copy,
     m.account as account,
     m.chat_key as chat_key,
     c.name as chat_name,
@@ -49,11 +68,15 @@ telegram as (
   from {{ ref('telegram_messages') }} m
   inner join owners o on o.account = m.account
   left join {{ ref('telegram_chats') }} c on c.chat_key = m.chat_key
+  left join uploads u on u.message_key = m.message_key
+  left join (select * from assets where source = 'telegram') h
+    on h.file_hash = substring(lower(hex(SHA256(concat(toString(o.owner_id), '/', toString(m.chat_id), '/', toString(m.message_id))))), 1, 12)
   where m.media_kind is not null
 ),
 vk as (
   select
-    substring(lower(hex(SHA256(link))), 1, 12) as file_hash,
+    h.asset_id as asset_id,
+    false as is_copy,
     'vk' as account,
     m.conversation_id as chat_key,
     m.conversation_name as chat_name,
@@ -69,12 +92,13 @@ vk as (
     CAST(NULL, 'Nullable(Int64)') as reply_to_message_id,
     CAST(NULL, 'Nullable(Int64)') as album_id
   from {{ ref('vk_messages') }} m
-  array join m.attachment_links as link
+  array join arrayDistinct(m.attachment_links) as link
+  inner join (select * from assets where source = 'vk') h on h.file_hash = substring(lower(hex(SHA256(link))), 1, 12)
 ),
 messages as (
-  select 'telegram' as source, * from telegram
+  select * from telegram where asset_id is not null
   union all
-  select 'vk' as source, * from vk
+  select * from vk
 )
 select
   a.asset_id as asset_id,
@@ -82,6 +106,7 @@ select
   a.file_name as file_name,
   a.kind as kind,
   a.source as source,
+  multiIf(a.status != 'active', a.status, m.is_copy, 'duplicate', 'active') as status,
   m.account as account,
   m.chat_key as chat_key,
   m.chat_name as chat_name,
@@ -102,6 +127,6 @@ select
   p.country as country,
   a.taken_at as taken_at
 from assets a
-left join messages m on m.source = a.source and m.file_hash = a.file_hash
+left join messages m on m.asset_id = a.asset_id
 left join {{ ref('immich_photos') }} p on p.asset_id = a.asset_id
 settings join_use_nulls = 1

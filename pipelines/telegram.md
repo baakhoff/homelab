@@ -156,6 +156,10 @@ their own and with the tag the hourly task gives too -
 `--into-album=Telegram --tag=Source/Telegram`, `--dry-run` first. The same
 photo sent in two chats is uploaded once.
 
+Upload each folder once, then delete it (step 4). Fetching again later and
+uploading that would bring back what has been deleted in Immich since; the
+hourly task never does.
+
 **4. Log out,** which also removes it from Settings -> Devices. Then delete
 the folder and the virtualenv:
 
@@ -182,7 +186,9 @@ unset IK
 ```
 
 Commit, push, and restart the scheduler as in step 4. Until the key is
-there, the task says so and does nothing. Its progress is the Variable
+there, the task says so and does nothing. It never uploads anything sent
+before its first run - not for a chat it first sees later, not on a retry -
+so a picture deleted in Immich stays deleted. Its progress is the Variable
 `telegram_photos` (`telegram_photos_<name>`); clearing it starts it over
 from that moment, not from the beginning. Run step 2 once more after its
 first run, and the photos sent between the two are caught too.
@@ -191,7 +197,11 @@ first run, and the photos sent between the two are caught too.
 its message: the chat and person, when it was sent and which way, the
 text with it, and the picture's Immich link, type and description. The
 hash in the file's name is the tie, so it holds for the history and the
-hourly uploads alike; VK's pictures are in it too ([`vk.md`](vk.md)).
+hourly uploads alike; VK's pictures are in it too ([`vk.md`](vk.md)). Its
+`status` is `active`, `deleted` once the picture is deleted in Immich, or
+`duplicate` - removed by Immich's duplicate review, or a copy of a picture
+first sent in another message. A deleted picture keeps its rows, with what
+was in it; only Immich loses the file.
 
 ## Things to know
 
