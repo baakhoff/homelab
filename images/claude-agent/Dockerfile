@@ -21,7 +21,7 @@ FROM node:24-bookworm-slim
 ARG CLAUDE_CODE_VERSION=2.1.284
 ARG GH_VERSION=2.101.0
 ARG GLAB_VERSION=1.119.0
-ARG KUBECTL_VERSION=1.37.0
+ARG KUBECTL_VERSION=1.37.2
 
 # The toolchain an agent can use inside its pod. Kept general on purpose: a
 # project that needs more (a database client, another language) gets its own
