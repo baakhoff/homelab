@@ -348,6 +348,18 @@ expects `yes`, then `no`. A `yes` to the second means the Role in
 with `claude auth login` through `kubectl exec`, as above. The marker file
 stays.
 
+Once it has ended, the pod crash-loops on `You must be logged in to use Remote
+Control`, and there is nothing to exec into. Log in from a throwaway pod on the
+same node and volume instead - the volume is ReadWriteOnce, so the node has to
+be the one the slot is on (`kubectl -n agents get pods -o wide`). For slot-4 on
+node03:
+
+```bash
+kubectl -n agents run slot-4-login --rm -it --restart=Never --image=ghcr.io/baakhoff/claude-agent:2.1.280 --overrides='{"spec":{"nodeName":"node03","securityContext":{"runAsNonRoot":true,"runAsUser":1000,"runAsGroup":1000,"fsGroup":1000,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"slot-4-login","image":"ghcr.io/baakhoff/claude-agent:2.1.280","command":["claude","auth","login"],"stdin":true,"tty":true,"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}},"resources":{"requests":{"cpu":"50m","memory":"64Mi"},"limits":{"memory":"1Gi"}},"volumeMounts":[{"name":"home","mountPath":"/home/node"}]}],"volumes":[{"name":"home","persistentVolumeClaim":{"claimName":"slot-4"}}]}}'
+```
+
+The slot picks the login up at its next restart.
+
 ## An ssh key on the volume
 
 A project whose remote is ssh needs a private key, and the natural place is
