@@ -14,6 +14,10 @@ spec:
   # Sunday, two hours after the nightly backup would have finished. Same zone as
   # the backup and for the same reason - see the note in cronjob-backup.yaml.
   schedule: "0 4 * * 0"
+  # Suspended 2026-11-03. The prunes kept deleting packs that snapshots still
+  # needed, and recovering them took three rounds (README, "When the check
+  # finds missing packs"). Off until the cause is known; false to resume.
+  suspend: true
   timeZone: Europe/Copenhagen
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
