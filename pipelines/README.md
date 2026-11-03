@@ -10,6 +10,7 @@ minute, so a merged change is live a minute later.
       proton.py      a Proton Mail export, loaded by hand from a packed file
       vk.py          the VK data archive, loaded by hand from a packed file
       google.py      the Google account, four DAGs (google.md)
+      garmin.py      the Garmin Connect account, and Garmin's data export (garmin.md)
       immich_sort.py Immich's photos described and given a type by Claude, the useless set aside
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
@@ -22,10 +23,13 @@ minute, so a merged change is live a minute later.
       google_auth.py     the Google consent, run once on the workstation
       google_takeout_pack.py  a Google Takeout export packed into one file for the DAG
       google_takeout_load.sh  the newest Takeout export packed, loaded and cleaned up, in one go
+      garmin_login.py    the one-time Garmin login, its tokens into the Secret
+      garmin_pack.py     a Garmin data export, FIT files included, packed into one file for the DAG
     telegram.md      what Telegram sends, its setup and renewal
     proton.md        loading a Proton Mail export, and cleaning up after
     vk.md            loading the VK data archive
     google.md        what Google sends, its consent and renewal
+    garmin.md        what Garmin sends, its login and renewal, loading its export
     sensitive.md     what is masked before data reaches the warehouse, and how
     tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
     .airflowignore   keeps Airflow's search for DAG files to dags/
@@ -51,7 +55,7 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `immich_usage`, `immich_users`, `immich_photos`, `immich_assets`, `immich_sort_runs`, `plex_libraries`, `plex_plays`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `vk_messages`, `vk_conversations`, `vk_audio`, `vk_items`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `immich_usage`, `immich_users`, `immich_photos`, `immich_assets`, `immich_sort_runs`, `plex_libraries`, `plex_plays`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `vk_messages`, `vk_conversations`, `vk_audio`, `vk_items`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `garmin_daily`, `garmin_sleep`, `garmin_activities`, `garmin_weigh_ins`, `garmin_fit_sessions`, `garmin_fit_records`, `garmin_records`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
 | `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily`, `google_daily`, `people`, `chat_media` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
@@ -77,6 +81,11 @@ Five patterns cover the sources:
   snapshot would be far too large. `accumulated_records()` returns the newest
   version of every record ever sent, minus the deleted ones. Tables, rebuilt
   every run.
+- **Days** (Garmin) - each run sends the last few days again, and the
+  history once, a day's record under the day. `accumulated_records()`
+  keeps each day's newest copy. The FIT recordings from Garmin's export are
+  millions of rows, so `ods.garmin_fit_records` is incremental, like the
+  points.
 - **Streams** (Home Assistant, logs, Kubernetes events) - incremental: each
   run appends what arrived since the last.
 
