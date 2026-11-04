@@ -140,13 +140,15 @@ switched on in the Garmin Connect app. The SparkyFitness app reads it from
 there.
 
 You get calories burned, steps, workouts, heart rate, sleep and weight. Body
-Battery, stress and intensity minutes stay in Garmin Connect.
+Battery, stress and intensity minutes do not come this way. The warehouse
+reads them, with everything else Garmin keeps, straight from Garmin Connect
+(`pipelines/garmin.md`), but not into SparkyFitness.
 
 Upstream also has a Garmin service that logs in to Garmin Connect directly.
-It is not deployed here, for three reasons:
+It is not deployed here, for two reasons:
 
-- It would keep the Garmin password in the cluster.
-- It uses an unofficial login, which breaks when Garmin changes theirs.
+- It would keep the Garmin password in the cluster. The warehouse's DAG
+  keeps only tokens.
 - Upstream's own Compose file still calls it work in progress.
 
 ## Things to know

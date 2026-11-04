@@ -215,3 +215,31 @@ models:
     columns:
       - name: item_key
         tests: [not_null, unique]
+  - name: garmin_daily
+    columns:
+      - name: day
+        tests: [not_null, unique]
+  - name: garmin_sleep
+    columns:
+      - name: day
+        tests: [not_null, unique]
+  - name: garmin_activities
+    columns:
+      - name: activity_id
+        tests: [not_null, unique]
+  - name: garmin_weigh_ins
+    columns:
+      - name: weigh_in_id
+        tests: [not_null, unique]
+  - name: garmin_fit_sessions
+    columns:
+      - name: session_key
+        tests: [not_null, unique]
+  - name: garmin_fit_records
+    columns:
+      - name: record_key
+        tests: [not_null, unique]
+  - name: garmin_records
+    columns:
+      - name: record_key
+        tests: [not_null]
