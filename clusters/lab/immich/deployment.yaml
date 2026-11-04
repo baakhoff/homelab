@@ -140,7 +140,7 @@ spec:
         # Jobs -> Missing queues them again. Listening on loopback, so
         # nothing outside the pod can reach it.
         - name: redis
-          image: docker.io/library/redis:8.10.2-alpine
+          image: docker.io/library/redis:8.10.3-alpine
           args: ["redis-server", "--bind", "127.0.0.1", "--save", "", "--appendonly", "no"]
           securityContext:
             allowPrivilegeEscalation: false
