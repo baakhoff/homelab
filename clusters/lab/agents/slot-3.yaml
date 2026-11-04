@@ -146,7 +146,11 @@ spec:
               cpu: 250m
               memory: 512Mi
             limits:
-              memory: 3Gi
+              # 6Gi, as slot-2 and slot-4, and the quota knows - see
+              # resourcequota.yaml. At 3Gi this container was OOM-killed on
+              # 2026-11-04, taking the server and every open session in the
+              # slot with it.
+              memory: 6Gi
           volumeMounts:
             - name: home
               mountPath: /home/node
