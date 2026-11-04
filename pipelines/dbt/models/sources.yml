@@ -41,5 +41,7 @@ sources:
         description: Plex API snapshots - the libraries, and the whole watch history, one play per record - one record per message in the ingest envelope.
       - name: google
         description: One Google account - Calendar, Contacts, Tasks, Drive and Gmail labels as snapshots, Gmail message metadata as changes, Data Portability exports - one record per message in the ingest envelope.
+      - name: steam
+        description: The Steam account - the library with each game's playtime every run, recently played games, achievements with their rarity, the profile, badges and friends - one record per message in the ingest envelope.
       - name: garmin
         description: The Garmin Connect account - each day's summary, sleep, stress, Body Battery, heart rate, HRV and more, the activities, snapshots of devices and records, and Garmin's data export with its activity FIT files - one record per message in the ingest envelope.

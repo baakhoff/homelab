@@ -6,7 +6,8 @@
 # Out: the internet, for git-sync to pull pipelines/ from GitHub, for
 # ingest_telegram, whose client reaches Telegram's servers on 443, for
 # the Google DAGs to reach Google's APIs, for ingest_garmin to reach
-# Garmin Connect, and for immich_sort to reach Anthropic's. Inside the
+# Garmin Connect, for ingest_steam to reach Steam's Web API, and for
+# immich_sort to reach Anthropic's. Inside the
 # lab, only the doors the DAGs need, each matched by a rule on the far side
 # that admits the scheduler by name:
 #

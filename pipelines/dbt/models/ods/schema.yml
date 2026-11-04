@@ -243,3 +243,19 @@ models:
     columns:
       - name: record_key
         tests: [not_null]
+  - name: steam_games
+    columns:
+      - name: appid
+        tests: [not_null, unique]
+  - name: steam_achievements
+    columns:
+      - name: achievement_key
+        tests: [not_null, unique]
+  - name: steam_friends
+    columns:
+      - name: steamid
+        tests: [not_null, unique]
+  - name: steam_records
+    columns:
+      - name: record_key
+        tests: [not_null]
