@@ -411,7 +411,7 @@ the problem in miniature.
   restores the isolation.
 - No cluster access, no LAN, no tailnet from inside, by policy. One
   exception: the `brand` pod reaches the Firefly API broker, Vikunja's API,
-  ClickHouse, Outline, Immich and Karakeep
+  ClickHouse, Outline, Immich, Karakeep and Manyfold
   (`clusters/lab/agents/networkpolicy-brand.yaml`), and the Kubernetes
   API, where it manages its own CronJobs in the `brand-jobs` namespace and
   nothing else (`clusters/lab/brand-jobs/README.md`).
