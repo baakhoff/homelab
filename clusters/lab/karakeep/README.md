@@ -56,12 +56,13 @@ Then on the phone, Share → Karakeep saves whatever is open.
 
 ## What it costs
 
-**AI:** each saved item is one request to `openai/gpt-5-mini` through
-OpenRouter, for tags and a summary, with the page cut to about 4,000
-tokens: a fraction of a cent each. The key is OpenRouter's, with a credit
-limit set there. To change the model, edit `INFERENCE_TEXT_MODEL` and
-`INFERENCE_IMAGE_MODEL` in `deployment.yaml`; any OpenRouter model that
-reads images and returns structured output works.
+**AI:** each saved item is one request to Claude Haiku 4.5
+(`claude-haiku-4-5`) through Anthropic's OpenAI-compatible API, for tags
+and a summary, with the page cut to about 4,000 tokens: well under a cent
+each. The key is an Anthropic API key of its own, in a workspace with a
+spend limit. To change the model, edit `INFERENCE_TEXT_MODEL` and
+`INFERENCE_IMAGE_MODEL` in `deployment.yaml`; any Claude model that reads
+images works.
 
 **Disk:** a page copy is usually under a few MB, a video up to 200 MB
 (`CRAWLER_VIDEO_DOWNLOAD_MAX_SIZE`). The volume is 20 GiB and grows in
@@ -104,14 +105,15 @@ Administration → OIDC Clients → Add:
 
 **2. The Secret, before this merges.** On the workstation from the repo
 root, on this branch, in zsh. Run the `read` lines one at a time: pasted together,
-the rest of the paste becomes the input. The OpenRouter key is a new one
-made at openrouter.ai → Keys, named `karakeep`, with a credit limit. The
+the rest of the paste becomes the input. The Anthropic key is a new one
+made at console.anthropic.com → API Keys, named `karakeep`, in a workspace
+with a spend limit. The
 other two values are generated and never shown.
 
 ```bash
 read -rs 'CID?client id: '; echo
 read -rs 'CSEC?client secret: '; echo
-read -rs 'ORK?openrouter key: '; echo
+read -rs 'AK?anthropic api key: '; echo
 
 kubectl create secret generic karakeep \
   --namespace karakeep \
@@ -119,17 +121,17 @@ kubectl create secret generic karakeep \
   --from-literal=MEILI_MASTER_KEY="$(openssl rand -hex 24)" \
   --from-literal=OAUTH_CLIENT_ID="$CID" \
   --from-literal=OAUTH_CLIENT_SECRET="$CSEC" \
-  --from-literal=OPENAI_API_KEY="$ORK" \
+  --from-literal=OPENAI_API_KEY="$AK" \
   --dry-run=client -o yaml > clusters/lab/karakeep/secret.sops.yaml
 
-unset CID CSEC ORK
+unset CID CSEC AK
 sops --encrypt --in-place clusters/lab/karakeep/secret.sops.yaml
 ```
 
 Create it once. `NEXTAUTH_SECRET` signs everyone's sessions, and
 `MEILI_MASTER_KEY` is fixed into the index when Meilisearch first starts:
 new values sign everyone out and lock Karakeep out of its own index. To
-change only the client or the OpenRouter key, edit in place with
+change only the client or the Anthropic key, edit in place with
 `sops clusters/lab/karakeep/secret.sops.yaml`.
 
 **3. The backup's Secret,** copied from an existing one without the values

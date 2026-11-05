@@ -77,7 +77,7 @@ spec:
             - configMapRef:
                 name: karakeep
             # NEXTAUTH_SECRET, MEILI_MASTER_KEY, OAUTH_CLIENT_ID,
-            # OAUTH_CLIENT_SECRET and OPENAI_API_KEY, created by hand into
+            # OAUTH_CLIENT_SECRET and OPENAI_API_KEY (an Anthropic API key), created by hand into
             # secret.sops.yaml beside this file - README, step 2. Until it
             # exists the pod waits in CreateContainerConfigError.
             - secretRef:
@@ -210,14 +210,16 @@ data:
   OAUTH_AUTO_REDIRECT: "true"
   DISABLE_PASSWORD_AUTH: "true"
 
-  # --- AI: tags and summaries, through OpenRouter ----------------------
+  # --- AI: tags and summaries, through Anthropic's API -----------------
   # One model for text and images; it reads the page, or the picture, and
   # answers with tags and a short summary, in English whatever the page's
-  # language. Embeddings stay off: with a base URL set Karakeep does not
-  # turn them on, and full-text search covers finding things.
-  OPENAI_BASE_URL: https://openrouter.ai/api/v1
-  INFERENCE_TEXT_MODEL: openai/gpt-5-mini
-  INFERENCE_IMAGE_MODEL: openai/gpt-5-mini
+  # language. Anthropic's OpenAI-compatible endpoint takes Karakeep's
+  # structured output as it sends it, a strict json_schema; if that ever
+  # breaks, INFERENCE_OUTPUT_SCHEMA: plain is the fallback. Embeddings stay
+  # off: Anthropic has none, and full-text search covers finding things.
+  OPENAI_BASE_URL: https://api.anthropic.com/v1/
+  INFERENCE_TEXT_MODEL: claude-haiku-4-5
+  INFERENCE_IMAGE_MODEL: claude-haiku-4-5
   INFERENCE_LANG: english
   INFERENCE_ENABLE_AUTO_SUMMARIZATION: "true"
   INFERENCE_CONTEXT_LENGTH: "4096"

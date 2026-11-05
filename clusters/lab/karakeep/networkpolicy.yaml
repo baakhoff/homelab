@@ -9,7 +9,7 @@
 #
 # Karakeep's own way out is not limited here, like the other apps that
 # sign in through Pocket ID by its public address: its outbound calls are
-# Pocket ID, OpenRouter, feeds, and the crawler's first plain fetch of a
+# Pocket ID, Anthropic's API, feeds, and the crawler's first plain fetch of a
 # link, which Karakeep itself refuses for private addresses.
 #
 # The browser is the part that follows redirects and runs a page's
