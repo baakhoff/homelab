@@ -92,8 +92,10 @@ SELECT name, round(playtime_minutes / 60) AS hours FROM ods.steam_games ORDER BY
 - **Some games' achievements answer with a server error**, every time:
   delisted games, games whose achievements were taken away. The run skips
   them, names them at the end of the `achievements` log, and asks again
-  next run. Only most games failing at once - Steam itself down - turns
-  the run red.
+  next run. Only most of ten or more games failing at once - Steam itself
+  down - turns the run red. Fewer than ten, and the games that always fail
+  can be most of them on their own; an outage then shows in the `library`
+  and `profile` tasks instead.
 - **The friends' names and profiles are other people's data**, as they
   show it publicly. They sit in ClickHouse, readable by its `admin` and
   `dbt` users, by CloudBeaver and by the `brand` agent, and in the nightly

@@ -52,6 +52,10 @@ PLAYTIME = "steam_playtime"
 # Between two calls. Steam allows 100,000 a day per key; the first run's
 # achievements are a few hundred.
 PAUSE = 0.3
+# Most of at least this many games answering 500 is Steam itself down. Under
+# it the games that always answer 500, asked again every run, can be most of
+# a quiet run's games on their own.
+BROKEN_QUORUM = 10
 
 
 class _NoStats(Exception):
@@ -253,7 +257,7 @@ def ingest_steam():
             print(f"achievements: Steam answered 500 for {len(broken)}, asked again next run: "
                   + ", ".join(broken))
         # Most games failing is Steam itself, and worth a red run.
-        if games and len(broken) > len(games) / 2:
+        if len(games) >= BROKEN_QUORUM and len(broken) > len(games) / 2:
             raise RuntimeError(f"Steam answered 500 for {len(broken)} of {len(games)} games")
 
     library()
