@@ -89,10 +89,10 @@ change or signing out of all devices ends it early in the same way.
   browser. If Bambu tightens that, runs fail with "Cloudflare turned the
   request away", and a newer curl_cffi, in `images/airflow/Dockerfile` and
   the `uv run` line above together, is the first thing to try.
-- **The print list is read page by page**, 100 at a time, older each time,
-  until a page brings nothing new. If Bambu ever stops honouring the page
-  marker, the run reads the newest 100 only and says so in its log; the
-  older prints already in `ods` stay.
+- **The print list is read page by page**, 100 at a time by offset, as
+  Bambu's own network plugin reads it, until a page brings nothing new. If
+  Bambu ever stops honouring the offset, the run reads the newest 100 only
+  and says so in its log; the older prints already in `ods` stay.
 - **The printer's LAN access code** comes with the printer list. It is a
   key to the printer on the home network, so the DAG drops it before the
   record leaves. The printer's serial number stays, as `device_id`.
