@@ -271,7 +271,3 @@ models:
     columns:
       - name: device_id
         tests: [not_null, unique]
-  - name: bambu_projects
-    columns:
-      - name: project_id
-        tests: [not_null, unique]

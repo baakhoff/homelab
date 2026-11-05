@@ -3,8 +3,8 @@
 Bambu Lab's cloud, as Bambu Studio and Bambu Handy call it: every print
 the account's printers ran through the cloud - model, plate, printer,
 start and end, finished or failed, and the filament of each AMS slot with
-its colour and grams - the printers themselves, and the projects. Records
-go out in ingest.py's envelope, masked first like every other source.
+its colour and grams - and the printers themselves. Records go out in
+ingest.py's envelope, masked first like every other source.
 
 Every run lists the whole print history: it is a few thousand records at
 most, so nothing is kept between runs. A print's record has the print's id,
@@ -154,7 +154,7 @@ class _Raw:
 
 @dag(
     dag_id="ingest_bambu",
-    description="The Bambu Lab account into raw.bambu: every print with its filament, the printers, the projects",
+    description="The Bambu Lab account into raw.bambu: every print with its filament, and the printers",
     schedule="25 */6 * * *",
     start_date=pendulum.datetime(2026, 11, 1, tz="UTC"),
     catchup=False,
@@ -175,10 +175,6 @@ def ingest_bambu():
         devices = b.get("/v1/iot-service/api/user/bind").get("devices") or []
         for d in devices:
             raw.send("devices", d["dev_id"], {k: v for k, v in d.items() if k not in DROP})
-
-        projects = b.get("/v1/iot-service/api/user/project").get("projects") or []
-        for p in projects:
-            raw.send("projects", p["project_id"], p)
 
         # Newest first. Each page asks for the prints after the oldest one
         # so far; a page with nothing new is the end - also if Bambu ever

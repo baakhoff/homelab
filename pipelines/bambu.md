@@ -12,7 +12,6 @@ no public API for this; what is known of the private one is in
 | `ods.bambu_prints` | print: title, model and plate, printer, start, end and real duration, finished or failed, the slicer's estimated time and grams |
 | `ods.bambu_print_filaments` | print and AMS slot it drew from: filament type, Bambu's filament id, colour, grams |
 | `ods.bambu_printers` | printer bound to the account: name, product, nozzle, online, what it was doing at the last run |
-| `ods.bambu_projects` | project in the cloud: name, model, created, updated |
 
 Every run reads the whole print history: a few thousand prints at most.
 A print deleted in the app stays in `ods`.
@@ -28,6 +27,8 @@ all of it. `duration_s`, from start to end, is the real time.
   sends those over MQTT, and only while connected. Not read.
 - **Timelapses and the sliced files**: files, not rows, on the printer's
   SD card. They belong with the NAS archive.
+- **Projects**: Bambu's project list answers 405 to the slicer's call
+  (November 2026), so it is not read. Each print names its model.
 - **Cover images**: each print's record keeps the link Bambu gave, but the
   link expires.
 
