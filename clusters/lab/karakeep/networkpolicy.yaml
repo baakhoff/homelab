@@ -6,6 +6,9 @@
 # - Airflow's scheduler, for the ingest_karakeep DAG, with an API key
 #   (pipelines/dags/ingest.py; the egress rule is in
 #   clusters/lab/airflow/networkpolicy.yaml).
+# - The brand agent's pod, with the owner's own key (README, step 5); the
+#   egress rule is in clusters/lab/agents/networkpolicy-brand.yaml. Not its
+#   scheduled jobs in brand-jobs, and no other agent.
 #
 # Karakeep's own way out is not limited here, like the other apps that
 # sign in through Pocket ID by its public address: its outbound calls are
@@ -43,6 +46,16 @@ spec:
           podSelector:
             matchLabels:
               component: scheduler
+      ports:
+        - protocol: TCP
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agents
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: brand
       ports:
         - protocol: TCP
           port: 3000

@@ -182,6 +182,17 @@ new DAG until someone does - and trigger it, and after it the `warehouse`
 DAG. Until the key exists, that DAG's runs fail and nothing else is
 affected.
 
+**5. The brand agent's key.** In your own Karakeep account, Settings → API
+Keys → New, named `brand`. Karakeep's keys are not scoped: this one reads,
+saves, tags and deletes everything in your account, as you can. The pages
+saved there are text from outside the house, and brand has the open
+internet, so a page written to steer an AI could steer brand - the same
+trade as its Immich key. Put it in brand's `~/.config/brand/secrets.env` as
+`KARAKEEP_API_KEY`, with `KARAKEEP_URL=http://karakeep.karakeep.svc.cluster.local/api/v1`,
+then restart brand so it reads them:
+`kubectl -n agents delete pod -l app.kubernetes.io/name=brand`. Deleting
+the key in Karakeep takes the access back.
+
 ## Things to know
 
 - **Search finds nothing after a restore,** or after the index volume was
