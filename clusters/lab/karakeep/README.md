@@ -103,15 +103,15 @@ Administration → OIDC Clients → Add:
 | Allowed User Groups | whoever saves links here |
 
 **2. The Secret, before this merges.** On the workstation from the repo
-root, on this branch. Run the `read` lines one at a time: pasted together,
+root, on this branch, in zsh. Run the `read` lines one at a time: pasted together,
 the rest of the paste becomes the input. The OpenRouter key is a new one
 made at openrouter.ai → Keys, named `karakeep`, with a credit limit. The
 other two values are generated and never shown.
 
 ```bash
-read -rsp 'client id: ' CID; echo
-read -rsp 'client secret: ' CSEC; echo
-read -rsp 'openrouter key: ' ORK; echo
+read -rs 'CID?client id: '; echo
+read -rs 'CSEC?client secret: '; echo
+read -rs 'ORK?openrouter key: '; echo
 
 kubectl create secret generic karakeep \
   --namespace karakeep \
@@ -162,16 +162,17 @@ API Keys → New, named `warehouse`. On the workstation from the repo root,
 one line at a time:
 
 ```bash
-read -rsp 'karakeep api key: ' KK; echo
+read -rs 'KK?karakeep api key: '; echo
 sops set clusters/lab/airflow/sources.sops.yaml '["data"]["KARAKEEP_API_KEY"]' "\"$(printf %s "$KK" | base64 | tr -d '\n')\""
 unset KK
 ```
 
 Commit and push. Once Flux has applied it, restart the scheduler, because a
-pod reads its environment only when it starts:
+pod reads its environment only when it starts. Delete the pod rather than
+`rollout restart`, which Flux undoes:
 
 ```bash
-kubectl -n airflow rollout restart deployment/airflow-scheduler
+kubectl -n airflow delete pod -l component=scheduler
 ```
 
 Then, in the Airflow UI, switch `ingest_karakeep` on - Airflow pauses every
