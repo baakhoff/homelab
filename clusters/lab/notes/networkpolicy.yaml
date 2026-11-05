@@ -3,12 +3,14 @@
 # - ingress-nginx, for browsers, through the gate in ingress.yaml.
 # - The brand agent pod, which reads and writes documents through Outline's
 #   API with an API key (README, step 3). The matching egress rule is in
-#   clusters/lab/agents/networkpolicy-brand.yaml.
+#   clusters/lab/agents/networkpolicy-brand.yaml. Its scheduled jobs in
+#   brand-jobs (the weekly wiki import) come in the same way, with their own
+#   key; egress in clusters/lab/brand-jobs/networkpolicy.yaml.
 # - Airflow's scheduler, for the ingest_outline DAG, which copies documents
 #   into the warehouse (pipelines/dags/ingest.py; the egress rule is in
 #   clusters/lab/airflow/networkpolicy.yaml).
 #
-# The last two reach Outline ungated, which is safe because the API answers
+# These reach Outline ungated, which is safe because the API answers
 # nothing without a key, and keys are only made by signed-in users.
 #
 # And one way in to Postgres: Outline itself.
@@ -39,6 +41,13 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: brand
+      ports:
+        - protocol: TCP
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: brand-jobs
       ports:
         - protocol: TCP
           port: 3000

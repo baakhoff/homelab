@@ -13,6 +13,7 @@ is fine as its source.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pendulum
@@ -21,12 +22,31 @@ from cosmos.constants import InvocationMode, LoadMode
 
 DBT_PROJECT = Path(__file__).resolve().parent.parent / "dbt"
 DBT_EXECUTABLE = "/opt/dbt/bin/dbt"
+# The models another Flux source mounts (dbt/extra links here).
+EXTRA = Path("/opt/airflow/extra")
+
+
+def _extra_version() -> str:
+    """A fingerprint of the mounted models. Cosmos keys its cache of `dbt ls`
+    on this project's files, and the mount is outside them: without this, a
+    model arriving there would stay out of the DAG until something here
+    changed."""
+    h = hashlib.sha256()
+    if EXTRA.is_dir():
+        for p in sorted(EXTRA.iterdir()):
+            if p.suffix in (".sql", ".yml", ".yaml") and not p.name.startswith(".") and p.is_file():
+                h.update(p.name.encode() + b"\0" + p.read_bytes())
+    return h.hexdigest()[:16]
+
 
 warehouse = DbtDag(
     dag_id="warehouse",
     description="raw -> ods -> ads -> dm, every model in pipelines/dbt/",
     # No packages to install: the project uses none.
-    project_config=ProjectConfig(dbt_project_path=DBT_PROJECT, install_dbt_deps=False),
+    # The fingerprint goes in as an environment variable, which is part of
+    # Cosmos's cache key; dbt itself ignores it.
+    project_config=ProjectConfig(dbt_project_path=DBT_PROJECT, install_dbt_deps=False,
+                                 env_vars={"WAREHOUSE_EXTRA_VERSION": _extra_version()}),
     profile_config=ProfileConfig(
         profile_name="warehouse",
         target_name="lab",

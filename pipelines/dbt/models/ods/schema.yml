@@ -31,6 +31,34 @@ models:
     columns:
       - name: collection_id
         tests: [not_null, unique]
+  - name: immich_usage
+    columns:
+      - name: user_id
+        tests: [not_null, unique]
+  - name: immich_users
+    columns:
+      - name: user_id
+        tests: [not_null, unique]
+  - name: plex_libraries
+    columns:
+      - name: library_uuid
+        tests: [not_null, unique]
+  - name: plex_plays
+    columns:
+      - name: history_key
+        tests: [not_null, unique]
+  - name: immich_sort_runs
+    columns:
+      - name: attempt_key
+        tests: [not_null, unique]
+  - name: immich_photos
+    columns:
+      - name: asset_id
+        tests: [not_null, unique]
+  - name: immich_assets
+    columns:
+      - name: asset_id
+        tests: [not_null, unique]
   - name: karakeep_bookmarks
     columns:
       - name: bookmark_id
@@ -93,9 +121,165 @@ models:
         tests: [not_null, unique]
   - name: telegram_chats
     columns:
-      - name: chat_id
+      - name: chat_key
         tests: [not_null, unique]
   - name: telegram_messages
     columns:
       - name: message_key
+        tests: [not_null, unique]
+  - name: proton_messages
+    columns:
+      - name: message_key
+        tests: [not_null, unique]
+  - name: proton_attachments
+    columns:
+      - name: message_key
+        tests: [not_null]
+  - name: google_gmail_messages
+    columns:
+      - name: message_id
+        tests: [not_null, unique]
+  - name: google_gmail_labels
+    columns:
+      - name: label_id
+        tests: [not_null, unique]
+  - name: google_calendars
+    columns:
+      - name: calendar_id
+        tests: [not_null, unique]
+  - name: google_calendar_events
+    columns:
+      - name: event_key
+        tests: [not_null, unique]
+  - name: google_contacts
+    columns:
+      - name: contact_id
+        tests: [not_null, unique]
+  - name: google_contact_groups
+    columns:
+      - name: group_id
+        tests: [not_null, unique]
+  - name: google_tasks
+    columns:
+      - name: task_key
+        tests: [not_null, unique]
+  - name: google_drive_files
+    columns:
+      - name: file_id
+        tests: [not_null, unique]
+  - name: google_activity
+    columns:
+      - name: activity_id
+        tests: [not_null, unique]
+  - name: google_chrome_history
+    columns:
+      - name: visit_id
+        tests: [not_null, unique]
+  - name: google_gmail_bodies
+    columns:
+      - name: message_id_header
+        tests: [not_null, unique]
+  - name: google_fit_daily
+    columns:
+      - name: day
+        tests: [not_null, unique]
+  - name: google_fit_sessions
+    columns:
+      - name: session_key
+        tests: [not_null, unique]
+  - name: google_keep_notes
+    columns:
+      - name: note_key
+        tests: [not_null, unique]
+  - name: google_chat_messages
+    columns:
+      - name: message_id
+        tests: [not_null, unique]
+  - name: google_pay_transactions
+    columns:
+      - name: transaction_key
+        tests: [not_null, unique]
+  - name: google_maps_places
+    columns:
+      - name: place_key
+        tests: [not_null, unique]
+  - name: google_saved_items
+    columns:
+      - name: item_key
+        tests: [not_null, unique]
+  - name: google_takeout_records
+    columns:
+      - name: record_key
+        tests: [not_null]
+  - name: vk_messages
+    columns:
+      - name: message_key
+        tests: [not_null, unique]
+  - name: vk_conversations
+    columns:
+      - name: conversation_id
+        tests: [not_null, unique]
+  - name: vk_audio
+    columns:
+      - name: track_key
+        tests: [not_null, unique]
+  - name: vk_items
+    columns:
+      - name: item_key
+        tests: [not_null, unique]
+  - name: garmin_daily
+    columns:
+      - name: day
+        tests: [not_null, unique]
+  - name: garmin_sleep
+    columns:
+      - name: day
+        tests: [not_null, unique]
+  - name: garmin_activities
+    columns:
+      - name: activity_id
+        tests: [not_null, unique]
+  - name: garmin_weigh_ins
+    columns:
+      - name: weigh_in_id
+        tests: [not_null, unique]
+  - name: garmin_fit_sessions
+    columns:
+      - name: session_key
+        tests: [not_null, unique]
+  - name: garmin_fit_records
+    columns:
+      - name: record_key
+        tests: [not_null, unique]
+  - name: garmin_records
+    columns:
+      - name: record_key
+        tests: [not_null]
+  - name: steam_games
+    columns:
+      - name: appid
+        tests: [not_null, unique]
+  - name: steam_achievements
+    columns:
+      - name: achievement_key
+        tests: [not_null, unique]
+  - name: steam_friends
+    columns:
+      - name: steamid
+        tests: [not_null, unique]
+  - name: steam_records
+    columns:
+      - name: record_key
+        tests: [not_null]
+  - name: bambu_prints
+    columns:
+      - name: task_id
+        tests: [not_null, unique]
+  - name: bambu_print_filaments
+    columns:
+      - name: filament_key
+        tests: [not_null, unique]
+  - name: bambu_printers
+    columns:
+      - name: device_id
         tests: [not_null, unique]

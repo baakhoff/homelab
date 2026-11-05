@@ -24,6 +24,7 @@ replaced as the build changes, and the one it replaces moves to
 |---|---|---|
 | Raspberry Pi 3B+ `exitnode` | 4× Cortex-A53 @ 1.4 GHz, 1 GB RAM — [details](docs/hardware.md) | in service: Pi-hole DNS, Tailscale exit node + subnet router, wired |
 | 3× HP Elite Mini 600 G9 | i5-12500T · 16 GB DDR5 · 512 GB NVMe · 1 GbE — [details](docs/hardware.md) | in service: a three-node k3s cluster with replicated Ceph storage — [bring-up](docs/runbooks/node-bring-up.md) |
+| NAS `nas` | Pentium Gold G5400 · 16 GB RAM · 256 GB NVMe boot · WD Red Plus 2 TB · 1 GbE — [details](docs/hardware.md#nas--nas) | installed: TrueNAS Community Edition, wired, alerting to Telegram; pool `tank` with an encrypted SMB share and NFS shares for Immich and Plex, snapshotted, single disk, no off-site copy — [bring-up](docs/runbooks/nas-bring-up.md) |
 | Switch | TP-Link TL-SG108E, 8 × 1 GbE, web-managed — [details](docs/hardware.md) | in service: the wired backbone — [the network](docs/network.md) |
 | Rack | 10″ 3D-printed, 12U — [KWS Rack V2 and the printed mounts](docs/hardware.md#rack) | in service: switch, patch panel, the three mini PCs and their power adapters are mounted; cables still to be dressed |
 
@@ -32,8 +33,9 @@ Hardware that has left service is in [the lab over time](docs/history.md).
 ## Services
 
 The cluster's web services sign in with a Pocket ID passkey, either through
-the app's own login or through the oauth2-proxy gate. Vaultwarden is the
-exception: it keeps its own master password.
+the app's own login or through the oauth2-proxy gate. Two exceptions:
+Vaultwarden keeps its own master password, and Plex signs in with plex.tv
+accounts, the only login its TV apps know.
 
 | Service | What it is |
 |---|---|
@@ -61,6 +63,8 @@ exception: it keeps its own master password.
 | [Karakeep](https://karakeep.app) | Links, notes and files saved from the browser or the phone's share menu, with a copy of each page kept, AI tags and summaries, and full-text search. |
 | [Dawarich](https://github.com/Freika/dawarich) | Location history from the phone on a map: trips, visits, countries and stats, a self-hosted Google Timeline. |
 | [Photon](https://github.com/komoot/photon) | Turns Dawarich's coordinates into streets, cities and places, from OpenStreetMap, without sending them out of the lab. |
+| [Immich](https://immich.app) | The family's photos and videos: phones back up to it, with faces, places and search in any language, and the library on the NAS. |
+| [Plex](https://www.plex.tv) | Films and series from the NAS to the TVs, phones and browsers, converting on the cluster's Intel graphics what a device cannot play. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
 | [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
@@ -73,9 +77,12 @@ exception: it keeps its own master password.
 ## Where things run
 
 - **node02, node03, node04** — k3s with embedded etcd, all three as servers,
-  reconciled by Flux from `clusters/lab/`. Rook-Ceph runs an OSD on each and
+  reconciled by Flux from `clusters/lab/`, and from a second, private
+  repository for what is better not published
+  ([how](clusters/lab/private/README.md)). Rook-Ceph runs an OSD on each and
   serves replicated block storage as the cluster's default StorageClass, with a
-  CSI snapshot class on top of it. cert-manager and ingress-nginx,
+  CSI snapshot class on top of it; csi-driver-nfs mounts NAS shares, one
+  static volume per share and no StorageClass. cert-manager and ingress-nginx,
   kube-prometheus-stack and Loki, Headlamp and Homepage, Vaultwarden, epicurus
   ([ADR 0007](docs/decisions/0007-epicurus-rebuilt-on-kubernetes.md)), and the
   agent pods: Claude Code Remote Control servers on volumes that follow the pod
@@ -103,6 +110,11 @@ exception: it keeps its own master password.
   for calories, meals and exercise ([how](clusters/lab/sparkyfitness/README.md)), and
   Dawarich keeping the phones' location history ([how](clusters/lab/dawarich/README.md)), with
   Photon naming its streets and places ([how](clusters/lab/photon/README.md)), and
+  Immich for the family's photos and videos, its library on the NAS
+  ([how](clusters/lab/immich/README.md)), and
+  Plex for films and series, also from the NAS, transcoding on the nodes'
+  Intel graphics through Intel's device plugin
+  ([how](clusters/lab/plex/README.md)), and
   Outline for notes and documents ([how](clusters/lab/notes/README.md)), and
   Karakeep keeping saved links with a copy of each page ([how](clusters/lab/karakeep/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
@@ -118,6 +130,13 @@ exception: it keeps its own master password.
   subnet router, so LAN-only things are reachable from anywhere on the tailnet
   ([how](docs/runbooks/pi-exitnode.md)). Also the lab's jump host and the sender
   for Wake-on-LAN, being the only always-on Linux box on the wired segment.
+- **nas** — TrueNAS Community Edition on its own box, outside the cluster
+  ([why](docs/decisions/0008-truenas-for-the-nas.md),
+  [how](docs/runbooks/nas-bring-up.md)). On the LAN and alerting to the same
+  Telegram chat as Alertmanager. One pool on one disk, snapshotted hourly and
+  daily, shares an encrypted `personal` dataset to Windows over SMB, and
+  Immich's photo library and Plex's films to the cluster's nodes over NFS. No
+  redundancy and no off-site copy, so it is not the only copy of anything.
 - **Workstation** — a client: `kubectl`, `flux`, git. Hosts nothing.
 
 Every machine is wired to one managed switch; addressing, the port map and how
@@ -143,7 +162,7 @@ docs/
   network.md        # addressing, the switch, how the lab is reached from outside
   history.md        # what the lab looked like before it looked like this
   decisions/        # architecture decision records (ADRs)
-  runbooks/         # disaster recovery, the Pi, the cluster nodes, the agent pods
+  runbooks/         # disaster recovery, the Pi, the cluster nodes, the NAS, the agent pods
 ```
 
 ## Principles

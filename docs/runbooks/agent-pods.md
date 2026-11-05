@@ -14,7 +14,12 @@ serves many concurrent sessions, each in its own git worktree of the project.
 **Why one pod per project.** Each one gets its own limits, its own replica
 count (0 = parked), and the scheduler places it on whichever node has room. So
 they are bounded together by the cluster, not by one node, and a node reboot
-takes down a share of them rather than all.
+takes down a share of them rather than all. A spread preference
+(`topologySpreadConstraints`, explained in `homelab.yaml`) keeps them from
+gathering on one node: their requests are small beside what they use, and on
+2026-10-30 seven of the eight sat on node04 at 88% of its memory. It applies
+when a pod is placed, so `kubectl -n agents get pods -o wide` after a node
+comes back may show them uneven until they restart.
 
 **Named pods and general slots.** A pod with a `REPO_URL` clones that repo on
 first start and serves sessions from it. A pod without one is a **general
@@ -343,6 +348,18 @@ expects `yes`, then `no`. A `yes` to the second means the Role in
 with `claude auth login` through `kubectl exec`, as above. The marker file
 stays.
 
+Once it has ended, the pod crash-loops on `You must be logged in to use Remote
+Control`, and there is nothing to exec into. Log in from a throwaway pod on the
+same node and volume instead - the volume is ReadWriteOnce, so the node has to
+be the one the slot is on (`kubectl -n agents get pods -o wide`). For slot-4 on
+node03:
+
+```bash
+kubectl -n agents run slot-4-login --rm -it --restart=Never --image=ghcr.io/baakhoff/claude-agent:2.1.280 --overrides='{"spec":{"nodeName":"node03","securityContext":{"runAsNonRoot":true,"runAsUser":1000,"runAsGroup":1000,"fsGroup":1000,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"slot-4-login","image":"ghcr.io/baakhoff/claude-agent:2.1.280","command":["claude","auth","login"],"stdin":true,"tty":true,"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}},"resources":{"requests":{"cpu":"50m","memory":"64Mi"},"limits":{"memory":"1Gi"}},"volumeMounts":[{"name":"home","mountPath":"/home/node"}]}],"volumes":[{"name":"home","persistentVolumeClaim":{"claimName":"slot-4"}}]}}'
+```
+
+The slot picks the login up at its next restart.
+
 ## An ssh key on the volume
 
 A project whose remote is ssh needs a private key, and the natural place is
@@ -393,8 +410,9 @@ the problem in miniature.
   share a directory and can edit the same files. Giving the slot a `REPO_URL`
   restores the isolation.
 - No cluster access, no LAN, no tailnet from inside, by policy. One
-  exception: the `brand` pod reaches the Firefly API broker and Vikunja's
-  API (`clusters/lab/agents/networkpolicy-brand.yaml`), and the Kubernetes
+  exception: the `brand` pod reaches the Firefly API broker, Vikunja's API,
+  ClickHouse, Outline and Immich
+  (`clusters/lab/agents/networkpolicy-brand.yaml`), and the Kubernetes
   API, where it manages its own CronJobs in the `brand-jobs` namespace and
   nothing else (`clusters/lab/brand-jobs/README.md`).
 - Deleting a project's manifest prunes its volume: the checkout, the login and

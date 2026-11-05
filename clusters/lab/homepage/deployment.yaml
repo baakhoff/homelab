@@ -20,7 +20,7 @@ spec:
         # never see a ConfigMap change, so a new pod is the only way one
         # lands, and a changed pod template is how Flux makes a new pod
         # without anyone running `rollout restart` by hand.
-        homepage.lab/config-revision: "2"
+        homepage.lab/config-revision: "3"
     spec:
       serviceAccountName: homepage
       automountServiceAccountToken: true

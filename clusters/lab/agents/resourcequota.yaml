@@ -45,6 +45,14 @@ spec:
     # It is a slot for the backup, not a ninth agent: a ninth agent pod would
     # take it, and that night's backup of the agents would fail at admission.
     #
+    # slot-2 followed slot-4 to 6Gi, after five OOM kills at 3Gi in one
+    # afternoon - its file records the measurement - so 3Gi more again:
+    #   limits  28928Mi + 3072Mi    = 32000Mi
+    #
+    # slot-3 followed, after an OOM kill at 3Gi on 2026-11-04. Its Xray
+    # sidecar's 256Mi stays as counted above:
+    #   limits  32000Mi + 3072Mi    = 35072Mi
+    #
     # requests.cpu was previously "3" against a stated six times 250m, which is
     # 1.5 - the comment and the number disagreed. Corrected here rather than
     # scaled up, so the arithmetic above is the arithmetic in the file.
@@ -65,5 +73,5 @@ spec:
     # agent's build causes more mystery latency than it prevents.
     requests.cpu: "2150m"
     requests.memory: 4416Mi
-    limits.memory: 28928Mi
+    limits.memory: 35072Mi
     pods: "9"

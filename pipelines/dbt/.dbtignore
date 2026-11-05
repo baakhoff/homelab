@@ -1,0 +1,4 @@
+# A ConfigMap mounted as a folder keeps each file twice: once at the top, and
+# once in a hidden, timestamped folder beside it. dbt would find every model
+# twice (dbt_project.yml, model-paths).
+..*/

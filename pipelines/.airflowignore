@@ -1,0 +1,9 @@
+# Airflow searches this whole directory for DAG files; only dags/ has any.
+# dbt/ must stay out of the search: dbt/extra links to the private models'
+# ConfigMap mount, which keeps its files in a hidden, timestamped folder
+# reached under two names, and Airflow, following links, takes that for a
+# loop and stops the DAG processor before it reads a single file. tests/
+# and tools/ are run on a workstation, never by Airflow.
+dbt/
+tests/
+tools/

@@ -3,8 +3,12 @@
 # In: each other (the scheduler serves task logs to the API server, every
 # component reaches Postgres), and the UI through the admin gate.
 #
-# Out: the internet, for git-sync to pull pipelines/ from GitHub, and for
-# ingest_telegram, whose client reaches Telegram's servers on 443. Inside the
+# Out: the internet, for git-sync to pull pipelines/ from GitHub, for
+# ingest_telegram, whose client reaches Telegram's servers on 443, for
+# the Google DAGs to reach Google's APIs, for ingest_garmin to reach
+# Garmin Connect, for ingest_steam to reach Steam's Web API, for
+# ingest_bambu to reach Bambu Lab's cloud, and for
+# immich_sort to reach Anthropic's. Inside the
 # lab, only the doors the DAGs need, each matched by a rule on the far side
 # that admits the scheduler by name:
 #
@@ -16,6 +20,8 @@
 #   sparkyfitness   3010, the server itself rather than its frontend
 #   dawarich        3000
 #   notes           3000, Outline
+#   immich          2283
+#   plex            32400
 #   karakeep        3000
 #   cloudbeaver     its Postgres 5432, for the usage DAG
 #
@@ -161,6 +167,26 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: immich
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: immich-server
+      ports:
+        - protocol: TCP
+          port: 2283
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: plex
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: plex
+      ports:
+        - protocol: TCP
+          port: 32400
     - to:
         - namespaceSelector:
             matchLabels:

@@ -205,6 +205,93 @@ def _outline_pages(session: requests.Session, url: str):
         offset += PAGE_SIZE
 
 
+def _immich_pages(session: requests.Session, url: str):
+    """No paging: each endpoint answers in one go. server/statistics is one
+    object, and what is kept is its per-user breakdown - photos, videos and
+    bytes for each account; admin/users is a list.
+    """
+    r = session.get(url, timeout=TIMEOUT)
+    if url.endswith("/server/statistics"):
+        yield from _json(r, "usageByUser", url)["usageByUser"]
+    else:
+        yield from _json(r, None, url)
+
+
+def _plex_pages(session: requests.Session, url: str):
+    """Plex answers {"MediaContainer": {...}} with the records in its
+    "Metadata" list (watch history) or its "Directory" list (libraries); an
+    empty container has neither. Paged with X-Plex-Container-Start and
+    -Size; a page shorter than asked for is the last.
+    """
+    start = 0
+    while True:
+        r = session.get(url, params={"X-Plex-Container-Start": start,
+                                     "X-Plex-Container-Size": PAGE_SIZE}, timeout=TIMEOUT)
+        r.raise_for_status()
+        try:
+            container = r.json()["MediaContainer"]
+        except (ValueError, KeyError, TypeError):
+            raise RuntimeError(f"{url} did not answer a Plex MediaContainer")
+        items = container.get("Metadata") or container.get("Directory") or []
+        yield from items
+        if len(items) < PAGE_SIZE:
+            return
+        start += PAGE_SIZE
+
+
+def _records_pages(session: requests.Session, url: str):
+    """A plain list, or {"page", "pageSize", "totalRecords", "records": [...]}
+    by page number - an API whose list endpoints answer whole and ignore the
+    paging parameters, and whose long ones page.
+    """
+    page = 1
+    while True:
+        r = session.get(url, params={"page": page, "pageSize": PAGE_SIZE}, timeout=TIMEOUT)
+        r.raise_for_status()
+        try:
+            body = r.json()
+        except ValueError:
+            raise RuntimeError(f"{url} did not answer JSON")
+        if isinstance(body, list):
+            yield from body
+            return
+        if not isinstance(body, dict) or not isinstance(body.get("records"), list):
+            raise RuntimeError(f"{url} answered neither a list nor a page of records")
+        yield from body["records"]
+        if page * PAGE_SIZE >= body.get("totalRecords", 0):
+            return
+        page += 1
+
+
+def _offset_pages(session: requests.Session, url: str):
+    """{"data": [...], "total": n}, paged by row offset ("start") and page
+    size ("length"); without a length such an API answers everything at
+    once.
+    """
+    start = 0
+    while True:
+        r = session.get(url, params={"start": start, "length": PAGE_SIZE}, timeout=TIMEOUT)
+        body = _json(r, "data", url)
+        yield from body["data"]
+        start += PAGE_SIZE
+        if start >= body.get("total", 0) or not body["data"]:
+            return
+
+
+def _skip_pages(session: requests.Session, url: str):
+    """{"pageInfo": {"results": n, ...}, "results": [...]}, paged by "take"
+    and "skip".
+    """
+    skip = 0
+    while True:
+        r = session.get(url, params={"take": PAGE_SIZE, "skip": skip}, timeout=TIMEOUT)
+        body = _json(r, "results", url)
+        yield from body["results"]
+        skip += PAGE_SIZE
+        if skip >= body.get("pageInfo", {}).get("results", 0) or not body["results"]:
+            return
+
+
 def _karakeep_pages(session: requests.Session, url: str):
     """Karakeep's REST API: each list answers {"<what>": [...]} under the
     endpoint's own name, and the long ones add "nextCursor", null on the
@@ -307,6 +394,30 @@ SOURCES = {
         "endpoints": ["documents.list", "collections.list"],
         "schedule": "45 */6 * * *",
     },
+    # Counts and sizes only: how many photos and videos each account holds,
+    # and the accounts. Each photo's own row - its name, place, type and
+    # description - comes from immich_sort.py instead. An admin's key limited
+    # to server.statistics and adminUser.read.
+    "immich": {
+        "base": "http://immich-server.immich.svc.cluster.local/api",
+        "auth": ("x-api-key:", "IMMICH_API_KEY"),
+        "pages": _immich_pages,
+        "endpoints": ["server/statistics", "admin/users"],
+        # Statistics has one entry per account, named by its user.
+        "ids": {"server/statistics": "userId"},
+        "schedule": "50 */6 * * *",
+    },
+    # The libraries, and every play: what was watched, by which account,
+    # when. Plex has no scoped keys, so this is the server owner's own
+    # plex.tv token (clusters/lab/plex/README.md, step 6).
+    "plex": {
+        "base": "http://plex.plex.svc.cluster.local:32400",
+        "auth": ("X-Plex-Token:", "PLEX_TOKEN"),
+        "pages": _plex_pages,
+        "endpoints": ["library/sections", "status/sessions/history/all"],
+        "ids": {"library/sections": "uuid", "status/sessions/history/all": "historyKey"},
+        "schedule": "55 */6 * * *",
+    },
     # Saved links with their text, the highlights made in them, and the
     # tags, lists and feeds that sort them. Karakeep's bookmarks are each
     # account's own, so this is the key of the account whose bookmarks the
@@ -321,6 +432,53 @@ SOURCES = {
 }
 
 
+# Sources kept outside this repository: a JSON object shaped like SOURCES,
+# sources.json in the ConfigMap airflow-extra that another Flux source adds
+# and the scheduler mounts at /opt/airflow/extra (clusters/lab/private/).
+# "pages" names a pager in PAGERS, "auth" is a [scheme, variable] pair, and
+# a source of the same name here is replaced. Absent, there are none. A file,
+# or an entry, that does not read is reported and left out, rather than
+# taking every other ingest DAG down with it.
+EXTRA = os.path.join(os.environ.get("AIRFLOW_EXTRA", "/opt/airflow/extra"), "sources.json")
+PAGERS = {"records": _records_pages, "offset": _offset_pages, "skip": _skip_pages}
+
+
+def _extra_source(cfg) -> dict:
+    """One entry of sources.json, checked and made the shape of SOURCES'."""
+    if not (isinstance(cfg, dict) and isinstance(cfg.get("base"), str) and isinstance(cfg.get("schedule"), str)
+            and isinstance(cfg.get("endpoints"), list) and cfg["endpoints"]
+            and all(isinstance(e, str) for e in cfg["endpoints"]) and cfg.get("pages") in PAGERS):
+        raise ValueError("needs base, schedule, endpoints and a known pages")
+    auth = cfg.get("auth")
+    if auth is not None and not (isinstance(auth, list) and len(auth) == 2 and all(isinstance(x, str) for x in auth)):
+        raise ValueError("auth is a [scheme, variable] pair or null")
+    return {**cfg, "pages": PAGERS[cfg["pages"]], "auth": tuple(auth) if auth else None}
+
+
+def _extra_sources() -> dict:
+    try:
+        with open(EXTRA, encoding="utf-8") as f:
+            extra = json.load(f)
+    except FileNotFoundError:
+        return {}
+    except ValueError as e:
+        print(f"{EXTRA} left out: {e}")
+        return {}
+    if not isinstance(extra, dict):
+        print(f"{EXTRA} left out: not an object")
+        return {}
+    found = {}
+    for name, cfg in extra.items():
+        try:
+            found[name] = _extra_source(cfg)
+        except ValueError as e:  # this one is left out, the others stay
+            print(f"{EXTRA}: {name} left out: {e}")
+    return found
+
+
+SOURCES.update(_extra_sources())
+
+
 def _session(auth, headers: dict | None = None) -> requests.Session:
     s = requests.Session()
     s.headers["Accept"] = "application/json"
@@ -330,7 +488,13 @@ def _session(auth, headers: dict | None = None) -> requests.Session:
         token = os.environ.get(env)
         if not token:
             raise RuntimeError(f"{env} is not set - see clusters/lab/airflow/README.md")
-        s.headers["Authorization"] = f"{scheme} {token}"
+        # A scheme ending in a colon is a header of its own instead of
+        # "Authorization: <scheme> <token>": Immich reads API keys from
+        # x-api-key and takes a Bearer token for a login session.
+        if scheme.endswith(":"):
+            s.headers[scheme[:-1]] = token
+        else:
+            s.headers["Authorization"] = f"{scheme} {token}"
     return s
 
 

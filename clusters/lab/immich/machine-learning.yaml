@@ -1,0 +1,121 @@
+# Immich's machine learning: smart search (CLIP), faces and text in photos,
+# on the CPU. The server sends it one image at a time and stores what comes
+# back; this pod keeps nothing but the models, and never sees the library.
+apiVersion: v1
+kind: Service
+metadata:
+  # This exact name, so the server's default machine-learning URL,
+  # http://immich-machine-learning:3003, works unchanged.
+  name: immich-machine-learning
+  namespace: immich
+spec:
+  selector:
+    app.kubernetes.io/name: immich-machine-learning
+  ports:
+    - name: http
+      port: 3003
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-machine-learning
+  namespace: immich
+spec:
+  replicas: 1
+  # The model cache is ReadWriteOnce: a second pod could not mount it.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: immich-machine-learning
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: immich-machine-learning
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 3000
+        runAsGroup: 3000
+        # kubelet hands the fresh cache volume's root to this group.
+        fsGroup: 3000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: machine-learning
+          # The same release as the server, always: Renovate moves the two
+          # together (renovate.json5).
+          image: ghcr.io/immich-app/immich-machine-learning:v3.3.5@sha256:5b28c9352c8374b8a1ed96fbdd8d6755fea6e43510ec43fdf6538aa02ea40f56
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            # Upstream's re-exported models: faster and lighter on the CPU,
+            # with the same results, so nothing has to be indexed again.
+            - name: MACHINE_LEARNING_MODEL_REVISION
+              value: v2
+            # Threads per model, matched to the CPU limit below.
+            - name: MACHINE_LEARNING_MODEL_INTRA_OP_THREADS
+              value: "3"
+            - name: MACHINE_LEARNING_MODEL_INTER_OP_THREADS
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 3003
+          # The first start downloads nothing - models are fetched on first
+          # use - but loading Python and ONNX takes a while on a cold node.
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 6
+          # The multilingual search model alone is about 3 GiB in memory,
+          # loaded beside the face and text models. Models unload after five
+          # idle minutes, so this is a peak, not the resting size. The CPU
+          # limit for the server's reason (deployment.yaml).
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "3"
+              memory: 6Gi
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: immich-ml-cache
+---
+# The downloaded models, kept so a restart does not fetch gigabytes again.
+# Nothing here that the next start cannot download, so it is not backed up
+# (clusters/lab/backup/README.md, exclusions).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-ml-cache
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 10Gi

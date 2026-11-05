@@ -1,0 +1,31 @@
+apiVersion: v1
+data:
+    auth: ENC[AES256_GCM,data:sjXwJiKBvWbDGoLUzxsuKrQ8ng3Poa98zsw6zGuIH+zvwmLru/e+1wt0FqycV2OCm9K+jfzGMh3e3AuhHooxww==,iv:6C6OnaKkbPnkPHXF51ahrBA+Wg7hdjs0DQuK3dWmoB4=,tag:WpREmBMkAPnvYrT1tPDfhA==,type:str]
+kind: Secret
+metadata:
+    name: prometheus-api-auth
+    namespace: monitoring
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBKcGhjNk9ub2g3MXNOS1FD
+            TFlNcW1zVkh3QVd3WnNFV1dWVDQrVFlSSEU4CnZ5eDZSbUxaQ01mVWdQUHVhb2pp
+            ZmdRV29zendxQjRKaGdPaFVyY1FDK2MKLS0tIHhoTW9UM29VQitJSWJ5dkxQeVM4
+            QXpjWEJVTkZhL2NlRFFWeTBSNlgxUFEK56jXtX5wzZErgmJgdjAjk5Bc0ktzsekP
+            yTWh5VvKs993Zz6FPbAB55MuGMLeO+b8eZZGhdSZiYiPwbet4LYgIg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0dHdsaHJzRlo1UFZCQUhO
+            RzFLcUJTUjJUdmlkU2N3YTBkRDdlUS9Dc0QwCnJpWmF1b083ajhyOHZlT3ZWNVNG
+            bmxyOVJhalhvRFU3WGt2eWdMdW5ZZmcKLS0tIEphTGprUDdzdTd4eVExTGp6eE1k
+            QWdQZEVGblNTdDR4b3c4WU5BeGJHNEEKDml4+oH8O9h7jXU6+EcodVjA4zPbiF3Z
+            lkqyYPzXZtAlca4cJ7F6kwAD10ugV0SwFfMYk+rBm3ZAr5KGLkoazA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-17T13:21:04Z"
+    mac: ENC[AES256_GCM,data:8gEApQdBA4bs7ngLRJ8R5f9Gd/ZJCYwANYO3g9AqitDrDYJmpRh3nm3csyydjMmzXAcjBfgge9ctK16ZYmGb6V6W/QDCThCDqEWCKSsW7o3WGbYzuCy1UhKl0g5lVLiFGeV3kM8wbo8MvvryMz4q4Gei4w2Zo8gD8lfj8+qU2OM=,iv:u3mJnGckoSctgPpXmYkHtw2UxG70zEhLIC0Rz4Gc0J0=,tag:VC9QEmbkFQ6HNKLgAbdSJQ==,type:str]
+    version: 3.13.3

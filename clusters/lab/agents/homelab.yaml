@@ -79,6 +79,21 @@ spec:
         app.kubernetes.io/part-of: agents
     spec:
       priorityClassName: agents
+      # Spread the agents over the nodes. The scheduler places a pod by
+      # what it requests, and an agent requests 512Mi but uses anything up
+      # to its limit, so without this they gathered where the requests fit:
+      # seven of eight on node04 on 2026-10-30, at 88% of its memory while
+      # the other two sat near 55%. A preference, not a rule - ScheduleAnyway
+      # - so an agent still starts when only a crowded node has room. It
+      # counts every pod labelled part-of: agents, and acts only when a pod
+      # is placed: a running agent stays where it is until it restarts.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: agents
       # No Kubernetes API access from inside: the token would be the first
       # thing a prompt-injected agent read. Nothing here needs it.
       automountServiceAccountToken: false

@@ -29,3 +29,4 @@ What follows — good and bad.
 - [0005 — The Pi is the house DNS and the tailnet's door, outside the cluster](0005-pi-house-dns-and-tailnet-door.md)
 - [0006 — Claude Code instances run in the cluster as Remote Control server pods](0006-claude-code-remote-control-pods.md)
 - [0007 — epicurus is rebuilt on Kubernetes, not moved](0007-epicurus-rebuilt-on-kubernetes.md)
+- [0008 — TrueNAS Community Edition on the NAS, not Ubuntu with ZFS by hand](0008-truenas-for-the-nas.md)

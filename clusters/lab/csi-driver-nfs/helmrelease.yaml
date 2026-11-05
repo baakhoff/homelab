@@ -1,0 +1,70 @@
+# Mounts the NAS's NFS shares into the pods that are given one.
+#
+# WHY A CSI DRIVER and not the PersistentVolume's built-in `nfs:` source: the
+# built-in one makes the kubelet call the host's mount.nfs, which means
+# nfs-common and rpcbind on all three nodes - packages installed by hand,
+# outside this repo, with rpcbind listening on port 111 on each. This node
+# plugin carries its own NFS tools in its image, so the hosts stay as they
+# are. And because they have no mount.nfs, an inline `nfs:` volume written
+# into some pod spec cannot be mounted at all; hosts/nodes/README.md records
+# that as deliberate.
+#
+# NO STORAGECLASS, and that is the point rather than an omission. The only
+# volumes are static PersistentVolumes, each naming one share and pre-bound
+# to one claim, written by hand next to the app that owns it. A StorageClass
+# would let anyone with PVC rights in any namespace create directories on a
+# share, and the chart's default on delete is to remove them.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: csi-driver-nfs
+  namespace: csi-driver-nfs
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: csi-driver-nfs
+      # 4.13.5 rather than 4.13.6, which was released a day before this was
+      # written: renovate.json5's three-day minimum age, applied by hand on
+      # the way in. Renovate will offer 4.13.6 once it has aged.
+      version: "4.13.5"
+      sourceRef:
+        kind: HelmRepository
+        name: csi-driver-nfs
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    feature:
+      # Off, so the driver declares no fsGroupPolicy and Kubernetes' default
+      # applies, which leaves a ReadWriteMany volume alone. On, this chart
+      # version hard-codes File: the kubelet recursively changes the group of
+      # every file on the share whenever a pod sets fsGroup - a photo library
+      # walked and rewritten at each pod start. Ownership is the NAS's
+      # business, and it maps every client to the share's owner anyway.
+      enableFSGroupPolicy: false
+      # Already the chart default. Inline volumes would let a pod spec name
+      # any NFS server and path directly, with no PersistentVolume to review.
+      enableInlineVolume: false
+
+    controller:
+      # The controller provisions, resizes and snapshots, and with no
+      # StorageClass it has nothing to provision. Snapshots of an NFS volume
+      # are tarballs written back onto the same share; the NAS takes its own
+      # ZFS snapshots instead.
+      enableSnapshotter: false
+      defaultOnDeletePolicy: retain
+      logLevel: 2
+
+    node:
+      logLevel: 2
+
+    storageClass:
+      create: false
+    externalSnapshotter:
+      enabled: false

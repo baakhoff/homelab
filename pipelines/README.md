@@ -6,19 +6,45 @@ minute, so a merged change is live a minute later.
 
     dags/
       ingest.py      one DAG per service: snapshot its API into Kafka
-      telegram.py    one Telegram account's private chats, logged in as it
+      telegram.py    Telegram accounts' private chats, logged in as each
+      proton.py      a Proton Mail export, loaded by hand from a packed file
+      vk.py          the VK data archive, loaded by hand from a packed file
+      google.py      the Google account, four DAGs (google.md)
+      garmin.py      the Garmin Connect account, and Garmin's data export (garmin.md)
+      steam.py       the Steam account: library, playtime, achievements, friends (steam.md)
+      bambu.py       the Bambu Lab account: every print and its filament, the printers (bambu.md)
+      immich_sort.py Immich's photos described and given a type by Claude, the useless set aside
       sensitive.py   masks secrets and identity numbers in every record first
       warehouse.py   the dbt project as one DAG, a task per model (Cosmos)
     tools/
       telegram_login.py  the one-time Telegram login, into the Secret
+      telegram_media.py  the photos and videos in Telegram chats, for Immich
+      proton_pack.py     a Proton Mail export packed into one file for the DAG
+      vk_pack.py         the VK data archive packed into one file for the DAG
+      vk_media.py        the VK archive's photos and videos that still answer, for Immich
+      google_auth.py     the Google consent, run once on the workstation
+      google_takeout_pack.py  a Google Takeout export packed into one file for the DAG
+      google_takeout_load.sh  the newest Takeout export packed, loaded and cleaned up, in one go
+      garmin_login.py    the one-time Garmin login, its tokens into the Secret
+      garmin_pack.py     a Garmin data export, FIT files included, packed into one file for the DAG
+      steam_key.py       the Steam Web API key and account, checked, into the Secret
+      bambu_login.py     the Bambu Lab login, its token into the Secret, every three months
     telegram.md      what Telegram sends, its setup and renewal
+    proton.md        loading a Proton Mail export, and cleaning up after
+    vk.md            loading the VK data archive
+    google.md        what Google sends, its consent and renewal
+    garmin.md        what Garmin sends, its login and renewal, loading its export
+    steam.md         what Steam sends, its key and the privacy setting it needs
+    bambu.md         what Bambu Lab sends, its login and renewal
     sensitive.md     what is masked before data reaches the warehouse, and how
     tests/           tests for sensitive.py: `uv run --with pytest pytest pipelines/tests`
+    .airflowignore   keeps Airflow's search for DAG files to dags/
     dbt/
       models/ods/    raw parsed into typed tables, one system at a time
       models/ads/    joins and aggregates across systems
       models/dm/     the tables questions and dashboards read
       macros/        the snapshot, timestamp and OTLP helpers the models share
+    google.md        Google: what is copied, setup, renewing
 
 ## The flow
 
@@ -35,24 +61,40 @@ fixed and re-run at any time and the history comes out right.
 
 | Layer | Models |
 |---|---|
-| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `karakeep_bookmarks`, `karakeep_highlights`, `karakeep_tags`, `telegram_chats`, `telegram_messages`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
-| `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily` |
+| `ods` | `firefly_accounts`, `firefly_transactions` (one row per split), `firefly_budgets`, `firefly_categories`, `vikunja_tasks`, `vikunja_projects`, `mealie_recipes`, `mealie_mealplans`, `mealie_shopping_items`, `paperless_documents`, `paperless_tags`, `paperless_correspondents`, `paperless_document_types`, `sparkyfitness_food_entries`, `sparkyfitness_exercise`, `sparkyfitness_measurements`, `sparkyfitness_water`, `sparkyfitness_sleep`, `dawarich_points`, `dawarich_visits`, `dawarich_places`, `outline_documents`, `outline_collections`, `immich_usage`, `immich_users`, `immich_photos`, `immich_assets`, `immich_sort_runs`, `plex_libraries`, `plex_plays`, `telegram_chats`, `telegram_messages`, `proton_messages`, `proton_attachments`, `vk_messages`, `vk_conversations`, `vk_audio`, `vk_items`, `google_gmail_messages`, `google_gmail_bodies`, `google_gmail_labels`, `google_fit_daily`, `google_fit_sessions`, `google_keep_notes`, `google_chat_messages`, `google_pay_transactions`, `google_maps_places`, `google_saved_items`, `google_takeout_records`, `google_calendars`, `google_calendar_events`, `google_contacts`, `google_contact_groups`, `google_tasks`, `google_drive_files`, `google_activity`, `google_chrome_history`, `garmin_daily`, `garmin_sleep`, `garmin_activities`, `garmin_weigh_ins`, `garmin_fit_sessions`, `garmin_fit_records`, `garmin_records`, `steam_games`, `steam_playtime_daily`, `steam_achievements`, `steam_friends`, `steam_records`, `bambu_prints`, `bambu_print_filaments`, `bambu_printers`, `karakeep_bookmarks`, `karakeep_highlights`, `karakeep_tags`, `searxng_searches`, `ha_states`, `logs`, `k8s_events` |
+| `ads` | `finance_daily`, `ha_numeric_hourly`, `ha_activity_daily`, `logs_hourly`, `k8s_events_daily`, `tasks_daily`, `documents_daily`, `meals_daily`, `nutrition_daily`, `location_daily`, `telegram_daily`, `google_daily`, `people`, `chat_media` |
 | `dm` | `finance_monthly`, `home_sensors_daily`, `cluster_daily`, `household_daily` |
 
-Four patterns cover the sources:
+Seven patterns cover the sources:
 
 - **API snapshots** (Firefly, Vikunja, Mealie, Paperless, SparkyFitness,
-  Dawarich's visits and places, Outline's documents) - `snapshot_records()` returns the newest
+  Dawarich's visits and places, Outline's documents, Immich's counts per
+  account, Plex's libraries and plays, Steam's library and friends, Bambu Lab's printers, Google's Calendar,
+  Contacts, Tasks and Drive) - `snapshot_records()` returns the newest
   run's records, so a record deleted at the source disappears from `ods`
   too. These models are tables, rebuilt every run.
 - **API windows** (Dawarich's points) - each run sends only the last week,
   because the whole history is millions of points. `ods.dawarich_points` is
   incremental and keeps each point as first seen, so a point deleted at
   the source stays.
-- **Messages sent once** (Telegram) - each message is sent when it is new
-  and again when edited, and `ods.telegram_messages` keeps every message's
-  newest copy across all runs. Rebuilt every run; a message deleted at the
+- **Messages sent once** (Telegram, Proton Mail) - each message is sent
+  when it is new and again when edited (Telegram) or exported again (Proton
+  Mail), and `ods.telegram_messages` and `ods.proton_messages` keep every
+  message's newest copy across all runs. Rebuilt every run; a message deleted at the
   source stays.
+- **Changes** (Gmail, Google's activity exports) - the DAG sends only what
+  is new or changed, and a tombstone for what was deleted, because a full
+  snapshot would be far too large. `accumulated_records()` returns the newest
+  version of every record ever sent, minus the deleted ones. Tables, rebuilt
+  every run.
+- **Whole lists, kept** (Bambu Lab's prints) - each run sends
+  the whole list, and `accumulated_records()` keeps every record's newest
+  copy across runs, so a print deleted in the app stays.
+- **Days** (Garmin) - each run sends the last few days again, and the
+  history once, a day's record under the day. `accumulated_records()`
+  keeps each day's newest copy. The FIT recordings from Garmin's export are
+  millions of rows, so `ods.garmin_fit_records` is incremental, like the
+  points.
 - **Streams** (Home Assistant, logs, Kubernetes events) - incremental: each
   run appends what arrived since the last.
 
@@ -91,3 +133,13 @@ columns' descriptions in a `schema.yml` are what fill it in.
   `SOURCES` in `clusters/lab/data/clickhouse-schema.yaml`, a table in
   `dbt/models/sources.yml`, and NetworkPolicy doors on both sides
   (`clusters/lab/airflow/README.md`).
+- **A source kept private**: the same, from the private Flux source
+  (`clusters/lab/private/README.md`). Its `sources.json` and its models are
+  mounted at `/opt/airflow/extra`, where `dags/ingest.py` and dbt read them;
+  its sources are declared under a dbt source of their own, which
+  `snapshot_records(table, endpoint, source_name)` takes as its third
+  argument. dbt reaches them through `dbt/extra`, a link to the mount; the
+  warehouse DAG fingerprints them, so a changed model there renews Cosmos's
+  cached task list like a change here. Airflow's own search for DAG files
+  skips `dbt/` (`.airflowignore`): through the link it would meet the
+  mount's hidden folder twice, take it for a loop and parse nothing.

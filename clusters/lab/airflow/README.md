@@ -8,8 +8,15 @@ model is live a minute later, with no restart.
 
 | DAG | What it does | When |
 |---|---|---|
-| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, the rest every 6 hours |
-| `ingest_telegram` | One Telegram account's private chats into `raw.telegram`, logged in as the account: new messages, and the last 3 days again for edits; the history in 40-minute portions on the first runs ([how](../../../pipelines/telegram.md)) | hourly, at :20 |
+| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline`, `ingest_immich`, `ingest_plex` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, the rest every 6 hours |
+| `ingest_telegram` | Each logged-in Telegram account's private chats into `raw.telegram`, logged in as the account: new messages, and the last 3 days again for edits; the history in 40-minute portions on the first runs ([how](../../../pipelines/telegram.md)) | hourly, at :20 |
+| `ingest_proton` | A Proton Mail export, packed on the workstation and copied into the scheduler pod, into `raw.proton` ([how](../../../pipelines/proton.md)) | by hand |
+| `ingest_vk` | The VK data archive, packed on the workstation and copied into the scheduler pod, into `raw.vk` ([how](../../../pipelines/vk.md)) | by hand |
+| `ingest_google`, `ingest_google_gmail`, `ingest_google_portability`, `ingest_google_takeout` | The Google account into `raw.google`: Calendar, Contacts, Tasks and Drive as snapshots; Gmail metadata as changes; My Activity, Chrome and the rest as Data Portability exports; a Takeout export by hand, for mail bodies ([`pipelines/google.md`](../../../pipelines/google.md)) | 6-hourly, hourly, daily, by hand |
+| `ingest_garmin`, `ingest_garmin_export` | The Garmin Connect account into `raw.garmin`, logged in as the phone app: each day's summary, sleep, stress, Body Battery, HRV and the rest, the activities, and the history in 40-minute portions on the first runs; Garmin's data export by hand, for the activities' FIT recordings ([`pipelines/garmin.md`](../../../pipelines/garmin.md)) | 6-hourly at :35, by hand |
+| `ingest_bambu` | The Bambu Lab account into `raw.bambu`, logged in as the slicer: every print through its cloud with each AMS slot's filament, and the printers ([`pipelines/bambu.md`](../../../pipelines/bambu.md)) | every 6 hours, at :25 |
+| `ingest_steam` | The Steam account into `raw.steam` through Steam's Web API: the library and each game's playtime, achievements, profile, badges, friends ([`pipelines/steam.md`](../../../pipelines/steam.md)) | every 6 hours, at :50 |
+| `immich_sort` | Immich's photos and videos without a type, shown to Claude: each is described and gets a type tag and the type's album, and what nobody would miss also goes into the album *To delete*; each picture's row, and each run's counts, into `raw.immich` ([how](../immich/README.md#sorting-by-type)) | hourly, at :05 |
 | `warehouse` | The dbt project: `raw` -> `ods` -> `ads` -> `dm`, one task per model and per model's tests, rendered by [Cosmos](https://github.com/astronomer/astronomer-cosmos) | hourly, at :45 |
 
 UI: <https://airflow.lab.baakhoff.com>, behind the admin gate. That gate is
@@ -31,19 +38,26 @@ container's log.
   (`parallelism`). The warehouse DAG's models queue behind each other; a
   full run takes a few minutes longer and never takes the scheduler down.
 - **Its own image** (`images/airflow/`): the official one plus Cosmos, the
-  Kafka client, Telethon for Telegram, and dbt in a separate virtualenv at `/opt/dbt` so that
+  Kafka client, Telethon for Telegram, Pillow for `immich_sort`'s previews,
+  python-garminconnect for Garmin, and dbt in a separate virtualenv at `/opt/dbt` so that
   dbt's and Airflow's dependencies never meet.
 - **Its own Postgres** (`postgres.yaml`) for run history. Losing it loses
   history, not data.
+- **Extra sources and models at `/opt/airflow/extra`**, in the scheduler
+  and the DAG processor: the ConfigMap `airflow-extra` and its tokens in the
+  Secret `airflow-extra`, both from the private Flux source and both
+  optional (`clusters/lab/private/README.md`).
 - **dbt connects as the `dbt` ClickHouse user**: it reads `raw` and owns
   `ods`, `ads` and `dm`, nothing else. The data namespace's schema job
   creates it.
 
 ## What it can reach
 
-`networkpolicy.yaml` lets Airflow out to GitHub (git-sync) and to exactly
+`networkpolicy.yaml` lets Airflow out to the internet on 443 - GitHub for
+git-sync, Google's APIs for the Google DAGs, Garmin Connect for
+`ingest_garmin`, Steam's Web API for `ingest_steam`, Bambu Lab's cloud for `ingest_bambu`, Anthropic's API for `immich_sort` - and inside the lab to exactly
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
-Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline. Each of
+Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline, Immich, Plex. Each of
 those admits the scheduler pod by name in its own policy. A new source needs
 a door on both sides. Telegram is outside the lab, so `ingest_telegram` goes
 out through the same internet rule as git-sync, on 443. The dbt docs pod uses
@@ -118,9 +132,16 @@ Firefly needs no token here: the broker holds it. SparkyFitness's and
 Dawarich's keys are added later, into the same Secret - step 5 of
 `clusters/lab/sparkyfitness/README.md` and of `clusters/lab/dawarich/README.md` -
 and so is Outline's API key, step 4 of `clusters/lab/notes/README.md`, and
+Immich's, steps 6 and 8 of `clusters/lab/immich/README.md` (step 8's
+with the Claude API key), and Plex's, step 6 of
+`clusters/lab/plex/README.md`, and
 Telegram's login, by `pipelines/tools/telegram_login.py` (`pipelines/telegram.md`).
 So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
-`clusters/lab/cloudbeaver/README.md`.
+`clusters/lab/cloudbeaver/README.md` - and Google's client and tokens, by
+`pipelines/tools/google_auth.py` (`pipelines/google.md`), and Garmin's
+tokens, by `pipelines/tools/garmin_login.py` (`pipelines/garmin.md`), and Steam's
+key, by `pipelines/tools/steam_key.py` (`pipelines/steam.md`), and Bambu Lab's
+token, by `pipelines/tools/bambu_login.py` (`pipelines/bambu.md`).
 
 **4. Create the dbt user** once the Secrets have reconciled, rather than
 waiting for the hourly schema job:
@@ -130,7 +151,7 @@ kubectl -n data create job --from=cronjob/clickhouse-schema schema-dbt
 kubectl -n data logs -f job/schema-dbt --all-containers
 ```
 
-**5. Check.** In the UI, all five DAGs are listed with no import errors.
+**5. Check.** In the UI, every DAG is listed with no import errors.
 Trigger `ingest_vikunja` by hand; when it is green,
 `SELECT count() FROM raw.vikunja` in ClickHouse is above zero. Then trigger
 `warehouse` and look at `ods.vikunja_tasks`.

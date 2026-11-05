@@ -102,6 +102,17 @@ data:
               type: minecraft
               url: udp://minecraft.minecraft.svc.cluster.local:25565
 
+    # The NAS is not in the cluster, so nothing discovers it. A link and no
+    # status dot: this pod cannot reach the NAS at all
+    # (networkpolicy-no-nas.yaml), and TrueNAS's widget wants an API key.
+    # https, so the admin password never crosses the Wi-Fi in clear; the
+    # certificate is TrueNAS's own self-signed one, so the browser asks once.
+    - Platform:
+        - TrueNAS:
+            icon: truenas.png
+            href: https://nas.lab
+            description: nas.lab · the NAS
+
   bookmarks.yaml: |
     - Elsewhere:
         - Repo:

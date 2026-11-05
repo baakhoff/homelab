@@ -1,0 +1,37 @@
+# In: ingress-nginx, which is every app's way in, and Airflow's scheduler,
+# for the ingest_plex DAG (pipelines/dags/ingest.py). Nothing else in the
+# cluster, and no rule for the agents, brand-jobs or n8n namespaces.
+#
+# Out: open but for the NAS (networkpolicy-no-nas.yaml). Plex needs plex.tv
+# for every login and its metadata providers for posters and descriptions.
+# The library is mounted by the node's kubelet, not reached from the pod.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: plex
+  namespace: plex
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: plex
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 32400
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 32400

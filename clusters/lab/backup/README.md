@@ -73,15 +73,17 @@ whose loss would hurt most are written first:
 | 10 | `sparkyfitness/sparkyfitness-data` | meal and progress photos |
 | 11 | `dawarich/data-dawarich-postgres-0` | the location history; what a phone recorded is not recorded anywhere else |
 | 12 | `dawarich/dawarich-storage` | the original import files - Google Timeline and the like |
-| 13 | `notes/data-outline-postgres-0` | Outline's documents, their history, collections and users |
-| 14 | `notes/outline-data` | the images and attachments in those documents |
-| 15 | `karakeep/karakeep-data` | saved links and the copies of their pages, which outlive the sites |
-| 16-17 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
-| 18 | `minecraft/minecraft-data` | the world |
-| 19 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
-| 20 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
-| 21 | `data/data-clickhouse-0` | the warehouse's history |
-| 22-29 | the eight `agents/*` volumes | session transcripts and unpushed work |
+| 13 | `immich/data-immich-postgres-0` | the photos' albums, named faces, favourites and descriptions; the photos themselves are on the NAS (below) |
+| 14 | `notes/data-outline-postgres-0` | Outline's documents, their history, collections and users |
+| 15 | `notes/outline-data` | the images and attachments in those documents |
+| 16 | `karakeep/karakeep-data` | saved links and the copies of their pages, which outlive the sites |
+| 17-18 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
+| 19 | `minecraft/minecraft-data` | the world |
+| 20 | `plex/plex-config` | Plex's library database, watch history and settings; the films themselves are on the NAS |
+| 21 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
+| 22 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
+| 23 | `data/data-clickhouse-0` | the warehouse's history |
+| 24-31 | the eight `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly
@@ -119,10 +121,16 @@ applied to this cluster:
 | Prometheus | 15d retention and an 8GB cap, so it already deletes itself; its blocks churn constantly and losing it costs history, not capability |
 | Loki | same argument at 7d, and its logs only start when Alloy was deployed |
 | `photon/photon-data` | Photon's geocoding index, downloaded and built again by its next start (`clusters/lab/photon/README.md`) |
+| `immich/immich-ml-cache` | Immich's machine-learning models, downloaded again on first use |
+| `plex-media`, the films and series | an NFS volume on the NAS, like the photo library, and the films can be had again |
+| `immich-library`, the photo library | an NFS volume on the NAS, which this driver cannot snapshot. The NAS snapshots it with ZFS; its off-site copy is the NAS's own business, not this repository's (`clusters/lab/immich/README.md`, Backup) |
 | `karakeep/karakeep-meilisearch` | Karakeep's search index, built again from its database by "Reindex all bookmarks" (`clusters/lab/karakeep/README.md`) |
 
 Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its
-namespace, and a copy of the Secret below. Three things have to line up rather
+namespace, and a copy of the Secret below. The private Flux source adds its
+own volumes the same way, through the ConfigMap `backup-extra`
+(`BACKUP_TARGETS_EXTRA`, `clusters/lab/private/README.md`); they are backed
+up after the ones here. Three things have to line up rather
 than one, which is more work than node01's default-include file walk and buys
 something back: a volume cannot end up backed up by accident, and cannot
 quietly stop being backed up either.
@@ -318,7 +326,103 @@ snapshot is taken while the workload writes, so what comes back is the
 power-cut case — SQLite's WAL recovery handles it, and that is the guarantee
 being relied on, not one this rehearsal verified.
 
+## When the check finds missing packs
+
+The weekly prune runs `restic check` before it deletes anything and again at
+the end. Either one failing with `pack <id>: does not exist`, `<id> not found
+in repository` or `packs from index missing in repo` means a pack file the
+index still lists is gone from the bucket.
+
+Get it back before repairing anything. The bucket is versioned (Object Lock,
+see node01's README), so a deleted pack is a delete marker over a noncurrent
+version that the lifecycle rule keeps for **30 days**. Copying that version
+back over its key restores it, and only adds to the bucket. Put the pack IDs
+from the check's output in `P`:
+
+```
+P="<pack id> <pack id>"
+kubectl -n backup run s3-restore --restart=Never --image=amazon/aws-cli:2.38.5 \
+  --overrides='{"spec":{"containers":[{"name":"s3-restore","image":"amazon/aws-cli:2.38.5","command":["/bin/sh","-c"],"args":["set -e; E=--endpoint-url=https://fsn1.your-objectstorage.com; B=baakhoff-lab-backup; for p in '"$P"'; do k=lab/data/$(echo $p | cut -c1-2)/$p; d=$(aws s3api list-object-versions $E --bucket $B --prefix $k --query DeleteMarkers[0].LastModified --output text); v=$(aws s3api list-object-versions $E --bucket $B --prefix $k --query Versions[0].VersionId --output text); echo == $k deleted=$d version=$v; if [ x$v != xNone ]; then aws s3api copy-object $E --bucket $B --key $k --copy-source $B/$k?versionId=$v --query CopyObjectResult.LastModified --output text; fi; done; echo DONE"],"env":[{"name":"AWS_DEFAULT_REGION","value":"fsn1"}],"envFrom":[{"secretRef":{"name":"restic-repo"}}]}]}}'
+kubectl -n backup logs -f s3-restore
+kubectl -n backup delete pod s3-restore
+```
+
+`deleted=` is when the pack went, which names the run that deleted it.
+`version=None` means there is no old version to bring back. Then rebuild the
+index from what is in the bucket, and check:
+
+```
+kubectl -n backup run restic-check --restart=Never --image=restic/restic:0.19.1 \
+  --overrides='{"spec":{"containers":[{"name":"restic-check","image":"restic/restic:0.19.1","command":["/bin/sh","-c"],"args":["restic repair index && restic check"],"envFrom":[{"secretRef":{"name":"restic-repo"}}]}]}}'
+kubectl -n backup logs -f restic-check
+kubectl -n backup delete pod restic-check
+```
+
+A check stops at the first missing packs it lists, so a second round can turn
+up more: `repair index` names them as `removing not found pack file <id>`, and
+those go into `P` for the next round. Repeat until it ends `no errors were
+found`.
+
+A check can also name a tree or blob that no pack in the index holds, so there
+is no pack ID to put in `P`. Then bring back every pack the bucket still keeps
+a deleted version of. Packs that really were unneeded only cost space until the
+next prune drops them again:
+
+```
+kubectl -n backup run s3-fix --restart=Never --image=amazon/aws-cli:2.38.5 \
+  --overrides='{"spec":{"containers":[{"name":"s3-fix","image":"amazon/aws-cli:2.38.5","command":["sleep","7200"],"env":[{"name":"AWS_DEFAULT_REGION","value":"fsn1"}],"envFrom":[{"secretRef":{"name":"restic-repo"}}]}]}}'
+kubectl -n backup wait --for=condition=Ready pod/s3-fix --timeout=120s
+kubectl -n backup exec -i s3-fix -- bash -s <<'EOF'
+E=--endpoint-url=https://fsn1.your-objectstorage.com; B=baakhoff-lab-backup
+export E B
+aws s3api list-object-versions $E --bucket $B --prefix lab/data/ --query "DeleteMarkers[?IsLatest].[Key]" --output text > /tmp/keys
+echo "deleted packs: $(wc -l < /tmp/keys)"
+one() {
+  v=$(aws s3api list-object-versions $E --bucket $B --prefix "$1" --query "Versions[0].VersionId" --output text)
+  if [ "x$v" = xNone ]; then echo "none $1"; return; fi
+  aws s3api copy-object $E --bucket $B --key "$1" --copy-source "$B/$1?versionId=$v" >/dev/null && echo "ok $1" || echo "fail $1"
+}
+export -f one
+xargs -P 8 -I{} bash -c 'one {}' < /tmp/keys > /tmp/result
+cut -d' ' -f1 /tmp/result | sort | uniq -c
+EOF
+kubectl -n backup delete pod s3-fix
+```
+
+Then `repair index && check` as above. If `repair index` stops on a lock left by
+a pod that is gone, put `restic unlock && ` in front of it: without
+`--remove-all`, it removes only locks nobody has refreshed for 30 minutes.
+
+Run nothing that prunes while a check fails. A prune on an index that points at
+missing packs drops them from it and repacks around them, and that loses more. Only a pack with no
+version left calls for `restic repair snapshots --forget`, which cuts what
+it held out of the snapshots that used it. The next nightly backup uploads
+that data again if the volume still has it.
+
+On 2026-10-26 this recovered ten packs deleted by the prunes of 10-11, 10-18
+and 10-25. One snapshot, Dawarich's storage of 10-23, had been dropped with
+`restic forget` before the old versions were found. Nothing else was lost.
+
+On 2026-11-02 and 11-03 it took three rounds: 21 packs, then 22 more, then all
+1,340 the bucket still kept, for one tree and three files that no listed pack
+held. The deletions dated 10-11, 10-18 and 10-25, and twelve were from 10-26
+12:46 UTC, during that day's recovery, not from a prune. The two oldest packs
+had about a week of their 30 days left. Nothing was lost.
+
 ## Known limitations
+
+- **The prune has deleted packs that were still needed, cause unknown.** The
+  prunes of 2026-10-11, -18 and -25 each deleted packs that live snapshots
+  still referenced, with no backup running at the time. The suspect is an
+  incomplete S3 listing during the prune, a failure the restic forum describes
+  on S3-compatible stores, but nothing here proves it. What contains it: the
+  bucket keeps a deleted pack for 30 days, and the prune checks the repository
+  before and after, so a loss shows up within a week and is recovered as in
+  the section above. Not always within a week, as it turned out: the
+  2026-11-01 check found packs from 10-11, three weeks old. So the prune is
+  suspended (`suspend: true` in cronjob-prune.yaml) until the cause is known.
+  Meanwhile nothing is deleted, and the bucket grows by what the nightly
+  backups add.
 
 - **The swap has not been rehearsed, only the restore.** Steps 1–3 above ran on
   2026-09-19; pointing a live workload at a restored claim and starting it has

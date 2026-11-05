@@ -107,6 +107,16 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
+    # Jobs the brand agent schedules in brand-jobs (the weekly wiki import),
+    # with the same read-only `brand` user. HTTP only; the other half is
+    # clusters/lab/brand-jobs/networkpolicy.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: brand-jobs
+      ports:
+        - protocol: TCP
+          port: 8123
     # CloudBeaver, as ClickHouse's read-only `cloudbeaver` user
     # (clickhouse-schema.yaml). HTTP only; the other half is
     # clusters/lab/cloudbeaver/networkpolicy.yaml.

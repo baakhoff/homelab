@@ -47,6 +47,13 @@ spec:
         app.kubernetes.io/part-of: agents
     spec:
       priorityClassName: agents
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: agents
       # The one agent pod with a Kubernetes identity: it manages its own
       # CronJobs in the brand-jobs namespace and nothing else
       # (clusters/lab/brand-jobs/rbac.yaml). The token is what the Role binds

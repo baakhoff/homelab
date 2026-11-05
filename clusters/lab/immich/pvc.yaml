@@ -1,0 +1,60 @@
+# The library: every original, and Immich's thumbnails, converted videos,
+# profile pictures and nightly database dumps beside them. On the NAS, in
+# its own dataset, tank/immich, shared to the three nodes over NFSv4
+# (README, step 1).
+#
+# All of it on the NAS, thumbnails included. The first import writes
+# thumbnails for every photo at once, and on Ceph that is hours of writes to
+# the NVMe each node's etcd lives on. Thumbnails can be generated again; the
+# ZFS snapshots on the NAS cover them anyway.
+#
+# A static volume, pre-bound to its one claim, rather than a StorageClass:
+# csi-driver-nfs (clusters/lab/csi-driver-nfs/) has none on purpose.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: immich-library
+spec:
+  # Matches the dataset's quota on the NAS. Kubernetes does not enforce
+  # it for NFS; the NAS does.
+  capacity:
+    storage: 800Gi
+  accessModes:
+    - ReadWriteMany
+  # Never deleted with its claim: the photos outlive any Kubernetes object.
+  persistentVolumeReclaimPolicy: Retain
+  # Empty, so the default StorageClass is not assigned instead.
+  storageClassName: ""
+  # Only this claim can bind it.
+  claimRef:
+    namespace: immich
+    name: immich-library
+  mountOptions:
+    - nfsvers=4.2
+    # Retry forever. When the NAS is away, Immich waits rather than being
+    # told a write failed - a soft mount can leave a half-written original
+    # that the database points at.
+    - hard
+  csi:
+    driver: nfs.csi.k8s.io
+    # Any string unique in the cluster.
+    volumeHandle: 192.168.68.105/mnt/tank/immich##
+    volumeAttributes:
+      # The address, not nas.lab: a mount should not depend on the Pi's
+      # DNS being up, and this field cannot be changed after creation.
+      server: 192.168.68.105
+      share: /mnt/tank/immich
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: immich-library
+  resources:
+    requests:
+      storage: 800Gi

@@ -1,5 +1,6 @@
 -- Messages in the private chats: one row per message, in its newest
--- version. Not a snapshot - the ingest DAG sends each message once, and
+-- version, for every account (`account`; `main` is the first one, whose
+-- records from before there were several carry no name). Not a snapshot - the ingest DAG sends each message once, and
 -- again when it is edited (pipelines/dags/telegram.py) - so this keeps the
 -- latest copy of every message ever sent. A message deleted in Telegram
 -- stays: nothing reports the deletion.
@@ -19,7 +20,10 @@ with latest as (
 )
 select
   message_key,
+  coalesce(nullIf(JSONExtractString(record, 'account'), ''), 'main') as account,
   JSONExtractInt(record, 'chat_id') as chat_id,
+  -- The row in telegram_chats: the same person can be in two accounts.
+  concat(if(account = 'main', '', concat(account, ':')), toString(chat_id)) as chat_key,
   JSONExtractInt(record, 'id') as message_id,
   {{ ts("JSONExtractString(record, 'date')") }} as sent_at,
   {{ ts("JSONExtractString(record, 'edit_date')") }} as edited_at,
