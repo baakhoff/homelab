@@ -104,16 +104,16 @@ Administration → OIDC Clients → Add:
 | Allowed User Groups | whoever saves links here |
 
 **2. The Secret, before this merges.** On the workstation from the repo
-root, on this branch, in zsh. Run the `read` lines one at a time: pasted together,
+root, on this branch, in bash. Run the `read` lines one at a time: pasted together,
 the rest of the paste becomes the input. The Anthropic key is a new one
 made at console.anthropic.com → API Keys, named `karakeep`, in a workspace
 with a spend limit. The
 other two values are generated and never shown.
 
 ```bash
-read -rs 'CID?client id: '; echo
-read -rs 'CSEC?client secret: '; echo
-read -rs 'AK?anthropic api key: '; echo
+read -rsp 'client id: ' CID; echo
+read -rsp 'client secret: ' CSEC; echo
+read -rsp 'anthropic api key: ' AK; echo
 
 kubectl create secret generic karakeep \
   --namespace karakeep \
@@ -164,7 +164,7 @@ API Keys → New, named `warehouse`. On the workstation from the repo root,
 one line at a time:
 
 ```bash
-read -rs 'KK?karakeep api key: '; echo
+read -rsp 'karakeep api key: ' KK; echo
 sops set clusters/lab/airflow/sources.sops.yaml '["data"]["KARAKEEP_API_KEY"]' "\"$(printf %s "$KK" | base64 | tr -d '\n')\""
 unset KK
 ```
