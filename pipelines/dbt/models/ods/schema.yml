@@ -259,3 +259,19 @@ models:
     columns:
       - name: record_key
         tests: [not_null]
+  - name: bambu_prints
+    columns:
+      - name: task_id
+        tests: [not_null, unique]
+  - name: bambu_print_filaments
+    columns:
+      - name: filament_key
+        tests: [not_null, unique]
+  - name: bambu_printers
+    columns:
+      - name: device_id
+        tests: [not_null, unique]
+  - name: bambu_projects
+    columns:
+      - name: project_id
+        tests: [not_null, unique]
