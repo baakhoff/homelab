@@ -77,13 +77,14 @@ whose loss would hurt most are written first:
 | 14 | `notes/data-outline-postgres-0` | Outline's documents, their history, collections and users |
 | 15 | `notes/outline-data` | the images and attachments in those documents |
 | 16 | `karakeep/karakeep-data` | saved links and the copies of their pages, which outlive the sites |
-| 17-18 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
-| 19 | `minecraft/minecraft-data` | the world |
-| 20 | `plex/plex-config` | Plex's library database, watch history and settings; the films themselves are on the NAS |
-| 21 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
-| 22 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
-| 23 | `data/data-clickhouse-0` | the warehouse's history |
-| 24-31 | the eight `agents/*` volumes | session transcripts and unpushed work |
+| 17 | `manyfold/data-manyfold-postgres-0` | the 3D models' tags, creators and collections; the files themselves are on the NAS, each model's details beside them in `datapackage.json` |
+| 18-19 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
+| 20 | `minecraft/minecraft-data` | the world |
+| 21 | `plex/plex-config` | Plex's library database, watch history and settings; the films themselves are on the NAS |
+| 22 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
+| 23 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
+| 24 | `data/data-clickhouse-0` | the warehouse's history |
+| 25-32 | the eight `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly
@@ -124,6 +125,7 @@ applied to this cluster:
 | `immich/immich-ml-cache` | Immich's machine-learning models, downloaded again on first use |
 | `plex-media`, the films and series | an NFS volume on the NAS, like the photo library, and the films can be had again |
 | `immich-library`, the photo library | an NFS volume on the NAS, which this driver cannot snapshot. The NAS snapshots it with ZFS; its off-site copy is the NAS's own business, not this repository's (`clusters/lab/immich/README.md`, Backup) |
+| `manyfold-library`, the 3D models | an NFS volume on the NAS, like the photo library; the NAS snapshots it with ZFS (`clusters/lab/manyfold/README.md`, Backup) |
 | `karakeep/karakeep-meilisearch` | Karakeep's search index, built again from its database by "Reindex all bookmarks" (`clusters/lab/karakeep/README.md`) |
 
 Adding a volume is one entry in `BACKUP_TARGETS`, a `RoleBinding` in its

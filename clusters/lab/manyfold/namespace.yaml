@@ -1,0 +1,12 @@
+# Pod Security baseline, like Plex's. Not restricted: Manyfold's image
+# starts as root under s6-overlay, gives its temporary folders to the user
+# below and then runs the app as that user - restricted refuses the start.
+# baseline still refuses anything privileged, host networking and host
+# paths. Postgres here runs as its own non-root user regardless.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: manyfold
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest

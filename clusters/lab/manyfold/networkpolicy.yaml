@@ -1,0 +1,62 @@
+# In, to Manyfold (3214):
+# - ingress-nginx, for browsers through the gate and for the slicers on the
+#   signed file links (ingress.yaml).
+# - Airflow's scheduler, for the ingest_manyfold DAG, with an API
+#   application of its own (pipelines/dags/ingest.py; the egress rule is in
+#   clusters/lab/airflow/networkpolicy.yaml).
+#
+# In, to Postgres: Manyfold only. Redis listens on the pod's loopback
+# (deployment.yaml), so it needs no rule.
+#
+# Out: open but for the NAS (networkpolicy-no-nas.yaml). Manyfold goes out
+# to Pocket ID by its public address for the login. The library is mounted
+# by the node's kubelet, not reached from the pod.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: manyfold
+  namespace: manyfold
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: manyfold
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3214
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+      ports:
+        - protocol: TCP
+          port: 3214
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: manyfold-postgres
+  namespace: manyfold
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: manyfold-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: manyfold
+      ports:
+        - protocol: TCP
+          port: 5432

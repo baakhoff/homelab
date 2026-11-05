@@ -109,6 +109,7 @@ spec:
                     notes/data-outline-postgres-0
                     notes/outline-data
                     karakeep/karakeep-data
+                    manyfold/data-manyfold-postgres-0
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     minecraft/minecraft-data

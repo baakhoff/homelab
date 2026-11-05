@@ -67,6 +67,7 @@ setting them as an env var would do nothing.
 | Outline | `OIDC_*` in `clusters/lab/notes/deployment.yaml`; id and secret in `secret.sops.yaml` beside it | none: the first person to sign in becomes the workspace admin, and roles are set in Outline's own settings; who may sign in at all is the client's *Allowed User Groups* |
 | Immich | Immich's own admin UI (Administration → Settings → Authentication), kept in its database; the values are in `clusters/lab/immich/README.md` | the custom claim `immich_role`: `user` on the group `immich-users`, `admin` on the owner's own user, which wins over the group's; re-applied at every login. Who may log in at all is the client's *Allowed User Groups*, `immich-users` |
 | Karakeep | `OAUTH_*` in the ConfigMap in `clusters/lab/karakeep/deployment.yaml`; id and secret in `secret.sops.yaml` beside it | none: the first account to sign in is Karakeep's admin; who may sign in at all is the client's *Allowed User Groups* |
+| Manyfold | `OIDC_*` in the ConfigMap in `clusters/lab/manyfold/deployment.yaml`; id and secret in `secret.sops.yaml` beside it | none: the first account to sign in is Manyfold's admin, and roles are set in Manyfold's own settings; who may sign in at all is the client's *Allowed User Groups* - Manyfold makes an account for anyone Pocket ID lets through |
 | oauth2-proxy | `clusters/lab/oauth2-proxy/`; gates every host whose Ingress carries the `auth-url` annotations, listed in its README | yes/no only: anyone the client admits. Restrict on the client's *Allowed User Groups* tab in Pocket ID |
 
 **Not behind it, on purpose: Vaultwarden.** The vault holds the passkeys. An
@@ -90,8 +91,9 @@ Dawarich `https://location.lab.baakhoff.com/users/auth/openid_connect/callback`,
 for Outline `https://notes.lab.baakhoff.com/auth/oidc.callback`, for
 Immich `https://photos.lab.baakhoff.com/auth/login`,
 `https://photos.lab.baakhoff.com/user-settings` and the phone apps'
-`app.immich:///oauth-callback`, and for Karakeep
-`https://links.lab.baakhoff.com/api/auth/callback/custom`.
+`app.immich:///oauth-callback`, for Karakeep
+`https://links.lab.baakhoff.com/api/auth/callback/custom`, and for Manyfold
+`https://models.lab.baakhoff.com/users/auth/openid_connect/callback`.
 
 
 ## Backup

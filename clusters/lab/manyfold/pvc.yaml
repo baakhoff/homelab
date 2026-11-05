@@ -1,0 +1,56 @@
+# The library: every model's files, as they were downloaded or uploaded,
+# in a folder per model. On the NAS, in its own dataset, tank/models,
+# shared to the three nodes over NFSv4 (README, step 1), like Immich's
+# photos.
+#
+# Read-write, because Manyfold writes into it: uploads land here, and
+# beside each model's files it keeps a datapackage.json with the model's
+# details, and the previews and renders it makes under .manyfold/ - so the
+# folders on the NAS still say what each model is without the database.
+# Manyfold refuses a library it cannot write to.
+#
+# A static volume, pre-bound to its one claim: csi-driver-nfs
+# (clusters/lab/csi-driver-nfs/) has no StorageClass on purpose.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: manyfold-library
+spec:
+  # Matches the dataset's quota on the NAS. Kubernetes does not enforce
+  # it for NFS; the NAS does.
+  capacity:
+    storage: 200Gi
+  accessModes:
+    - ReadWriteMany
+  # Never deleted with its claim: the models outlive any Kubernetes object.
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: manyfold
+    name: manyfold-library
+  mountOptions:
+    - nfsvers=4.2
+    # Retry forever: when the NAS is away, Manyfold waits rather than
+    # being told a write failed halfway through an upload.
+    - hard
+  csi:
+    driver: nfs.csi.k8s.io
+    # Any string unique in the cluster.
+    volumeHandle: 192.168.68.105/mnt/tank/models##
+    volumeAttributes:
+      server: 192.168.68.105
+      share: /mnt/tank/models
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: manyfold-library
+  namespace: manyfold
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: manyfold-library
+  resources:
+    requests:
+      storage: 200Gi

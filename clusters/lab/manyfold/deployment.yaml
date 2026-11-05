@@ -1,0 +1,221 @@
+# Manyfold: the 3D models - downloaded, bought and designed - in one
+# library on the NAS, sorted by creator, collection and tag, each shown in
+# a 3D viewer in the browser, and sent on to the slicer from there.
+#
+# One container runs the web server and the background workers (scanning
+# the library, making previews and renders) under s6-overlay, which starts
+# as root: it gives its temporary folders to PUID/PGID below and then runs
+# everything as that user, with only the capabilities that hand-over needs.
+# The same model as upstream's hardening guide
+# (https://manyfold.app/sysadmin/security.html), read-only root and all.
+# Redis, for the job queue and the cache, rides along on loopback.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manyfold
+  namespace: manyfold
+spec:
+  # One replica: one set of workers scanning the library. Recreate, so two
+  # pods never run their start-up migrations at once.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: manyfold
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: manyfold
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # s6 wants /tmp as it is on any Linux system: everyone may write,
+        # only the owner may delete (the sticky bit). An emptyDir is created
+        # without that bit. As root, the owner of the emptyDir, which needs
+        # no capability for it.
+        - name: tmp-mode
+          image: ghcr.io/manyfold3d/manyfold:0.154.1
+          command: ["chmod", "1777", "/tmp"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: manyfold
+          image: ghcr.io/manyfold3d/manyfold:0.154.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              # Upstream's list: chown the temporary folders, then become
+              # PUID/PGID. Nothing else.
+              add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+          envFrom:
+            - configMapRef:
+                name: manyfold
+            # SECRET_KEY_BASE, DATABASE_PASSWORD, OIDC_CLIENT_ID and
+            # OIDC_CLIENT_SECRET, created by hand into secret.sops.yaml
+            # beside this file - README, step 3. Until it exists the pod
+            # waits in CreateContainerConfigError.
+            - secretRef:
+                name: manyfold
+          ports:
+            - name: http
+              containerPort: 3214
+          # /health answers once the app has booted, without a login. The
+          # database migration runs before that at every start, so the
+          # first start after an upgrade can take a few minutes.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 6
+          # Renders of a large model are CPU-heavy (f3d); the CPU limit
+          # keeps a library scan from starving the node's etcd.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 768Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: library
+              mountPath: /libraries/models
+            - name: run
+              mountPath: /run
+            - name: tmp
+              mountPath: /tmp
+            # Uploads wait here until they are moved into the library, so
+            # it holds one upload of up to MAX_FILE_UPLOAD_SIZE at a time,
+            # and the cache beside them.
+            - name: app-tmp
+              mountPath: /usr/src/app/tmp
+            - name: app-log
+              mountPath: /usr/src/app/log
+            - name: plugins
+              mountPath: /usr/src/app/plugins
+        # The job queue and the cache. Nothing worth keeping, so no
+        # persistence, and on loopback, so nothing outside the pod can reach
+        # it whatever the NetworkPolicy says. A restart loses queued jobs; a
+        # library scan from Manyfold's menu queues them again.
+        - name: redis
+          image: docker.io/library/redis:8.10.3-alpine
+          args: ["redis-server", "--bind", "127.0.0.1", "--save", "", "--appendonly", "no"]
+          securityContext:
+            runAsNonRoot: true
+            # The alpine image's redis user.
+            runAsUser: 999
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: redis
+              mountPath: /data
+      volumes:
+        - name: library
+          persistentVolumeClaim:
+            claimName: manyfold-library
+        - name: run
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: app-tmp
+          emptyDir:
+            sizeLimit: 3Gi
+        - name: app-log
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: plugins
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: redis
+          emptyDir:
+            sizeLimit: 64Mi
+---
+# Everything that is not a secret. Read at start only: after a change,
+# `kubectl -n manyfold delete pod -l app.kubernetes.io/name=manyfold`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manyfold
+  namespace: manyfold
+data:
+  DATABASE_ADAPTER: postgresql
+  DATABASE_HOST: manyfold-postgres
+  DATABASE_NAME: manyfold
+  DATABASE_USER: manyfold
+  REDIS_URL: redis://127.0.0.1:6379/1
+
+  # The NAS's `manyfold` user and group, which its share maps every client
+  # to (README, step 1). The app runs as them, so what it creates in the
+  # library and what the NAS says it owns are the same user.
+  PUID: "3002"
+  PGID: "3003"
+
+  # The address everything here is reached by. TLS ends at ingress-nginx;
+  # HTTPS_ONLY makes Manyfold say https in the links it writes, the Pocket
+  # ID callback among them, and with PUBLIC_HOSTNAME it takes every request
+  # as having come over https, so nothing inside the cluster is redirected.
+  PUBLIC_HOSTNAME: models.lab.baakhoff.com
+  HTTPS_ONLY: enabled
+
+  # --- Login: Pocket ID ------------------------------------------------
+  # Accounts, each with their own lists and settings; without MULTIUSER,
+  # every visitor would be the admin. Pocket ID only: FORCE_OIDC hides the
+  # password form and stops Manyfold making a local admin of its own at
+  # first start. An account is made at its first sign-in, and the first
+  # one is the admin - so who may sign in at all is the client's Allowed
+  # User Groups in Pocket ID, and you sign in first (README, step 4).
+  MULTIUSER: enabled
+  FORCE_OIDC: enabled
+  OIDC_ISSUER: https://id.lab.baakhoff.com
+  OIDC_NAME: Pocket ID
+
+  # --- Size of the work ------------------------------------------------
+  # One web process and two background jobs at a time, rather than
+  # upstream's four and four: one household, and renders are CPU-heavy.
+  WEB_CONCURRENCY: "1"
+  DEFAULT_WORKER_CONCURRENCY: "2"
+  PERFORMANCE_WORKER_CONCURRENCY: "1"
+  # 1 GiB, upstream's default, written out because the Ingress's body
+  # size and the app-tmp volume are sized to it.
+  MAX_FILE_UPLOAD_SIZE: "1073741824"
