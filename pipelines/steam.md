@@ -89,6 +89,11 @@ SELECT name, round(playtime_minutes / 60) AS hours FROM ods.steam_games ORDER BY
   Variable `steam_playtime` holds what each game had at the last read.
   Deleting it makes the next run read every played game's again, which is
   how rarity is brought up to date.
+- **Some games' achievements answer with a server error**, every time:
+  delisted games, games whose achievements were taken away. The run skips
+  them, names them at the end of the `achievements` log, and asks again
+  next run. Only most games failing at once - Steam itself down - turns
+  the run red.
 - **The friends' names and profiles are other people's data**, as they
   show it publicly. They sit in ClickHouse, readable by its `admin` and
   `dbt` users, by CloudBeaver and by the `brand` agent, and in the nightly
