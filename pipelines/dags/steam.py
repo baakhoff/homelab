@@ -58,6 +58,12 @@ class _NoStats(Exception):
     """Steam's answer for a game without achievements, or one hidden."""
 
 
+class _StatsBroken(Exception):
+    """A server error for one game's stats. Steam answers 500 for some games
+    every time - delisted ones, ones whose achievements were taken away - so
+    it is that game's, not Steam being down."""
+
+
 class _Steam:
     def __init__(self):
         self.key = os.environ.get("STEAM_API_KEY", "")
@@ -70,6 +76,7 @@ class _Steam:
         """One Web API method's JSON. Errors name the method, never the URL,
         which holds the key."""
         time.sleep(PAUSE)
+        stats = "ISteamUserStats" in method
         for attempt in range(5):
             try:
                 r = self.session.get(f"{API}/{method}", timeout=TIMEOUT,
@@ -79,11 +86,14 @@ class _Steam:
                     raise RuntimeError(f"{method}: {type(e).__name__}") from None
                 time.sleep(2 ** attempt)
                 continue
-            if r.status_code in (429, 500, 502, 503) and attempt < 4:
+            # A game's stats answering 500 is tried once more, not four times.
+            if r.status_code in (429, 500, 502, 503) and attempt < (1 if stats and r.status_code == 500 else 4):
                 time.sleep(min(2 ** attempt * 5, 60))
                 continue
-            if r.status_code in (400, 403) and "ISteamUserStats" in method:
+            if r.status_code in (400, 403) and stats:
                 raise _NoStats()
+            if r.status_code >= 500 and stats:
+                raise _StatsBroken()
             if r.status_code == 401:
                 raise RuntimeError(f"{method}: Steam refused the request (401) - the key is wrong, "
                                    f"or this part of the profile is private ({SETUP})")
@@ -210,6 +220,7 @@ def ingest_steam():
         games = [g for g in owned if g.get("playtime_forever", 0) > 0
                  and seen.get(str(g["appid"])) != g["playtime_forever"]]
         print(f"achievements: {len(games)} of {len(owned)} games played since last time")
+        broken: list[str] = []
         for g in games:
             appid = g["appid"]
             try:
@@ -217,6 +228,10 @@ def ingest_steam():
                 mine = stats.get("playerstats", {}).get("achievements", [])
             except _NoStats:
                 mine = []
+            except _StatsBroken:
+                # Not marked as read: the next run asks again.
+                broken.append(f"{g.get('name')} ({appid})")
+                continue
             if mine:
                 try:
                     pct = s.get("ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2", gameid=appid)
@@ -224,7 +239,7 @@ def ingest_steam():
                     rarity = {a["name"]: float(a["percent"])
                               for a in pct.get("achievementpercentages", {}).get("achievements", [])
                               if a.get("percent") is not None}
-                except _NoStats:
+                except (_NoStats, _StatsBroken):
                     rarity = {}
                 for a in mine:
                     raw.send("achievements", f"{appid}/{a['apiname']}",
@@ -234,6 +249,12 @@ def ingest_steam():
         raw.flush()
         # Only once Kafka has them: a failed run reads the same games again.
         Variable.set(PLAYTIME, seen, serialize_json=True)
+        if broken:
+            print(f"achievements: Steam answered 500 for {len(broken)}, asked again next run: "
+                  + ", ".join(broken))
+        # Most games failing is Steam itself, and worth a red run.
+        if games and len(broken) > len(games) / 2:
+            raise RuntimeError(f"Steam answered 500 for {len(broken)} of {len(games)} games")
 
     library()
     profile()
