@@ -33,7 +33,10 @@ metadata:
     app.kubernetes.io/name: slot-4
     app.kubernetes.io/part-of: agents
 spec:
-  replicas: 1
+  # Parked 2026-11-02: not in use, and its Claude login had ended, so it
+  # crash-looped. Back to 1 to wake it; the volume keeps everything, and the
+  # login is renewed as in docs/runbooks/agent-pods.md.
+  replicas: 0
   revisionHistoryLimit: 2
   strategy:
     type: Recreate
@@ -47,6 +50,13 @@ spec:
         app.kubernetes.io/part-of: agents
     spec:
       priorityClassName: agents
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: agents
       automountServiceAccountToken: false
       # The pause container becomes PID 1 and reaps orphans. Otherwise
       # PID 1 is `claude remote-control`, which does not: every headless

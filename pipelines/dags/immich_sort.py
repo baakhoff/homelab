@@ -38,6 +38,20 @@ record, endpoint `sort`, with its counts and the tokens used - a failed run
 too, with what it spent. The task's log has only the counts, never a file
 name.
 
+A second task, assets, sends one record per photo or video that came from
+Telegram or VK - named TG_... or VK_..., by pipelines/tools/telegram_media.py,
+vk_media.py and ingest_telegram - to raw.immich, endpoint `assets`: its
+Immich id, file name, kind and dates. The name holds the hash that ties it
+to its message (ads.chat_media) - and its status: active while it is in
+Immich; once it is gone, into the trash or for good, duplicate if Immich had
+it in a duplicate group - which is how its duplicate review removes the
+copies it does not keep - else deleted. Taken back out of the trash, it is
+active again. Each run lists them all and compares with the last run's
+list, Variable immich_assets_known, and sends only what changed. Nothing
+leaves the warehouse: a deleted file keeps its row, with what was in it.
+Clearing the Variable sends every file again, and misses what goes before
+the next run. It needs no Claude.
+
 The keys come from the airflow-sources Secret: IMMICH_SORT_API_KEY, the
 owner's own Immich key with the permissions in the README, and
 ANTHROPIC_API_KEY.
@@ -54,7 +68,7 @@ from datetime import datetime, timedelta, timezone
 
 import pendulum
 import requests
-from airflow.sdk import dag, task
+from airflow.sdk import Variable, dag, task
 
 # Secrets and identity numbers masked before anything leaves for Kafka -
 # sensitive.py beside this file. Airflow puts the DAG folder, pipelines/, on
@@ -78,6 +92,10 @@ MAX_TYPES = 25
 # The preview is shrunk to fit this square before it is sent: enough to
 # read a screenshot, and about 600 tokens instead of 1,600.
 SIDE = 768
+# The files the assets task lists, by the start of their name, and its
+# progress.
+SOURCES = ("TG_", "VK_")
+KNOWN = "immich_assets_known"
 # A run stops after this long or this many pictures, whichever comes first;
 # the next run carries on. The count caps what one run can spend.
 BUDGET = timedelta(minutes=40)
@@ -185,6 +203,35 @@ def photo_record(asset: dict, answer: dict, type_: str, aside: bool) -> dict:
         "set_aside": aside,
         "model": MODEL,
     }
+
+
+def asset_record(asset: dict, status: str = "active") -> dict:
+    """A Telegram or VK file in Immich, for the assets endpoint."""
+    return {
+        "file_name": asset.get("originalFileName"),
+        "kind": (asset.get("type") or "").lower(),
+        "uploaded_at": asset.get("createdAt"),
+        "taken_at": asset.get("fileCreatedAt"),
+        "status": status,
+        "duplicate_group": asset.get("duplicateId"),
+    }
+
+
+def asset_changes(known: dict[str, str], found: dict[str, dict]) -> tuple[list[tuple[str, dict]], dict[str, str]]:
+    """What changed since the last listing, as (id, record), and the new
+    listing. known is the last one: id -> its duplicate group, or "". A file
+    new or back from the trash is active; one whose duplicate group changed
+    is sent again; one gone - into the trash or deleted for good - is a
+    duplicate if it was in a duplicate group, which is how Immich's own
+    duplicate review removes the copies it does not keep, else deleted."""
+    out = []
+    now = {i: a.get("duplicateId") or "" for i, a in found.items()}
+    for i, a in found.items():
+        if i not in known or known[i] != now[i]:
+            out.append((i, asset_record(a)))
+    for i in sorted(known.keys() - found.keys()):
+        out.append((i, {"status": "duplicate" if known[i] else "deleted"}))
+    return out, now
 
 
 def _length(ms: int | None) -> str:
@@ -479,7 +526,50 @@ def immich_sort():
         if failure:
             raise failure
 
+    @task(execution_timeout=timedelta(minutes=20))
+    def assets() -> None:
+        from airflow.sdk import get_current_context
+        from confluent_kafka import Producer
+
+        if not os.environ.get("IMMICH_SORT_API_KEY"):
+            raise RuntimeError("IMMICH_SORT_API_KEY not set - clusters/lab/immich/README.md, step 8")
+        immich = _Immich(os.environ["IMMICH_SORT_API_KEY"])
+        known = json.loads(Variable.get(KNOWN, default="{}"))
+        found = {a["id"]: a for prefix in SOURCES
+                 for a in immich.search({"originalFileName": {"startsWith": prefix}}, 10**9)}
+        if known and not found:
+            raise RuntimeError("Immich listed none of the Telegram and VK files it had - "
+                               "not taken as all of them deleted")
+        changed, now = asset_changes(known, found)
+        run_id = get_current_context()["run_id"]
+        extracted_at = datetime.now(timezone.utc).isoformat()
+        errors: list[str] = []
+        producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP, "compression.type": "zstd", "linger.ms": 50})
+        def envelope(rid: str, record: dict, flags: dict) -> bytes:
+            return json.dumps({"source": "immich", "endpoint": "assets", "extracted_at": extracted_at,
+                               "run_id": run_id, "id": rid, "record": record, **flags},
+                              ensure_ascii=False).encode()
+
+        out = [(i, envelope(i, *mask_record(record))) for i, record in changed]
+        for rid, value in out:
+            while True:
+                try:
+                    producer.produce(TOPIC, key=f"assets:{rid}".encode(), value=value,
+                                     on_delivery=lambda err, _m: err and errors.append(str(err)))
+                    break
+                except BufferError:
+                    producer.poll(1)
+            producer.poll(0)
+        if producer.flush(60) or errors:
+            raise RuntimeError(f"records for {TOPIC} not delivered: {errors[:1]}")
+        # Moved on only once all of them are in Kafka.
+        Variable.set(KNOWN, json.dumps(now, sort_keys=True))
+        gone = sum(1 for _, r in changed if r["status"] != "active")
+        print(f"assets from Telegram and VK: {len(found)} in Immich, "
+              f"{len(changed) - gone} new or changed, {gone} gone")
+
     sort()
+    assets()
 
 
 immich_sort()

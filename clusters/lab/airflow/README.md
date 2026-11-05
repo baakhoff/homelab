@@ -13,6 +13,9 @@ model is live a minute later, with no restart.
 | `ingest_proton` | A Proton Mail export, packed on the workstation and copied into the scheduler pod, into `raw.proton` ([how](../../../pipelines/proton.md)) | by hand |
 | `ingest_vk` | The VK data archive, packed on the workstation and copied into the scheduler pod, into `raw.vk` ([how](../../../pipelines/vk.md)) | by hand |
 | `ingest_google`, `ingest_google_gmail`, `ingest_google_portability`, `ingest_google_takeout` | The Google account into `raw.google`: Calendar, Contacts, Tasks and Drive as snapshots; Gmail metadata as changes; My Activity, Chrome and the rest as Data Portability exports; a Takeout export by hand, for mail bodies ([`pipelines/google.md`](../../../pipelines/google.md)) | 6-hourly, hourly, daily, by hand |
+| `ingest_garmin`, `ingest_garmin_export` | The Garmin Connect account into `raw.garmin`, logged in as the phone app: each day's summary, sleep, stress, Body Battery, HRV and the rest, the activities, and the history in 40-minute portions on the first runs; Garmin's data export by hand, for the activities' FIT recordings ([`pipelines/garmin.md`](../../../pipelines/garmin.md)) | 6-hourly at :35, by hand |
+| `ingest_bambu` | The Bambu Lab account into `raw.bambu`, logged in as the slicer: every print through its cloud with each AMS slot's filament, and the printers ([`pipelines/bambu.md`](../../../pipelines/bambu.md)) | every 6 hours, at :25 |
+| `ingest_steam` | The Steam account into `raw.steam` through Steam's Web API: the library and each game's playtime, achievements, profile, badges, friends ([`pipelines/steam.md`](../../../pipelines/steam.md)) | every 6 hours, at :50 |
 | `immich_sort` | Immich's photos and videos without a type, shown to Claude: each is described and gets a type tag and the type's album, and what nobody would miss also goes into the album *To delete*; each picture's row, and each run's counts, into `raw.immich` ([how](../immich/README.md#sorting-by-type)) | hourly, at :05 |
 | `warehouse` | The dbt project: `raw` -> `ods` -> `ads` -> `dm`, one task per model and per model's tests, rendered by [Cosmos](https://github.com/astronomer/astronomer-cosmos) | hourly, at :45 |
 
@@ -35,7 +38,8 @@ container's log.
   (`parallelism`). The warehouse DAG's models queue behind each other; a
   full run takes a few minutes longer and never takes the scheduler down.
 - **Its own image** (`images/airflow/`): the official one plus Cosmos, the
-  Kafka client, Telethon for Telegram, Pillow for `immich_sort`'s previews, and dbt in a separate virtualenv at `/opt/dbt` so that
+  Kafka client, Telethon for Telegram, Pillow for `immich_sort`'s previews,
+  python-garminconnect for Garmin, and dbt in a separate virtualenv at `/opt/dbt` so that
   dbt's and Airflow's dependencies never meet.
 - **Its own Postgres** (`postgres.yaml`) for run history. Losing it loses
   history, not data.
@@ -50,8 +54,8 @@ container's log.
 ## What it can reach
 
 `networkpolicy.yaml` lets Airflow out to the internet on 443 - GitHub for
-git-sync, Google's APIs for the Google DAGs, Anthropic's API for
-`immich_sort` - and inside the lab to exactly
+git-sync, Google's APIs for the Google DAGs, Garmin Connect for
+`ingest_garmin`, Steam's Web API for `ingest_steam`, Bambu Lab's cloud for `ingest_bambu`, Anthropic's API for `immich_sort` - and inside the lab to exactly
 the services its DAGs read - Kafka and ClickHouse, the Firefly broker,
 Vikunja, Mealie, Paperless, SparkyFitness, Dawarich, Outline, Immich, Plex. Each of
 those admits the scheduler pod by name in its own policy. A new source needs
@@ -134,7 +138,10 @@ with the Claude API key), and Plex's, step 6 of
 Telegram's login, by `pipelines/tools/telegram_login.py` (`pipelines/telegram.md`).
 So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
 `clusters/lab/cloudbeaver/README.md` - and Google's client and tokens, by
-`pipelines/tools/google_auth.py` (`pipelines/google.md`).
+`pipelines/tools/google_auth.py` (`pipelines/google.md`), and Garmin's
+tokens, by `pipelines/tools/garmin_login.py` (`pipelines/garmin.md`), and Steam's
+key, by `pipelines/tools/steam_key.py` (`pipelines/steam.md`), and Bambu Lab's
+token, by `pipelines/tools/bambu_login.py` (`pipelines/bambu.md`).
 
 **4. Create the dbt user** once the Secrets have reconciled, rather than
 waiting for the hourly schema job:

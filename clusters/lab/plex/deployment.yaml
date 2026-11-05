@@ -33,7 +33,7 @@ spec:
         - name: plex
           # The tag is the Plex release plus its build hash; renovate.json5
           # reads the release part.
-          image: docker.io/plexinc/pms-docker:1.43.5.11029-6bf8af3f0
+          image: docker.io/plexinc/pms-docker:1.43.5.11079-b3b13e506
           env:
             - name: TZ
               value: Europe/Copenhagen

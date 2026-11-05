@@ -357,7 +357,42 @@ kubectl -n backup delete pod restic-check
 ```
 
 A check stops at the first missing packs it lists, so a second round can turn
-up more. Repeat until it ends `no errors were found`. Only a pack with no
+up more: `repair index` names them as `removing not found pack file <id>`, and
+those go into `P` for the next round. Repeat until it ends `no errors were
+found`.
+
+A check can also name a tree or blob that no pack in the index holds, so there
+is no pack ID to put in `P`. Then bring back every pack the bucket still keeps
+a deleted version of. Packs that really were unneeded only cost space until the
+next prune drops them again:
+
+```
+kubectl -n backup run s3-fix --restart=Never --image=amazon/aws-cli:2.38.5 \
+  --overrides='{"spec":{"containers":[{"name":"s3-fix","image":"amazon/aws-cli:2.38.5","command":["sleep","7200"],"env":[{"name":"AWS_DEFAULT_REGION","value":"fsn1"}],"envFrom":[{"secretRef":{"name":"restic-repo"}}]}]}}'
+kubectl -n backup wait --for=condition=Ready pod/s3-fix --timeout=120s
+kubectl -n backup exec -i s3-fix -- bash -s <<'EOF'
+E=--endpoint-url=https://fsn1.your-objectstorage.com; B=baakhoff-lab-backup
+export E B
+aws s3api list-object-versions $E --bucket $B --prefix lab/data/ --query "DeleteMarkers[?IsLatest].[Key]" --output text > /tmp/keys
+echo "deleted packs: $(wc -l < /tmp/keys)"
+one() {
+  v=$(aws s3api list-object-versions $E --bucket $B --prefix "$1" --query "Versions[0].VersionId" --output text)
+  if [ "x$v" = xNone ]; then echo "none $1"; return; fi
+  aws s3api copy-object $E --bucket $B --key "$1" --copy-source "$B/$1?versionId=$v" >/dev/null && echo "ok $1" || echo "fail $1"
+}
+export -f one
+xargs -P 8 -I{} bash -c 'one {}' < /tmp/keys > /tmp/result
+cut -d' ' -f1 /tmp/result | sort | uniq -c
+EOF
+kubectl -n backup delete pod s3-fix
+```
+
+Then `repair index && check` as above. If `repair index` stops on a lock left by
+a pod that is gone, put `restic unlock && ` in front of it: without
+`--remove-all`, it removes only locks nobody has refreshed for 30 minutes.
+
+Run nothing that prunes while a check fails. A prune on an index that points at
+missing packs drops them from it and repacks around them, and that loses more. Only a pack with no
 version left calls for `restic repair snapshots --forget`, which cuts what
 it held out of the snapshots that used it. The next nightly backup uploads
 that data again if the volume still has it.
@@ -365,6 +400,12 @@ that data again if the volume still has it.
 On 2026-10-26 this recovered ten packs deleted by the prunes of 10-11, 10-18
 and 10-25. One snapshot, Dawarich's storage of 10-23, had been dropped with
 `restic forget` before the old versions were found. Nothing else was lost.
+
+On 2026-11-02 and 11-03 it took three rounds: 21 packs, then 22 more, then all
+1,340 the bucket still kept, for one tree and three files that no listed pack
+held. The deletions dated 10-11, 10-18 and 10-25, and twelve were from 10-26
+12:46 UTC, during that day's recovery, not from a prune. The two oldest packs
+had about a week of their 30 days left. Nothing was lost.
 
 ## Known limitations
 
@@ -375,7 +416,11 @@ and 10-25. One snapshot, Dawarich's storage of 10-23, had been dropped with
   on S3-compatible stores, but nothing here proves it. What contains it: the
   bucket keeps a deleted pack for 30 days, and the prune checks the repository
   before and after, so a loss shows up within a week and is recovered as in
-  the section above.
+  the section above. Not always within a week, as it turned out: the
+  2026-11-01 check found packs from 10-11, three weeks old. So the prune is
+  suspended (`suspend: true` in cronjob-prune.yaml) until the cause is known.
+  Meanwhile nothing is deleted, and the bucket grows by what the nightly
+  backups add.
 
 - **The swap has not been rehearsed, only the restore.** Steps 1–3 above ran on
   2026-09-19; pointing a live workload at a restored claim and starting it has
