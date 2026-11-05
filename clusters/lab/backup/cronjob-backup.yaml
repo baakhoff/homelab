@@ -108,6 +108,7 @@ spec:
                     immich/data-immich-postgres-0
                     notes/data-outline-postgres-0
                     notes/outline-data
+                    karakeep/karakeep-data
                     monitoring/kube-prometheus-stack-grafana
                     monitoring/alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
                     minecraft/minecraft-data

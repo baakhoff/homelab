@@ -1,0 +1,99 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Two Ingresses for one host, because Karakeep has two kinds of client.
+#
+# The web app, below, is behind the oauth2-proxy gate as well as Karakeep's
+# own Pocket ID login, the rule for every host here. In practice it is one
+# passkey: the gate asks for it, and Karakeep's sign-in finds the Pocket ID
+# session already there.
+#
+# The phone app and the browser extension cannot pass the gate: they talk
+# to Karakeep's API with an API key, no cookie. So the API paths they use
+# are the second Ingress, ungated. Every one of them answers nothing without
+# a key or a signed-in Karakeep session, and keys are only made by
+# signed-in users (README, "Phone and browser"). ingress-nginx routes by
+# the longest matching path across both, so anything not listed there,
+# /api/auth (the sign-in itself) included, stays behind the gate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: karakeep
+  namespace: karakeep
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Images and PDFs uploaded as bookmarks; Karakeep's own cap is 64 MB.
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Karakeep
+    gethomepage.dev/group: Home
+    gethomepage.dev/icon: karakeep.png
+    gethomepage.dev/description: Saved links, read later, with a copy kept
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://links.lab.baakhoff.com
+spec:
+  rules:
+    - host: links.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: karakeep
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: karakeep-api
+  namespace: karakeep
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+spec:
+  rules:
+    - host: links.lab.baakhoff.com
+      http:
+        paths:
+          # The REST API, with an API key.
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: karakeep
+                port:
+                  number: 80
+          # What the phone app and the extension mostly call, with the same key.
+          - path: /api/trpc
+            pathType: Prefix
+            backend:
+              service:
+                name: karakeep
+                port:
+                  number: 80
+          # Screenshots, banners and saved files, shown in the phone app.
+          - path: /api/assets
+            pathType: Prefix
+            backend:
+              service:
+                name: karakeep
+                port:
+                  number: 80
+          # The apps' "is this a Karakeep server" check when the address is
+          # entered.
+          - path: /api/health
+            pathType: Exact
+            backend:
+              service:
+                name: karakeep
+                port:
+                  number: 80
+          - path: /api/version
+            pathType: Exact
+            backend:
+              service:
+                name: karakeep
+                port:
+                  number: 80

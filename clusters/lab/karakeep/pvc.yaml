@@ -1,0 +1,32 @@
+# Karakeep's database (SQLite) and everything it keeps of a saved link:
+# the page's text and a full copy of it, a screenshot, the banner image,
+# a video up to the size cap, uploaded images and PDFs. Most of this
+# volume is those copies. Expandable in place.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: karakeep-data
+  namespace: karakeep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 20Gi
+---
+# Meilisearch's index for full-text search. Built from the database, so not
+# backed up: after a loss, Karakeep's admin settings → "Reindex all
+# bookmarks" builds it again (README).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: karakeep-meilisearch
+  namespace: karakeep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 2Gi
