@@ -21,7 +21,10 @@ FROM apache/airflow:3.2.2-python3.12
 #                       in the constraints, so pinned here with curl_cffi, which
 #                       it needs: 0.17 wants a newer cffi and certifi than the
 #                       constraints allow. pipelines/tools/garmin_login.py
-#                       names the same two versions.
+#                       names the same two versions. ingest_bambu
+#                       (pipelines/dags/bambu.py) calls Bambu Lab's cloud
+#                       through the same curl_cffi, and bambu_login.py names
+#                       its version too.
 ARG COSMOS_VERSION=1.15.1
 ARG TELETHON_VERSION=1.45.0
 ARG GARMINCONNECT_VERSION=0.3.20
