@@ -313,6 +313,63 @@ def _karakeep_pages(session: requests.Session, url: str):
         params["cursor"] = cursor
 
 
+def _manyfold_pages(session: requests.Session, url: str):
+    """Manyfold's API (v0, JSON-LD): a list answers {"member": [...]} with
+    only each item's "@id" and name, paged by ?page= and a "view.next"
+    link, so each item is then read whole from its "@id". "model_files" is
+    not a list of its own: it is every file each model names in "hasPart",
+    read whole the same way, for its size. The "@id"s are the public
+    address's; only their paths are used, here, on the Service.
+
+    No fixed key: the API takes a token from OAuth's client credentials,
+    asked for here with the application's id and secret, valid two hours -
+    clusters/lab/manyfold/README.md, step 5.
+    """
+    from urllib.parse import urlsplit
+
+    base, key = url.rsplit("/", 1)
+
+    def at(ref: str) -> str:
+        parts = urlsplit(ref)
+        return base + parts.path + (f"?{parts.query}" if parts.query else "")
+
+    def whole(ref: str) -> dict:
+        r = session.get(at(ref), timeout=TIMEOUT)
+        r.raise_for_status()
+        if r.history:
+            raise RuntimeError(f"{ref} redirected to {r.url} - the token was not taken")
+        return r.json()
+
+    def listed(what: str):
+        page = f"{base}/{what}"
+        while page:
+            r = session.get(page, timeout=TIMEOUT)
+            body = _json(r, "member", page)
+            for item in body["member"]:
+                yield whole(item["@id"])
+            nxt = body.get("view", {}).get("next")
+            page = at(nxt) if nxt else None
+
+    if "Authorization" not in session.headers:
+        cid, secret = os.environ.get("MANYFOLD_CLIENT_ID"), os.environ.get("MANYFOLD_CLIENT_SECRET")
+        if not (cid and secret):
+            raise RuntimeError("MANYFOLD_CLIENT_ID or MANYFOLD_CLIENT_SECRET is not set - see clusters/lab/airflow/README.md")
+        r = session.post(f"{base}/oauth/token", timeout=TIMEOUT, data={
+            "grant_type": "client_credentials", "client_id": cid,
+            "client_secret": secret, "scope": "read"})
+        r.raise_for_status()
+        session.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
+        # The API answers in its own format only when asked for it by name.
+        session.headers["Accept"] = "application/vnd.manyfold.v0+json"
+
+    if key == "model_files":
+        for model in listed("models"):
+            for part in model.get("hasPart") or []:
+                yield whole(part["@id"])
+    else:
+        yield from listed(key)
+
+
 # Per source: where its API is, how it authenticates, how it pages, and the
 # endpoints to snapshot. A new endpoint is one entry; a new source is one
 # block here plus its word in SOURCES (clusters/lab/data/clickhouse-schema.yaml)
@@ -428,6 +485,19 @@ SOURCES = {
         "pages": _karakeep_pages,
         "endpoints": ["bookmarks", "highlights", "tags", "lists", "feeds"],
         "schedule": "50 */6 * * *",
+    },
+    # The 3D models: each model with its tags, creator and collections, each
+    # of its files with its size, and the creators and collections. What an
+    # API application of the owner's account can see, read-only -
+    # clusters/lab/manyfold/README.md, step 5. Once a day: every model and
+    # file is a request of its own.
+    "manyfold": {
+        "base": "http://manyfold.manyfold.svc.cluster.local",
+        "auth": None,
+        "pages": _manyfold_pages,
+        "endpoints": ["models", "model_files", "creators", "collections"],
+        "ids": {e: "@id" for e in ("models", "model_files", "creators", "collections")},
+        "schedule": "10 4 * * *",
     },
 }
 

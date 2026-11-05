@@ -1,0 +1,72 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Two Ingresses for one host, as for Karakeep.
+#
+# The web app, below, is behind the oauth2-proxy gate as well as
+# Manyfold's own Pocket ID login, the rule for every host here. In practice
+# it is one passkey: the gate asks for it, and Manyfold's sign-in finds the
+# Pocket ID session already there.
+#
+# The slicers cannot pass the gate. "Open in Bambu Studio" (or Orca,
+# PrusaSlicer, Cura) hands the slicer a link to the file, and the slicer
+# downloads it with no cookie. Those links are the second Ingress, ungated:
+# each carries a signature Manyfold made for that one file, for one hour,
+# and only for someone signed in who could download it anyway. Anything
+# else under /models stays behind the gate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: manyfold
+  namespace: manyfold
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Uploads: Manyfold's own cap, MAX_FILE_UPLOAD_SIZE in deployment.yaml.
+    nginx.ingress.kubernetes.io/proxy-body-size: "1024m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Manyfold
+    gethomepage.dev/group: Home
+    gethomepage.dev/icon: manyfold.png
+    gethomepage.dev/description: 3D models, to look at and print
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://models.lab.baakhoff.com
+spec:
+  rules:
+    - host: models.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: manyfold
+                port:
+                  number: 80
+---
+# A regular expression, because the signature sits in the middle of the
+# path: /models/<model>/model_files/signed/<signature>/<file>. ingress-nginx
+# then reads every path of this host as one, which for "/" above changes
+# nothing; the longer path wins.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: manyfold-signed
+  namespace: manyfold
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+spec:
+  rules:
+    - host: models.lab.baakhoff.com
+      http:
+        paths:
+          - path: /models/[^/]+/model_files/signed/[^/]+/
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: manyfold
+                port:
+                  number: 80

@@ -254,6 +254,7 @@ and a lone special (metadata) vdev would take the whole pool with it if it died.
 | `tank/personal` | Multiprotocol | AES-256-GCM, key | default | family files |
 | `tank/media` | Multiprotocol | none | 1M | large files that can be fetched again: films and series, for Plex |
 | `tank/immich` | Generic | AES-256-GCM, its own key | 1M | Immich's photo library, quota 800 GiB |
+| `tank/models` | Generic | none | 1M | Manyfold's 3D model library, quota 200 GiB |
 
 - **The pool root is not encrypted; `personal` is.** TrueNAS's own docs advise
   against root encryption, and the G5400 has no AVX, so ZFS falls back to its
@@ -307,19 +308,20 @@ start at all: keep the log in the user's profile.
 
 ### The cluster's shares
 
-Two datasets reach the cluster over NFSv4, mounted by the nodes through
-csi-driver-nfs (`clusters/lab/csi-driver-nfs/`): the photo library and the
-films.
+Three datasets reach the cluster over NFSv4, mounted by the nodes through
+csi-driver-nfs (`clusters/lab/csi-driver-nfs/`): the photo library, the
+films and the 3D models.
 
 | Local user | UID | GID | Owns |
 |---|---|---|---|
 | `immich` | 3000 | 3001 | `tank/immich`, mode 770 |
 | `media` | 3001 | 3002 | `tank/media`, and its `films` and `series` folders |
+| `manyfold` | 3002 | 3003 | `tank/models`, mode 770 |
 
-Both have the password disabled, the `nologin` shell and no SMB access.
+All have the password disabled, the `nologin` shell and no SMB access.
 TrueNAS numbers new users from 3000, clear of 1000, which is `baakh` here and
 the agent pods' user in the cluster. The pods that write run as these ids
-(`clusters/lab/immich/`, `clusters/lab/plex/`).
+(`clusters/lab/immich/`, `clusters/lab/plex/`, `clusters/lab/manyfold/`).
 
 The NFS service runs NFSv4 only, bound to `192.168.68.105`, started at boot.
 
@@ -327,6 +329,7 @@ The NFS service runs NFSv4 only, bound to `192.168.68.105`, started at boot.
 |---|---|---|---|
 | `/mnt/tank/immich` | `192.168.68.102/32`, `.103/32`, `.104/32` | `immich` | Immich, read-write |
 | `/mnt/tank/media` | the same three | `media` | Plex, read-only |
+| `/mnt/tank/models` | the same three | `manyfold` | Manyfold, read-write |
 
 **Mapall** turns every request from a client into the share's own user, root
 included (`all_squash`). NFS believes whatever user id a client sends, so

@@ -64,6 +64,7 @@ accounts, the only login its TV apps know.
 | [Dawarich](https://github.com/Freika/dawarich) | Location history from the phone on a map: trips, visits, countries and stats, a self-hosted Google Timeline. |
 | [Photon](https://github.com/komoot/photon) | Turns Dawarich's coordinates into streets, cities and places, from OpenStreetMap, without sending them out of the lab. |
 | [Immich](https://immich.app) | The family's photos and videos: phones back up to it, with faces, places and search in any language, and the library on the NAS. |
+| [Manyfold](https://manyfold.app) | The 3D models in one library on the NAS, by creator, collection and tag, each in a 3D viewer, and sent on to the slicer. |
 | [Plex](https://www.plex.tv) | Films and series from the NAS to the TVs, phones and browsers, converting on the cluster's Intel graphics what a device cannot play. |
 | [Grafana](https://grafana.com/oss/grafana/) | Dashboards for the cluster's metrics and logs. |
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
@@ -116,7 +117,8 @@ accounts, the only login its TV apps know.
   Intel graphics through Intel's device plugin
   ([how](clusters/lab/plex/README.md)), and
   Outline for notes and documents ([how](clusters/lab/notes/README.md)), and
-  Karakeep keeping saved links with a copy of each page ([how](clusters/lab/karakeep/README.md)), and n8n for
+  Karakeep keeping saved links with a copy of each page ([how](clusters/lab/karakeep/README.md)), and
+  Manyfold for the 3D models ([how](clusters/lab/manyfold/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
   feeding ClickHouse, where every source's raw data is kept for querying
   ([how](clusters/lab/data/README.md)), and Airflow running the pipelines
