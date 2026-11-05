@@ -17,7 +17,7 @@ At <https://models.lab.baakhoff.com>, and on Homepage under Home.
 | `deployment.yaml` | the app - web server and background workers in one container - with Redis beside it on loopback; its settings, in a ConfigMap |
 | `postgres.yaml` | its own Postgres 18, on Ceph |
 | `pvc.yaml` | the library: the NAS share `tank/models`, over NFS through csi-driver-nfs |
-| `networkpolicy.yaml` | ingress-nginx and Airflow's scheduler to the app, the app to Postgres |
+| `networkpolicy.yaml` | ingress-nginx, Airflow's scheduler and the brand agent to the app, the app to Postgres |
 | `networkpolicy-no-nas.yaml` | no pod here reaches the NAS ([why](../../../docs/network.md#pods-and-the-lan)) |
 | `service.yaml`, `ingress.yaml` | `models.lab.baakhoff.com`, with the Homepage tile |
 | `secret.sops.yaml` | the app's keys, the database password and the Pocket ID client - **created by hand, step 3** |
@@ -139,10 +139,21 @@ kubectl -n data create job --from=cronjob/clickhouse-schema schema-manyfold
 kubectl -n manyfold rollout status deploy/manyfold --timeout=10m
 ```
 
-Then open <https://models.lab.baakhoff.com> and sign in with Pocket ID.
-Manyfold asks for a library: **Path** `/libraries/models`, the NAS share,
-name `Models`. Usage reporting, under Settings, is off as it starts and
-stays off.
+Then make the library, before anyone signs in. Manyfold sends everyone
+who is not its admin away while it has no library - its Pocket ID sign-in
+included, so with no admin yet, nobody gets in. Upstream expects its own
+local admin to make the first library, and `FORCE_OIDC` has none. So it is
+made from the command line, as the NAS user, which also checks the share
+is writable:
+
+```bash
+kubectl -n manyfold exec deploy/manyfold -c manyfold -- s6-setuidgid 3002:3003 bin/rails runner 'l = Library.create!(path: "/libraries/models", name: "Models"); puts l.id'
+```
+
+It prints the library's number. "Path must be writable" means the dataset
+is not owned by `manyfold`, mode 770 (step 1). Then open
+<https://models.lab.baakhoff.com> and sign in with Pocket ID. Usage
+reporting, under Settings, is off as it starts and stays off.
 
 **5. Feed the data warehouse.** In Manyfold, Settings → API keys → New
 API key: name `warehouse`, redirect URI `urn:ietf:wg:oauth:2.0:oob` (there
@@ -170,6 +181,20 @@ Then, in the Airflow UI, switch `ingest_manyfold` on - Airflow pauses every
 new DAG until someone does - and trigger it, and after it the `warehouse`
 DAG. Until the keys exist, that DAG's runs fail and nothing else is
 affected.
+
+**6. The brand agent's key.** In Manyfold, Settings → API keys → New API
+key: name `brand`, redirect URI `urn:ietf:wg:oauth:2.0:oob`, confidential,
+scopes **read** only. It reads every model and file your account can see
+and changes nothing. Brand asks for a token with it (`POST /oauth/token`,
+`grant_type=client_credentials`, `scope=read`, valid two hours) and sends
+`Accept: application/vnd.manyfold.v0+json`; the API's own description is
+at `/api` on the site. Put the key's UID and secret in brand's
+`~/.config/brand/secrets.env` as `MANYFOLD_CLIENT_ID` and
+`MANYFOLD_CLIENT_SECRET`, with
+`MANYFOLD_URL=http://manyfold.manyfold.svc.cluster.local`, then restart
+brand so it reads them:
+`kubectl -n agents delete pod -l app.kubernetes.io/name=brand`. Deleting
+the key in Manyfold takes the access back.
 
 ## What goes to the warehouse
 

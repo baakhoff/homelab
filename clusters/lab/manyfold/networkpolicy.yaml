@@ -4,6 +4,9 @@
 # - Airflow's scheduler, for the ingest_manyfold DAG, with an API
 #   application of its own (pipelines/dags/ingest.py; the egress rule is in
 #   clusters/lab/airflow/networkpolicy.yaml).
+# - The brand agent's pod, with an API key of the owner's (README, step 6);
+#   the egress rule is in clusters/lab/agents/networkpolicy-brand.yaml. Not
+#   its scheduled jobs in brand-jobs, and no other agent.
 #
 # In, to Postgres: Manyfold only. Redis listens on the pod's loopback
 # (deployment.yaml), so it needs no rule.
@@ -38,6 +41,16 @@ spec:
           podSelector:
             matchLabels:
               component: scheduler
+      ports:
+        - protocol: TCP
+          port: 3214
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agents
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: brand
       ports:
         - protocol: TCP
           port: 3214
