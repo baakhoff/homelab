@@ -176,23 +176,24 @@ def ingest_bambu():
         for d in devices:
             raw.send("devices", d["dev_id"], {k: v for k, v in d.items() if k not in DROP})
 
-        # Newest first. Each page asks for the prints after the oldest one
-        # so far; a page with nothing new is the end - also if Bambu ever
-        # stops honouring `after` and answers the same page again.
+        # Newest first, a page at a time by offset, as Bambu's own network
+        # plugin asks (`after` does not page back). A page with nothing new
+        # is the end - also if Bambu ever stops honouring the offset and
+        # answers the same page again.
         seen: set = set()
         total = None
-        after = None
+        offset = 0
         while True:
-            page = b.get("/v1/user-service/my/tasks", limit=PAGE,
-                         **({"after": after} if after is not None else {}))
+            page = b.get("/v1/user-service/my/tasks", limit=PAGE, offset=offset)
             total = page.get("total", total)
-            new = [t for t in page.get("hits") or [] if t["id"] not in seen]
+            hits = page.get("hits") or []
+            new = [t for t in hits if t["id"] not in seen]
             if not new:
                 break
             for t in new:
                 seen.add(t["id"])
                 raw.send("tasks", t["id"], t)
-            after = min(t["id"] for t in new)
+            offset += len(hits)
         raw.flush()
 
         if total is not None and len(seen) < total:
