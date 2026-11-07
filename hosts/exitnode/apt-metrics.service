@@ -1,0 +1,10 @@
+# Runs apt-metrics; started by apt-metrics.timer.
+[Unit]
+Description=Pending security fixes, for node-exporter
+After=apt-daily.service apt-daily-upgrade.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/apt-metrics
+Nice=10
+IOSchedulingClass=idle

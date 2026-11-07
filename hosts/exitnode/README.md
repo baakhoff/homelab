@@ -11,6 +11,8 @@ the [Pi runbook](../../docs/runbooks/pi-exitnode.md).
 | `99-disable-network-config.cfg` | `/etc/cloud/cloud.cfg.d/` | stops cloud-init from managing the network on every boot; it dropped the Wi-Fi profile once |
 | `wake-nodes` | `/usr/local/bin/` | sends Wake-on-LAN magic packets to the lab's machines |
 | `wake-nodes.conf.example` | — | template for `/etc/wake-nodes.conf`, which is **not** tracked |
+| `apt-metrics`, `apt-metrics.service`, `apt-metrics.timer` | `/usr/local/sbin/`, `/etc/systemd/system/` | hourly, counts the security updates apt has and the Pi has not installed, and whether it waits for a reboot, for node-exporter; [the alerts](../../clusters/lab/monitoring/host-security-rules.yaml). Byte-identical to the nodes' copies |
+| `prometheus-node-exporter.conf` | `/etc/systemd/system/prometheus-node-exporter.service.d/lab.conf` | node-exporter answers the three cluster nodes, where Prometheus's scrape comes from, and nobody else |
 | `oled/` | the Pi and the Pico | the rack's OLED status screens — [its own README](oled/README.md) |
 
 ## Install
@@ -32,6 +34,38 @@ Then edit `/etc/wake-nodes.conf` and replace the placeholder MACs with the real
 ones. They are deliberately absent from this repository — hardware addresses sit
 on the never-publish list next to serials, the SSID and public addresses, because
 they identify specific equipment and feed Wi-Fi geolocation databases.
+
+## Security updates
+
+Raspberry Pi OS does not install security updates by itself; with
+unattended-upgrades it does, daily, from Debian's security archive. Then
+node-exporter and the hourly check, which Prometheus scrapes
+(`clusters/lab/monitoring/exitnode-scrape.yaml`):
+
+```
+sudo apt install -y unattended-upgrades needrestart
+sudo dpkg-reconfigure -plow unattended-upgrades
+sudo apt install -y --no-install-recommends prometheus-node-exporter
+sudo install -d /etc/systemd/system/prometheus-node-exporter.service.d
+sudo install -m 0644 prometheus-node-exporter.conf /etc/systemd/system/prometheus-node-exporter.service.d/lab.conf
+sudo install -m 0755 apt-metrics /usr/local/sbin/apt-metrics
+sudo install -m 0644 apt-metrics.service apt-metrics.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl restart prometheus-node-exporter
+sudo systemctl enable --now apt-metrics.timer
+sudo systemctl start apt-metrics.service
+curl -s localhost:9100/metrics | grep -E '^(apt_|node_reboot)'
+```
+
+`dpkg-reconfigure` asks one question: yes. It turns on the daily fetch of
+the package lists as well as the upgrade. `--no-install-recommends` leaves
+out the package's own collector scripts, which pull in smartmontools and
+more for checks this does not need. The `curl` shows the four numbers;
+`apt_package_lists_timestamp_seconds` may be 0 until the first daily fetch,
+or run `sudo apt update` and the service again.
+
+Pi-hole is not from apt and is not covered: `pihole -up`, when its web page
+says an update is out.
 
 ## Why waking lives on the Pi
 

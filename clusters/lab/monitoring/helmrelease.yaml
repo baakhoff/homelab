@@ -249,12 +249,13 @@ spec:
             - receiver: "null"
               matchers:
                 - alertname = "InfoInhibitor"
-            # CVEs in running images (trivy-rules.yaml): once when found,
-            # then weekly. The fix is usually an upstream rebuild, which a
-            # reminder twice a day does not hurry.
+            # CVEs in running images (trivy-rules.yaml) and a reboot a host
+            # is waiting for (host-security-rules.yaml): once when found,
+            # then weekly. The fix is an upstream rebuild or a planned
+            # reboot, neither hurried by a reminder twice a day.
             - receiver: telegram
               matchers:
-                - alertname = "ContainerImageCriticalCVE"
+                - alertname =~ "ContainerImageCriticalCVE|ContainerImageOSEndOfLife|HostRebootRequired"
               repeat_interval: 168h
             # Same destination, shorter leash: a critical nags hourly
             # until it is resolved or silenced.
@@ -339,6 +340,18 @@ spec:
                   {{ if $a.Annotations.runbook_url }}{{ $a.Annotations.runbook_url }}
                   {{ end }}
                   {{ end }}{{ end }}
+
+    prometheus-node-exporter:
+      # The two filesystem excludes are the chart's own defaults, repeated
+      # because a list given here replaces the default list rather than
+      # adding to it. The third line is ours: the textfile collector, reading
+      # what hosts/nodes/apt-metrics writes on each node - pending security
+      # updates and whether a reboot is due - through the host's root
+      # filesystem, which the chart already mounts at /host/root.
+      extraArgs:
+        - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+        - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+        - --collector.textfile.directory=/host/root/var/lib/prometheus/node-exporter
 
     grafana:
       # The same credential as node01's Grafana, on purpose: one person, one

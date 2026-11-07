@@ -5,9 +5,15 @@
 # Telegram message.
 #
 # Vulnerabilities only. The operator can also audit manifests, RBAC, the
-# nodes' own configuration and secrets baked into images; those are off. Each
-# is a stream of findings of its own, and this is the one with a clear action
-# at the end of it: a newer image.
+# nodes' own configuration and secrets baked into images; those are off:
+#   - manifests and RBAC: hundreds of findings about upstream charts' defaults
+#     (no CPU limit, a writable root), which the lab's own security review
+#     covers with judgement the rules do not have;
+#   - the nodes' configuration (CIS): a privileged pod on every node checking
+#     file paths k3s does not use, so mostly false findings;
+#   - secrets in images: in third-party images these are test keys and
+#     examples, and nothing here can change them.
+# This is the one stream with a clear action at the end of it: a newer image.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -62,6 +68,13 @@ spec:
       # way. Slow mode, below, makes each scan longer, hence the timeout.
       scanJobsConcurrentLimit: 2
       scanJobTimeout: 10m
+
+      # One series per container saying which OS its image is built on, and
+      # whether that OS still gets security fixes. An end-of-life base gets
+      # no fixed versions, so ignoreUnfixed below would hide everything in it
+      # and the CVE alert would stay quiet about exactly the worst images;
+      # trivy-rules.yaml alerts on these separately.
+      metricsImageInfo: true
 
     # The metrics the alert rules read. Prometheus watches the whole cluster
     # for ServiceMonitors (clusters/lab/monitoring/helmrelease.yaml).

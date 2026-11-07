@@ -1,0 +1,81 @@
+# Alerting on security fixes the hosts have not put into effect: the three
+# cluster nodes (Ubuntu) and the Pi (Raspberry Pi OS). The containers have
+# their own, in trivy-rules.yaml.
+#
+# The numbers come from hosts/nodes/apt-metrics, an hourly timer on each
+# host, through node-exporter's textfile collector - the cluster's own
+# node-exporter for the nodes, the Pi's own for the Pi (exitnode-scrape.yaml).
+# A CVE with a fix in the distribution shows up as a pending security update;
+# unattended-upgrades installs those daily, so these alerts are about when
+# that has not happened, or has not taken effect.
+#
+# Each rule joins node_uname_info for the host's name: the nodes' instance
+# label is an address.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: host-security
+  namespace: monitoring
+spec:
+  groups:
+    - name: host-security
+      rules:
+        # Two days: unattended-upgrades runs once a day, at a random time, so
+        # one day can pass legitimately with an update waiting.
+        - alert: HostSecurityUpdatesPending
+          expr: |-
+            max by (instance) (apt_security_upgrades_pending)
+              * on (instance) group_left (nodename) node_uname_info
+            > 0
+          for: 2d
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.nodename }}: {{ $value }} security update(s) not installed"
+            description: >-
+              unattended-upgrades should have installed these within a day.
+              On the host, sudo unattended-upgrade --dry-run --debug says why
+              it did not; sudo apt upgrade installs them.
+
+        # A new kernel takes effect only at a reboot. Three days leaves room to pick the moment;
+        # then weekly (the route in helmrelease.yaml) until it is done.
+        - alert: HostRebootRequired
+          expr: |-
+            max by (instance) (node_reboot_required)
+              * on (instance) group_left (nodename) node_uname_info
+            > 0
+          for: 3d
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.nodename }} needs a reboot for an installed security update"
+            description: >-
+              The update is installed but the old kernel is still running. A
+              cluster node: one at a time, kubectl drain, reboot, wait for
+              Ceph to be healthy again, kubectl uncordon, then the next.
+
+        # Without this, a host whose timer stopped, whose package lists are
+        # no longer fetched, or which never had apt-metrics installed would
+        # report nothing, and nothing reads the same as all patched.
+        - alert: HostSecurityCheckStale
+          expr: |-
+            (
+                time() - max by (instance) (node_textfile_mtime_seconds{file=~"(.*/)?apt\\.prom"}) > 3 * 3600
+              or
+                time() - max by (instance) (apt_package_lists_timestamp_seconds) > 2 * 86400
+              or
+                count by (instance) (node_uname_info)
+                  unless count by (instance) (apt_package_lists_timestamp_seconds)
+            )
+              * on (instance) group_left (nodename) node_uname_info
+          for: 6h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.nodename }}: the pending-updates check is missing or out of date"
+            description: >-
+              Either apt-metrics is not installed or not running there
+              (systemctl status apt-metrics.timer), or the package lists
+              have not been fetched for two days (systemctl status
+              apt-daily.timer). Until it is fixed, that host's security
+              updates are not watched.

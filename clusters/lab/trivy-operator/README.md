@@ -36,13 +36,19 @@ and no layers.
   of those CRITICAL ones, after an hour. One Telegram message per namespace,
   then a reminder weekly while it lasts, and a resolved message once the
   image is upgraded.
+- **Also alerted:** `ContainerImageOSEndOfLife`, for each image built on an OS
+  release that no longer gets security fixes. Its CVEs never count as
+  fixable, so the first alert would never see them.
 
 The fix is a newer image. Usually Renovate already has a PR open for it, or
 will on Monday; if upstream has not rebuilt yet, waiting is the answer, and
 a silence in Alertmanager for that image keeps the chat quiet meanwhile.
 
-Not covered: the nodes' own packages, which Ubuntu's unattended-upgrades
-patches by itself, and the NAS and the Pi, which are outside the cluster.
+The nodes and the Pi are checked differently, by what apt knows: security
+updates not installed after two days, a reboot not done after three
+(`clusters/lab/monitoring/host-security-rules.yaml`, and the host files in
+`hosts/nodes/` and `hosts/exitnode/`). Not covered: k3s itself, which is not
+from apt, and the NAS, which TrueNAS updates.
 
 ## Reading the findings
 

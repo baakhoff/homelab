@@ -6,6 +6,9 @@
 # reports too, for looking up, not for Telegram: there are too many of them
 # for a message about each to mean anything.
 #
+# A second rule catches images whose OS no longer gets fixes at all, which
+# the first cannot see.
+#
 # One alert per image, grouped by Alertmanager into one message per
 # namespace. It re-notifies weekly rather than twice a day (the route in
 # helmrelease.yaml): the fix is usually an upstream rebuild, and that is not
@@ -41,3 +44,23 @@ spec:
               (Renovate's dashboard, or the project's releases) and update to
               it. kubectl -n {{ $labels.namespace }} get vulnerabilityreports -o wide
               lists the reports; kubectl describe on one names its CVEs.
+
+        # The other half of ignoreUnfixed. An image built on an OS release
+        # that has reached its end of life gets no fixed packages, so its CVEs
+        # never count as fixable and the rule above never sees them. This
+        # asks only whether the base is still supported. The answer is a
+        # newer image too, or, if upstream has stopped publishing, another
+        # project.
+        - alert: ContainerImageOSEndOfLife
+          expr: |-
+            max by (namespace, image_registry, image_repository, image_tag, image_os_family, image_os_name) (
+              max_over_time(trivy_image_info{image_os_eosl="true"}[3h])
+            ) > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.image_repository }}:{{ $labels.image_tag }} is built on {{ $labels.image_os_family }} {{ $labels.image_os_name }}, which no longer gets security fixes"
+            description: >-
+              Its CVEs are never fixed, so the critical-CVE alert stays quiet
+              about it. Update to an image on a supported base.
