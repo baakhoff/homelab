@@ -70,6 +70,7 @@ accounts, the only login its TV apps know.
 | [Prometheus](https://prometheus.io) | The metrics store and its alert rules. |
 | [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) | Firing alerts and silences; notifications go to Telegram. |
 | [Loki](https://grafana.com/oss/loki/) | Log storage for every pod, queried from Grafana. |
+| [Trivy Operator](https://github.com/aquasecurity/trivy-operator) | Checks every image the cluster runs for known CVEs, daily; critical ones with a fix go to Telegram. |
 | [Headlamp](https://headlamp.dev) | Kubernetes UI: pods, logs, events and Flux state. |
 | [epicurus](https://github.com/baakhoff/epicurus) | The assistant: its core, web shell and modules. |
 | [Minecraft server](https://github.com/itzg/docker-minecraft-server) | Java Edition server for the household. |
@@ -84,7 +85,9 @@ accounts, the only login its TV apps know.
   serves replicated block storage as the cluster's default StorageClass, with a
   CSI snapshot class on top of it; csi-driver-nfs mounts NAS shares, one
   static volume per share and no StorageClass. cert-manager and ingress-nginx,
-  kube-prometheus-stack and Loki, Headlamp and Homepage, Vaultwarden, epicurus
+  kube-prometheus-stack and Loki, Trivy Operator scanning every image for
+  CVEs ([how](clusters/lab/trivy-operator/README.md)), Headlamp and Homepage,
+  Vaultwarden, epicurus
   ([ADR 0007](docs/decisions/0007-epicurus-rebuilt-on-kubernetes.md)), and the
   agent pods: Claude Code Remote Control servers on volumes that follow the pod
   between nodes ([how](docs/runbooks/agent-pods.md), [how the nodes got

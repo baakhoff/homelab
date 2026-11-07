@@ -1,0 +1,43 @@
+# Alerting on CVEs in the images the cluster runs, from Trivy Operator's
+# daily scans (clusters/lab/trivy-operator/).
+#
+# Critical only, and only CVEs a newer package fixes - the operator reports
+# nothing else at CRITICAL (its helmrelease.yaml says why). HIGH is in the
+# reports too, for looking up, not for Telegram: there are too many of them
+# for a message about each to mean anything.
+#
+# One alert per image, grouped by Alertmanager into one message per
+# namespace. It re-notifies weekly rather than twice a day (the route in
+# helmrelease.yaml): the fix is usually an upstream rebuild, and that is not
+# hurried by a reminder every twelve hours.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: trivy
+  namespace: monitoring
+spec:
+  groups:
+    - name: trivy
+      rules:
+        # max_over_time because each image's report is deleted and made
+        # again every day: between the two the series is gone, and a plain
+        # instant query would resolve the alert and fire it afresh, a
+        # resolved and a firing message a day for the same CVE. Three hours
+        # covers the gap; it also keeps the alert three hours after the image
+        # is upgraded. max rather than sum by image: an image run by two
+        # workloads has a report for each, with the same count.
+        - alert: ContainerImageCriticalCVE
+          expr: |-
+            max by (namespace, image_registry, image_repository, image_tag) (
+              max_over_time(trivy_image_vulnerabilities{severity="Critical"}[3h])
+            ) > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.image_repository }}:{{ $labels.image_tag }} has {{ $value }} critical CVE(s) with a fix"
+            description: >-
+              A newer package fixes them. Check whether a newer image is out
+              (Renovate's dashboard, or the project's releases) and update to
+              it. kubectl -n {{ $labels.namespace }} get vulnerabilityreports -o wide
+              lists the reports; kubectl describe on one names its CVEs.

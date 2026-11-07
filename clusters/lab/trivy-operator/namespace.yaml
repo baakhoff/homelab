@@ -1,0 +1,13 @@
+# Its own namespace, where the operator, its Trivy server and every scan job
+# run. Scan jobs run here rather than beside the workload they scan, so no
+# app namespace gains pods it did not ask for.
+#
+# Pod Security baseline, not restricted: the scan jobs run the Trivy image as
+# its own default user, root. Nothing here is privileged or touches the host.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trivy-system
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest

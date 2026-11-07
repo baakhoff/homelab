@@ -249,6 +249,13 @@ spec:
             - receiver: "null"
               matchers:
                 - alertname = "InfoInhibitor"
+            # CVEs in running images (trivy-rules.yaml): once when found,
+            # then weekly. The fix is usually an upstream rebuild, which a
+            # reminder twice a day does not hurry.
+            - receiver: telegram
+              matchers:
+                - alertname = "ContainerImageCriticalCVE"
+              repeat_interval: 168h
             # Same destination, shorter leash: a critical nags hourly
             # until it is resolved or silenced.
             - receiver: telegram
