@@ -69,6 +69,10 @@ Pi-hole is not from apt, so unattended-upgrades does not update it.
 `PiholeUpdatePending` says when a release has been out three days; then
 read its notes and `sudo pihole -up`.
 
+The same scrape watches how full `/` and `/var/log` are
+(`clusters/lab/monitoring/exitnode-rules.yaml`). `/var/log` is log2ram's
+128 MiB in RAM, and Pi-hole's query log shares it.
+
 ## Why waking lives on the Pi
 
 A magic packet is a broadcast frame, and broadcasts do not cross routers. Whatever

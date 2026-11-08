@@ -1,6 +1,7 @@
-# The Pi's node-exporter (hosts/exitnode/), scraped for one reason: the
+# The Pi's node-exporter (hosts/exitnode/), scraped for two things: the
 # metrics its apt-metrics timer writes, pending security updates and whether
-# a reboot is due, read by host-security-rules.yaml beside this file.
+# a reboot is due, read by host-security-rules.yaml beside this file; and
+# how full its disks are, read by exitnode-rules.yaml.
 #
 # Its own job, not `node-exporter`: the stack's node alerts and dashboards
 # select that job, and the OLED's node page lists it, both meant for the

@@ -1,0 +1,55 @@
+# The Pi's disks filling up. The stack's own disk alerts select the
+# `node-exporter` job, the three cluster nodes; the Pi is its own job
+# (exitnode-scrape.yaml), so without these nothing watches it.
+#
+# Written after /var/log sat full for nineteen days unnoticed. On the Pi it
+# is log2ram, 128 MiB in RAM synced to the SD card, and Pi-hole's query log
+# lives in it: a client asking the same name every few seconds filled it in
+# a day, and from then on every service's log went nowhere.
+#
+# Two places: / (the SD card) and /var/log. Two thresholds, by how fast
+# each can fill: /var/log can go from half to full within a day, so its
+# warning comes early.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: exitnode
+  namespace: monitoring
+spec:
+  groups:
+    - name: exitnode
+      rules:
+        - alert: ExitnodeDiskFilling
+          expr: |-
+            100 * (1 - node_filesystem_avail_bytes{job="exitnode", mountpoint=~"/|/var/log"}
+                     / node_filesystem_size_bytes{job="exitnode", mountpoint=~"/|/var/log"})
+            > 80
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "exitnode: {{ $labels.mountpoint }} is {{ $value | printf \"%.0f\" }}% full"
+            description: >-
+              On the Pi, sudo du -xh {{ $labels.mountpoint }} | sort -h | tail
+              shows what. For /var/log it is usually /var/log/pihole/pihole.log,
+              and the client filling it is the top line of
+              sudo awk '$5 ~ /^query/ {print $8, $6}' /var/log/pihole/pihole.log | sort | uniq -c | sort -rn | head
+
+        # Same alert name, so the inhibit rule in helmrelease.yaml drops the
+        # warning once this fires, and it nags hourly instead of twice a day.
+        - alert: ExitnodeDiskFilling
+          expr: |-
+            100 * (1 - node_filesystem_avail_bytes{job="exitnode", mountpoint=~"/|/var/log"}
+                     / node_filesystem_size_bytes{job="exitnode", mountpoint=~"/|/var/log"})
+            > 95
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "exitnode: {{ $labels.mountpoint }} is {{ $value | printf \"%.0f\" }}% full"
+            description: >-
+              Almost nothing can be written there; once it is full, logs are
+              lost and package installs half-fail. Find the big file with
+              sudo du -xh {{ $labels.mountpoint }} | sort -h | tail and empty
+              it with sudo truncate -s 0 rather than deleting it, so the
+              service writing it keeps going.
