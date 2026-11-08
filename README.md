@@ -86,7 +86,10 @@ accounts, the only login its TV apps know.
   CSI snapshot class on top of it; csi-driver-nfs mounts NAS shares, one
   static volume per share and no StorageClass. cert-manager and ingress-nginx,
   kube-prometheus-stack and Loki, Trivy Operator scanning every image for
-  CVEs ([how](clusters/lab/trivy-operator/README.md)), Headlamp and Homepage,
+  CVEs ([how](clusters/lab/trivy-operator/README.md)), kured rebooting a node
+  that a kernel update needs rebooted ([how](clusters/lab/kured/README.md))
+  and system-upgrade-controller moving k3s to the version Renovate proposes
+  ([how](clusters/lab/system-upgrade/README.md)), Headlamp and Homepage,
   Vaultwarden, epicurus
   ([ADR 0007](docs/decisions/0007-epicurus-rebuilt-on-kubernetes.md)), and the
   agent pods: Claude Code Remote Control servers on volumes that follow the pod

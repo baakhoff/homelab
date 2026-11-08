@@ -63,6 +63,13 @@
 
   packageRules: [
     {
+      // Kubernetes upgrades one minor at a time: a PR per minor, oldest
+      // first, never a jump from 1.34 to 1.36.
+      description: "k3s: one minor version at a time",
+      matchPackageNames: ["k3s-io/k3s"],
+      separateMultipleMinor: true,
+    },
+    {
       // gotk-components.yaml is matched by both managers above, and the
       // kubernetes one is wrong for it: it would offer to bump each Flux
       // controller image on its own, which is exactly how you end up running
@@ -234,6 +241,21 @@
       matchStrings: [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+- name: \\S+\\s+value: \\S+:(?<currentValue>\\S+)",
       ],
+    },
+    {
+      // The k3s version the nodes run, in the system-upgrade-controller
+      // Plan. Merging the PR is the upgrade (the Plan's comments say how).
+      // The versioning admits only final releases - k3s publishes release
+      // candidates under the same repository - and reads the +k3sN suffix
+      // as a build number, so a re-cut of the same Kubernetes version is
+      // offered too.
+      customType: "regex",
+      description: "k3s version in the system-upgrade-controller Plan",
+      managerFilePatterns: ["/^clusters/lab/system-upgrade/plan-k3s\\.yaml$/"],
+      matchStrings: ["version: (?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)"],
+      depNameTemplate: "k3s-io/k3s",
+      datasourceTemplate: "github-releases",
+      versioningTemplate: "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$",
     },
   ],
 }
