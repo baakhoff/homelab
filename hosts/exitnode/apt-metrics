@@ -24,10 +24,16 @@ all=$(printf '%s\n' "$sim" | grep -c '^Inst ' || true)
 sec=$(printf '%s\n' "$sim" | grep '^Inst ' | grep -cE -- '-security[ ,]' || true)
 
 # When the package lists were last fetched. Without fresh lists the counts
-# above say nothing; 0 if they never were.
-stamp=/var/lib/apt/periodic/update-success-stamp
+# above say nothing; 0 if they never were. Ubuntu stamps every successful
+# fetch in update-success-stamp; Debian has no such file, and its daily
+# timer stamps update-stamp after a successful fetch instead.
 lists=0
-[ -f "$stamp" ] && lists=$(stat -c %Y "$stamp")
+for stamp in /var/lib/apt/periodic/update-success-stamp /var/lib/apt/periodic/update-stamp; do
+	if [ -f "$stamp" ]; then
+		lists=$(stat -c %Y "$stamp")
+		break
+	fi
+done
 
 # Whether the running kernel is older than the installed one: a kernel fix
 # is not in effect until a reboot. needrestart compares the two (status 2

@@ -12,6 +12,7 @@ the [Pi runbook](../../docs/runbooks/pi-exitnode.md).
 | `wake-nodes` | `/usr/local/bin/` | sends Wake-on-LAN magic packets to the lab's machines |
 | `wake-nodes.conf.example` | — | template for `/etc/wake-nodes.conf`, which is **not** tracked |
 | `apt-metrics`, `apt-metrics.service`, `apt-metrics.timer` | `/usr/local/sbin/`, `/etc/systemd/system/` | hourly, counts the security updates apt has and the Pi has not installed, and whether it waits for a reboot, for node-exporter; [the alerts](../../clusters/lab/monitoring/host-security-rules.yaml). Byte-identical to the nodes' copies |
+| `51unattended-upgrades-raspi` | `/etc/apt/apt.conf.d/` | unattended-upgrades also installs from Raspberry Pi's repository - the kernel and firmware, whose fixes are not marked as security |
 | `prometheus-node-exporter.conf` | `/etc/systemd/system/prometheus-node-exporter.service.d/lab.conf` | node-exporter answers the three cluster nodes, where Prometheus's scrape comes from, and nobody else |
 | `oled/` | the Pi and the Pico | the rack's OLED status screens — [its own README](oled/README.md) |
 
@@ -45,6 +46,7 @@ node-exporter and the hourly check, which Prometheus scrapes
 ```
 sudo apt install -y unattended-upgrades needrestart
 sudo dpkg-reconfigure -plow unattended-upgrades
+sudo install -m 0644 51unattended-upgrades-raspi /etc/apt/apt.conf.d/51unattended-upgrades-raspi
 sudo apt install -y --no-install-recommends prometheus-node-exporter
 sudo install -d /etc/systemd/system/prometheus-node-exporter.service.d
 sudo install -m 0644 prometheus-node-exporter.conf /etc/systemd/system/prometheus-node-exporter.service.d/lab.conf
@@ -68,6 +70,10 @@ Pi-hole is not from apt, so unattended-upgrades does not update it.
 `apt-metrics` reads the versions Pi-hole's own daily check writes, and
 `PiholeUpdatePending` says when a release has been out three days; then
 read its notes and `sudo pihole -up`.
+
+The same scrape watches how full `/` and `/var/log` are
+(`clusters/lab/monitoring/exitnode-rules.yaml`). `/var/log` is log2ram's
+128 MiB in RAM, and Pi-hole's query log shares it.
 
 ## Why waking lives on the Pi
 

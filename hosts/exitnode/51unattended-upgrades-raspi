@@ -1,0 +1,13 @@
+// /etc/apt/apt.conf.d/51unattended-upgrades-raspi
+//
+// unattended-upgrades on Raspberry Pi OS takes only Debian's packages by
+// default. The kernel and the firmware come from Raspberry Pi's own
+// repository, which does not mark security fixes as such, so this lets it
+// install everything from there too. A new kernel waits for a reboot, done
+// by hand when HostRebootRequired says so.
+//
+// Lists in apt's configuration add up across files: this extends the
+// origins in 50unattended-upgrades rather than replacing them.
+Unattended-Upgrade::Origins-Pattern {
+	"origin=Raspberry Pi Foundation,codename=${distro_codename},label=Raspberry Pi Foundation";
+};
