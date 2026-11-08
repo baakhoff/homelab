@@ -1,0 +1,9 @@
+# Pod Security privileged: kured's pod on each node shares the host's
+# process namespace, to reboot it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kured
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest

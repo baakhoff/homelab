@@ -1,0 +1,68 @@
+# kured reboots a node that an update needs rebooted - the kernel, usually -
+# so a security fix installed by unattended-upgrades also takes effect.
+# Ubuntu leaves /var/run/reboot-required when that is the case; kured looks
+# for it every hour, and when it is there, takes a lock so no other node does
+# the same, drains the node, reboots it, waits for it to come back, and
+# uncordons it.
+#
+# Draining is what makes this safe here and also what makes it slow: every
+# pod moves off, Ceph's OSD and monitor on the node among them. Rook's own
+# disruption budgets let one node's worth of Ceph go at a time, and only
+# while Ceph is healthy, so a drain waits until it is.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kured
+  namespace: kured
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kured
+      version: "6.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: kubereboot
+        namespace: flux-system
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    configuration:
+      # At night, in UTC - like Renovate's schedule, no time zone is written
+      # down here. The window is when a reboot may start.
+      startTime: "1:00"
+      endTime: "4:00"
+      timeZone: UTC
+      period: 1h
+
+      # Not while anything else is wrong. Any firing alert holds the reboot,
+      # except those that fire constantly or are about the very updates a
+      # reboot completes: rebooting a node of a lab already in trouble turns
+      # one problem into two. A reboot held for days shows up as
+      # HostRebootRequired, which then says why to look.
+      prometheusUrl: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+      alertFiringOnly: true
+      alertFilterRegexp: ^(Watchdog|InfoInhibitor|HostRebootRequired|HostSecurityUpdatesPending|PiholeUpdatePending|ContainerImageCriticalCVE|ContainerImageOSEndOfLife)$
+
+      # Hold the lock for two hours after a node is back, so the next node
+      # waits while Ceph recovers what the first one missed. Two nodes a
+      # night at most, three nights at worst for all three.
+      lockReleaseDelay: 2h
+
+      # A drain that has not finished in half an hour is stuck on a
+      # disruption budget - Ceph not healthy, most likely. Give up, uncordon,
+      # and try again next hour, rather than reboot regardless.
+      drainTimeout: 30m
+      forceReboot: false
+
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi

@@ -37,8 +37,11 @@ spec:
               On the host, sudo unattended-upgrade --dry-run --debug says why
               it did not; sudo apt upgrade installs them.
 
-        # A new kernel takes effect only at a reboot. Three days leaves room to pick the moment;
-        # then weekly (the route in helmrelease.yaml) until it is done.
+        # A new kernel takes effect only at a reboot. kured reboots the
+        # cluster nodes by itself, at night (clusters/lab/kured/); the Pi
+        # is rebooted by hand. Three days covers kured's pace across three
+        # nodes, so this fires when something holds it back - then weekly
+        # (the route in helmrelease.yaml) until it is done.
         - alert: HostRebootRequired
           expr: |-
             max by (instance) (node_reboot_required)
@@ -51,8 +54,9 @@ spec:
             summary: "{{ $labels.nodename }} needs a reboot for an installed security update"
             description: >-
               The update is installed but the old kernel is still running. A
-              cluster node: one at a time, kubectl drain, reboot, wait for
-              Ceph to be healthy again, kubectl uncordon, then the next.
+              cluster node: kured has not rebooted it - its log says why
+              (kubectl -n kured logs ds/kured), usually another alert firing
+              or a drain held by Ceph. The Pi: sudo reboot.
 
         # Without this, a host whose timer stopped, whose package lists are
         # no longer fetched, or which never had apt-metrics installed would

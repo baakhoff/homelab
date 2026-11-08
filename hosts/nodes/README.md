@@ -135,6 +135,11 @@ sudo systemctl start apt-metrics.service
 cat /var/lib/prometheus/node-exporter/apt.prom
 ```
 
+Reboots that updates need are kured's job
+([`clusters/lab/kured/`](../../clusters/lab/kured/README.md)), and k3s's own
+upgrades the system-upgrade-controller's
+([`clusters/lab/system-upgrade/`](../../clusters/lab/system-upgrade/README.md)).
+
 The file shows four numbers. `apt_package_lists_timestamp_seconds` must not
 be 0: it is the time apt last fetched its lists, which Ubuntu's apt-daily
 timer does by itself. needrestart, which tells it whether the running kernel

@@ -1,0 +1,34 @@
+# The k3s version the three nodes run. k3s was installed by its script and
+# nothing updates it by itself; this Plan is what does, one node at a time.
+#
+# Renovate offers each k3s release as a PR changing `version` below (the
+# custom manager in renovate.json5), one minor at a time, since Kubernetes
+# cannot skip one. Merging it is the upgrade: within minutes the
+# controller cordons one node, replaces its k3s binary and restarts k3s,
+# waits for it to come back, uncordons it, and goes on to the next.
+#
+# A node already on this version still gets a job, the first time the Plan
+# reaches it: the job finds the same binary, says so and exits, and the node
+# is uncordoned a minute later without k3s restarting.
+#
+# Cordon, not drain. Restarting k3s leaves the node's containers running,
+# so nothing moves and Ceph does not notice; the cordon only keeps new pods
+# off a node whose kubelet is about to restart. One node at a time, because
+# all three are etcd members, and two restarting at once lose quorum.
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-server
+  namespace: system-upgrade
+spec:
+  concurrency: 1
+  cordon: true
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: In
+        values: ["true"]
+  serviceAccountName: system-upgrade
+  upgrade:
+    image: rancher/k3s-upgrade
+  version: v1.36.4+k3s1
