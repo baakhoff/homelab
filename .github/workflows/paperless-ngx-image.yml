@@ -43,3 +43,18 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+      # The image just pushed, checked for critical CVEs that a newer package
+      # fixes - the same bar as the cluster's alert
+      # (clusters/lab/monitoring/trivy-rules.yaml). A red run here means do
+      # not move the cluster to this tag yet; the image is already pushed,
+      # so the check is a warning, not a gate. Trivy's own image rather than
+      # its GitHub Action, pinned by digest: a tag can be moved by whoever
+      # controls the repository, a digest cannot.
+      - name: Scan for critical CVEs with a fix
+        uses: docker://mirror.gcr.io/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: image --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress ghcr.io/${{ github.repository_owner }}/paperless-ngx:${{ steps.version.outputs.version }}

@@ -1,0 +1,13 @@
+# Hourly, so a fix unattended-upgrades installs, or a reboot, shows within
+# the hour.
+[Unit]
+Description=Pending security fixes, for node-exporter, hourly
+
+[Timer]
+OnBootSec=5min
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

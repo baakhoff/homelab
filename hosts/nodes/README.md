@@ -15,6 +15,7 @@ How they got into service, and why each setting exists:
 | `99-inotify.conf` | `/etc/sysctl.d/` | raises the per-user inotify limits a k3s node exhausts; the symptom is "Too many open files" from anything that watches a directory |
 | `chrony.conf` | `/etc/chrony/chrony.conf` | keeps the clocks with chrony instead of timesyncd, all three from the same fixed servers, so the Ceph monitors stay within their 50 ms of each other |
 | `k3s-config.yaml` | `/etc/rancher/k3s/config.yaml` | the apiserver trusts Pocket ID as an OIDC issuer, which is what lets Headlamp log a person in; the kubelet deletes unused images from 65% disk use, under the Ceph monitor's 70% warning. Merged with the flags the install line in the disaster-recovery runbook already passes; nothing there is repeated here |
+| `apt-metrics`, `apt-metrics.service`, `apt-metrics.timer` | `/usr/local/sbin/`, `/etc/systemd/system/` | hourly, counts the security updates apt has and the node has not installed, and whether it waits for a reboot, into a file the cluster's node-exporter reads; [the alerts](../../clusters/lab/monitoring/host-security-rules.yaml). Byte-identical to the Pi's copies |
 
 `00-hardening.conf` is byte-identical to the Pi's copy in
 [`hosts/exitnode/`](../exitnode/). It is duplicated rather than referenced so
@@ -120,6 +121,24 @@ kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph time-sync-status
 
 Unlike the k3s change, nothing restarts but chrony, so the nodes can be done
 in any order.
+
+### Pending security updates, added later
+
+The script and its timer, on each node, in any order; nothing restarts:
+
+```
+sudo install -m 0755 apt-metrics /usr/local/sbin/apt-metrics
+sudo install -m 0644 apt-metrics.service apt-metrics.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now apt-metrics.timer
+sudo systemctl start apt-metrics.service
+cat /var/lib/prometheus/node-exporter/apt.prom
+```
+
+The file shows four numbers. `apt_package_lists_timestamp_seconds` must not
+be 0: it is the time apt last fetched its lists, which Ubuntu's apt-daily
+timer does by itself. needrestart, which tells it whether the running kernel
+is the newest installed, comes with Ubuntu Server.
 
 ## Not files
 

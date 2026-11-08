@@ -1,0 +1,77 @@
+#!/bin/sh
+# apt-metrics: what this host's package manager knows about security fixes
+# not yet in effect, and whether Pi-hole is behind where there is one, as
+# Prometheus metrics for node-exporter's textfile collector. Run hourly by apt-metrics.timer. Read-only: it changes nothing
+# on the host, and the alerts that read it are in
+# clusters/lab/monitoring/host-security-rules.yaml.
+#
+# Byte-identical on the cluster nodes (hosts/nodes/) and the Pi
+# (hosts/exitnode/).
+set -eu
+
+dir=/var/lib/prometheus/node-exporter
+mkdir -p "$dir"
+tmp=$(mktemp "$dir/.apt.prom.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+
+# What a full upgrade would install, simulated, from the package lists the
+# apt-daily timer last fetched. A package whose new version comes from a
+# -security archive is a fixed CVE not yet installed. Captured first, so a
+# failing apt-get stops the script and leaves the file to go stale - which
+# alerts - rather than writing zeros.
+sim=$(apt-get -s -o Debug::NoLocking=1 dist-upgrade)
+all=$(printf '%s\n' "$sim" | grep -c '^Inst ' || true)
+sec=$(printf '%s\n' "$sim" | grep '^Inst ' | grep -cE -- '-security[ ,]' || true)
+
+# When the package lists were last fetched. Without fresh lists the counts
+# above say nothing; 0 if they never were.
+stamp=/var/lib/apt/periodic/update-success-stamp
+lists=0
+[ -f "$stamp" ] && lists=$(stat -c %Y "$stamp")
+
+# Whether the running kernel is older than the installed one: a kernel fix
+# is not in effect until a reboot. needrestart compares the two (status 2
+# or 3); Ubuntu also leaves /run/reboot-required for updates that need one.
+reboot=0
+[ -f /run/reboot-required ] && reboot=1
+if command -v needrestart >/dev/null 2>&1; then
+	ksta=$(needrestart -b -r l 2>/dev/null | sed -n 's/^NEEDRESTART-KSTA: *//p')
+	[ "${ksta:-0}" -ge 2 ] && reboot=1
+fi
+
+# Pi-hole, where there is one (the Pi). It is installed from git, not apt,
+# so none of the above sees it; its own daily check writes the newest
+# release of each part beside the installed one. Counted: the parts that
+# differ.
+pihole=/etc/pihole/versions
+behind=0
+if [ -f "$pihole" ]; then
+	for part in CORE WEB FTL; do
+		have=$(sed -n "s/^${part}_VERSION=//p" "$pihole")
+		want=$(sed -n "s/^GITHUB_${part}_VERSION=//p" "$pihole")
+		case "$want" in "" | null) continue ;; esac
+		[ "$have" = "$want" ] || behind=$((behind + 1))
+	done
+fi
+
+cat > "$tmp" <<METRICS
+# HELP apt_upgrades_pending Packages with a newer version available.
+# TYPE apt_upgrades_pending gauge
+apt_upgrades_pending $all
+# HELP apt_security_upgrades_pending Packages with a newer version from a security archive.
+# TYPE apt_security_upgrades_pending gauge
+apt_security_upgrades_pending $sec
+# HELP apt_package_lists_timestamp_seconds When the package lists were last fetched.
+# TYPE apt_package_lists_timestamp_seconds gauge
+apt_package_lists_timestamp_seconds $lists
+# HELP node_reboot_required Whether an installed update waits for a reboot.
+# TYPE node_reboot_required gauge
+node_reboot_required $reboot
+METRICS
+[ -f "$pihole" ] && cat >> "$tmp" <<METRICS
+# HELP pihole_updates_pending Pi-hole parts (core, web, FTL) older than their newest release.
+# TYPE pihole_updates_pending gauge
+pihole_updates_pending $behind
+METRICS
+chmod 0644 "$tmp"
+mv "$tmp" "$dir/apt.prom"
