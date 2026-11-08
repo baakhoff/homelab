@@ -54,13 +54,13 @@ sudo systemctl daemon-reload
 sudo systemctl restart prometheus-node-exporter
 sudo systemctl enable --now apt-metrics.timer
 sudo systemctl start apt-metrics.service
-curl -s localhost:9100/metrics | grep -E '^(apt_|node_reboot)'
+curl -s localhost:9100/metrics | grep -E '^(apt_|node_reboot|pihole_)'
 ```
 
 `dpkg-reconfigure` asks one question: yes. It turns on the daily fetch of
 the package lists as well as the upgrade. `--no-install-recommends` leaves
 out the package's own collector scripts, which pull in smartmontools and
-more for checks this does not need. The `curl` shows the four numbers;
+more for checks this does not need. The `curl` shows five numbers, the last Pi-hole's;
 `apt_package_lists_timestamp_seconds` may be 0 until the first daily fetch,
 or run `sudo apt update` and the service again.
 
