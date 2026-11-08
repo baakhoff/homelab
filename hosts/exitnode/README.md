@@ -64,8 +64,10 @@ more for checks this does not need. The `curl` shows the four numbers;
 `apt_package_lists_timestamp_seconds` may be 0 until the first daily fetch,
 or run `sudo apt update` and the service again.
 
-Pi-hole is not from apt and is not covered: `pihole -up`, when its web page
-says an update is out.
+Pi-hole is not from apt, so unattended-upgrades does not update it.
+`apt-metrics` reads the versions Pi-hole's own daily check writes, and
+`PiholeUpdatePending` says when a release has been out three days; then
+read its notes and `sudo pihole -up`.
 
 ## Why waking lives on the Pi
 

@@ -47,8 +47,13 @@ a silence in Alertmanager for that image keeps the chat quiet meanwhile.
 The nodes and the Pi are checked differently, by what apt knows: security
 updates not installed after two days, a reboot not done after three
 (`clusters/lab/monitoring/host-security-rules.yaml`, and the host files in
-`hosts/nodes/` and `hosts/exitnode/`). Not covered: k3s itself, which is not
-from apt, and the NAS, which TrueNAS updates.
+`hosts/nodes/` and `hosts/exitnode/`). Pi-hole, which is not from apt either, by
+its own version check. Not covered here: k3s itself, which is not from apt,
+and the NAS, which TrueNAS updates.
+
+Our own images (`images/`) are also scanned when GitHub Actions builds them,
+against the same bar; a failed scan step means not to move the cluster to
+that tag yet.
 
 ## Reading the findings
 

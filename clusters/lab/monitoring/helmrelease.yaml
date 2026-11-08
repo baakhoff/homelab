@@ -249,13 +249,14 @@ spec:
             - receiver: "null"
               matchers:
                 - alertname = "InfoInhibitor"
-            # CVEs in running images (trivy-rules.yaml) and a reboot a host
-            # is waiting for (host-security-rules.yaml): once when found,
-            # then weekly. The fix is an upstream rebuild or a planned
-            # reboot, neither hurried by a reminder twice a day.
+            # CVEs in running images (trivy-rules.yaml), a reboot a host is
+            # waiting for and a Pi-hole release (host-security-rules.yaml):
+            # once when found, then weekly. The fix is an upstream rebuild, a
+            # planned reboot or an update by hand, none hurried by a
+            # reminder twice a day.
             - receiver: telegram
               matchers:
-                - alertname =~ "ContainerImageCriticalCVE|ContainerImageOSEndOfLife|HostRebootRequired"
+                - alertname =~ "ContainerImageCriticalCVE|ContainerImageOSEndOfLife|HostRebootRequired|PiholeUpdatePending"
               repeat_interval: 168h
             # Same destination, shorter leash: a critical nags hourly
             # until it is resolved or silenced.
