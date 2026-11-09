@@ -35,8 +35,8 @@ spec:
     configuration:
       # At night, in UTC - like Renovate's schedule, no time zone is written
       # down here. The window is when a reboot may start.
-      startTime: "1:00"
-      endTime: "4:00"
+      startTime: "3:00"
+      endTime: "6:00"
       timeZone: UTC
       period: 1h
 
