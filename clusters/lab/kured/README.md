@@ -5,7 +5,7 @@ needs it - usually a new kernel from unattended-upgrades - so the fix takes
 effect without anyone remembering to.
 
 Every hour, on each node, it looks for `/var/run/reboot-required`, which
-Ubuntu writes for such updates. If it is there, between 01:00 and 04:00 UTC,
+Ubuntu writes for such updates. If it is there, between 03:00 and 06:00 UTC,
 and no other alert is firing, it takes a cluster-wide lock, drains the node,
 reboots it, and uncordons it when it is back. The lock is held two hours
 more, so Ceph has caught up before the next node goes. All settings, and
