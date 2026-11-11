@@ -111,7 +111,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: docker.io/freikin/dawarich:1.15.3
+          image: docker.io/freikin/dawarich:1.22.0
           # Waits for Postgres, runs the migrations and the seeds, copies the
           # web assets into public/, then starts Puma.
           command: ["web-entrypoint.sh"]
@@ -173,7 +173,7 @@ spec:
             - name: public
               mountPath: /var/app/public
         - name: sidekiq
-          image: docker.io/freikin/dawarich:1.15.3
+          image: docker.io/freikin/dawarich:1.22.0
           # Imports, stats, visit detection, tracks, exports. On the very
           # first start it may come up before the web container has migrated
           # the database, fail, and be restarted - harmless.
