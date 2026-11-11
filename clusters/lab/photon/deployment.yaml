@@ -170,7 +170,7 @@ spec:
         # the pod stops here, in Init:Error, and the log says what to do.
         # The settings are also what the workstation's build reads.
         - name: check
-          image: docker.io/rtuszik/photon-docker:2.4.0
+          image: docker.io/rtuszik/photon-docker:2.5.0
           command: ["/bin/bash", "/scripts/check.sh"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -220,7 +220,7 @@ spec:
               mountPath: /scripts
       containers:
         - name: photon
-          image: docker.io/rtuszik/photon-docker:2.4.0
+          image: docker.io/rtuszik/photon-docker:2.5.0
           command:
             - java
             - -Xmx2g
