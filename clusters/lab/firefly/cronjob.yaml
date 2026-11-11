@@ -34,7 +34,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: cron
-              image: docker.io/curlimages/curl:8.22.0
+              image: docker.io/curlimages/curl:8.23.0
               # -f fails the Job on an HTTP error; -sS keeps curl's own output
               # to errors, which do not include the URL and its token. The
               # reply is Firefly's report of each task it ran, and goes to the
