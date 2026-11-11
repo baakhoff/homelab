@@ -32,17 +32,21 @@ and no layers.
 - **Reported:** HIGH and CRITICAL CVEs a newer package fixes. CVEs nobody has
   fixed yet are left out: almost every image has some, nothing can be done
   about them here, and an alert about them would never go away.
-- **Alerted:** `ContainerImageCriticalCVE`, for each image with at least one
-  of those CRITICAL ones, after an hour. One Telegram message per namespace,
-  then a reminder weekly while it lasts, and a resolved message once the
-  image is upgraded.
+- **Alerted, per image:** `ContainerImageCriticalCVE`, for each image this
+  lab builds (`ghcr.io/baakhoff/...`) with at least one of those CRITICAL
+  ones, after an hour. A rebuild fixes these.
+- **Alerted, as one number:** `ContainerImageCriticalCVEDigest`, how many of
+  everyone else's images have one. One Telegram message a week. Most of
+  those wait for their project to publish a newer image, and an alert for
+  each would never clear; the number should go down when Renovate's PRs are
+  merged.
 - **Also alerted:** `ContainerImageOSEndOfLife`, for each image built on an OS
   release that no longer gets security fixes. Its CVEs never count as
-  fixable, so the first alert would never see them.
+  fixable, so the other two would never see them.
 
 The fix is a newer image. Usually Renovate already has a PR open for it, or
-will on Monday; if upstream has not rebuilt yet, waiting is the answer, and
-a silence in Alertmanager for that image keeps the chat quiet meanwhile.
+will on Monday; its dashboard issue can open one sooner. If upstream has not
+rebuilt yet, waiting is the answer.
 
 The nodes and the Pi are checked differently, by what apt knows: security
 updates not installed after two days, a reboot not done after three
