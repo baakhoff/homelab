@@ -166,7 +166,7 @@ spec:
           # The same tag as the Airflow release (helmrelease.yaml); keep the
           # two together. Always, for the reason given there: the tag is
           # rebuilt in place when the image's dbt pins move.
-          image: ghcr.io/baakhoff/airflow:3.2.2
+          image: ghcr.io/baakhoff/airflow:3.4.0
           imagePullPolicy: Always
           # Straight to Python, past the image's entrypoint, which would
           # otherwise look for an Airflow database this pod has no use for.
