@@ -48,7 +48,7 @@ spec:
           # Tagged with the upstream version it wraps, so Renovate can offer
           # the next one here once the workflow has published it - the same
           # two-PR flow as the agent image. See images/paperless-ngx/README.md.
-          image: ghcr.io/baakhoff/paperless-ngx:3.2.1
+          image: ghcr.io/baakhoff/paperless-ngx:3.4.2
           # The tag is rebuilt in place when the languages change, and
           # IfNotPresent would keep serving the node's cached copy of it.
           imagePullPolicy: Always
