@@ -192,17 +192,22 @@ spec:
               stage.regex { expression = "(?P<sens_prompt_injection>(?i)(?:(?:ignore|disregard|forget|override|bypass)\\s+(?:(?:all|any|the|your|every)\\s+)*(?:previous|prior|above|earlier|preceding|existing|system|original)\\s+(?:instructions?|prompts?|rules|directions|messages|guidelines|context)|(?:new|updated|real|actual)\\s+(?:system\\s+)?instructions?\\s*:|you\\s+are\\s+now\\s+(?:a|an|in|the|my|no\\s+longer)\\s|system\\s+prompt\\b|developer\\s+mode|jailbreak|do\\s+not\\s+(?:tell|inform|alert)\\s+the\\s+user|(?:игнорируй|игнорируйте|забудь|забудьте)\\s+(?:все\\s+)?(?:предыдущие|прошлые|прежние|системные)?\\s*(?:инструкции|указания|правила)|(?:ignoriši|ignorisi|zaboravi)\\s+(?:sve\\s+)?(?:prethodne|prethodna|ranije)?\\s*(?:instrukcije|uputstva|pravila)|(?:игнориши|заборави)\\s+(?:све\\s+)?(?:претходне|претходна|раније)?\\s*(?:инструкције|упутства|правила)|<\\|(?:im_start|im_end|system|endoftext)\\|>|\\[/?INST\\]))" }
               stage.regex { expression = "(?P<sens_encoded_blob>(?:[A-Za-z0-9+/]{200,}={0,2}|(?i)<script\\b[\\s\\S]*?</script\\s*>|(?i)javascript:[^\\s\"'<>]{4,}))" }
 
+              // The chart runs this whole file through Helm's own template
+              // engine first, and Alloy's templates use the same braces:
+              // Helm would empty the `if`s and stop at TrimSuffix, which
+              // it does not have. Each is wrapped in {{` `}}, Helm's way
+              // of passing text through as it is.
               stage.template {
                 source   = "sensitive_kinds"
-                template = "{{ if .sens_private_key }}private_key,{{ end }}{{ if .sens_age_key }}age_key,{{ end }}{{ if .sens_github_token }}github_token,{{ end }}{{ if .sens_gitlab_token }}gitlab_token,{{ end }}{{ if .sens_aws_access_key }}aws_access_key,{{ end }}{{ if .sens_google_api_key }}google_api_key,{{ end }}{{ if .sens_google_oauth }}google_oauth,{{ end }}{{ if .sens_slack_token }}slack_token,{{ end }}{{ if .sens_stripe_key }}stripe_key,{{ end }}{{ if .sens_anthropic_key }}anthropic_key,{{ end }}{{ if .sens_openai_key }}openai_key,{{ end }}{{ if .sens_npm_token }}npm_token,{{ end }}{{ if .sens_telegram_bot_token }}telegram_bot_token,{{ end }}{{ if .sens_jwt }}jwt,{{ end }}{{ if .sens_url_password }}url_password,{{ end }}{{ if .sens_password }}password,{{ end }}{{ if .sens_bearer }}bearer_token,{{ end }}{{ if .sens_card }}card,{{ end }}{{ if .sens_invisible_text }}invisible_text,{{ end }}{{ if .sens_prompt_injection }}prompt_injection,{{ end }}{{ if .sens_encoded_blob }}encoded_blob,{{ end }}"
+                template = "{{`{{ if .sens_private_key }}private_key,{{ end }}{{ if .sens_age_key }}age_key,{{ end }}{{ if .sens_github_token }}github_token,{{ end }}{{ if .sens_gitlab_token }}gitlab_token,{{ end }}{{ if .sens_aws_access_key }}aws_access_key,{{ end }}{{ if .sens_google_api_key }}google_api_key,{{ end }}{{ if .sens_google_oauth }}google_oauth,{{ end }}{{ if .sens_slack_token }}slack_token,{{ end }}{{ if .sens_stripe_key }}stripe_key,{{ end }}{{ if .sens_anthropic_key }}anthropic_key,{{ end }}{{ if .sens_openai_key }}openai_key,{{ end }}{{ if .sens_npm_token }}npm_token,{{ end }}{{ if .sens_telegram_bot_token }}telegram_bot_token,{{ end }}{{ if .sens_jwt }}jwt,{{ end }}{{ if .sens_url_password }}url_password,{{ end }}{{ if .sens_password }}password,{{ end }}{{ if .sens_bearer }}bearer_token,{{ end }}{{ if .sens_card }}card,{{ end }}{{ if .sens_invisible_text }}invisible_text,{{ end }}{{ if .sens_prompt_injection }}prompt_injection,{{ end }}{{ if .sens_encoded_blob }}encoded_blob,{{ end }}`}}"
               }
               stage.template {
                 source   = "sensitive_kinds"
-                template = "{{ TrimSuffix .Value \",\" }}"
+                template = "{{`{{ TrimSuffix .Value \",\" }}`}}"
               }
               stage.template {
                 source   = "sensitive"
-                template = "{{ if .sensitive_kinds }}true{{ end }}"
+                template = "{{`{{ if .sensitive_kinds }}true{{ end }}`}}"
               }
               stage.labels {
                 values = { sensitive = "", sensitive_kinds = "" }
