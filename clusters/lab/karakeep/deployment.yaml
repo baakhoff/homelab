@@ -43,7 +43,7 @@ spec:
         # s6's init-db-migration: bring the SQLite schema up to this
         # version before either process opens it.
         - name: migrate
-          image: ghcr.io/karakeep-app/karakeep:0.33.2
+          image: ghcr.io/karakeep-app/karakeep:0.34.1
           workingDir: /db_migrations
           command: ["node", "index.js"]
           securityContext:
@@ -64,7 +64,7 @@ spec:
               mountPath: /data
       containers:
         - name: web
-          image: ghcr.io/karakeep-app/karakeep:0.33.2
+          image: ghcr.io/karakeep-app/karakeep:0.34.1
           workingDir: /app/apps/web
           command: ["node", "server.js"]
           # Not read-only: Next.js writes its image cache under the app's
@@ -106,7 +106,7 @@ spec:
         # Crawling, AI tagging and summaries, OCR, video downloads, search
         # indexing, feeds: everything that happens after a link is saved.
         - name: workers
-          image: ghcr.io/karakeep-app/karakeep:0.33.2
+          image: ghcr.io/karakeep-app/karakeep:0.34.1
           workingDir: /app/apps/workers
           command: ["node", "dist/index.js"]
           securityContext:
