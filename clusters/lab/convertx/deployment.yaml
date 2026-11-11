@@ -37,7 +37,9 @@ spec:
           # starts as root to chown the data directory and then drops to the
           # convertx user with gosu; this pod starts as that user, has no
           # root to drop from, and the kubelet does the chown via fsGroup.
-          command: ["bun", "run", "dist/src/index.js"]
+          # The server is one compiled file since 0.20.0; before that it was
+          # `bun run dist/src/index.js`, and bun is no longer in the image.
+          command: ["/app/convertx"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
