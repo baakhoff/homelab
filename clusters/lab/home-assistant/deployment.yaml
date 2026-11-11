@@ -44,7 +44,7 @@ spec:
         - name: home-assistant
           # Pinned exact version; Renovate's kubernetes manager offers bumps
           # for clusters/lab images like any other pin in this repo.
-          image: ghcr.io/home-assistant/home-assistant:2026.9.0
+          image: ghcr.io/home-assistant/home-assistant:2026.11.1
           securityContext:
             capabilities:
               drop: [ALL]
