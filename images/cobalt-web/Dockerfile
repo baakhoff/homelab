@@ -28,4 +28,11 @@ RUN corepack enable \
 # Static files only. The server config - which paths go to the API, and the
 # headers the page needs - lives with the Deployment, in a ConfigMap.
 FROM nginxinc/nginx-unprivileged:1.31.7-alpine
+
+# Alpine's fixes since upstream built this base. The base is rebuilt only
+# when nginx releases, and a library fixed in between (brotli was one) would
+# otherwise wait for that.
+USER root
+RUN apk upgrade --no-cache
+USER 101
 COPY --from=build /src/web/build /usr/share/nginx/html

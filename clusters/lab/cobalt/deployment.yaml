@@ -31,6 +31,9 @@ spec:
           # Our build of upstream's page; see images/cobalt-web. Its version
           # is the API's below, and the two move together.
           image: ghcr.io/baakhoff/cobalt-web:11.7.1
+          # A rebuild for a fixed base package publishes the same tag again,
+          # and a node that has the old one would never ask for it.
+          imagePullPolicy: Always
           securityContext:
             runAsUser: 101
             runAsGroup: 101

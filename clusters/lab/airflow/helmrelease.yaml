@@ -43,7 +43,7 @@ spec:
     images:
       airflow:
         repository: ghcr.io/baakhoff/airflow
-        tag: "3.2.2"
+        tag: "3.4.0"
         pullPolicy: Always
 
     executor: LocalExecutor
