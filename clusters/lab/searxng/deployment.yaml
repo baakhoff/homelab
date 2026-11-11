@@ -83,7 +83,7 @@ spec:
         - name: searxng
           # Upstream builds daily; the tag is date-and-commit, and a rule in
           # renovate.json5 makes Renovate compare the dates.
-          image: docker.io/searxng/searxng:2026.10.13-22c64b8d3
+          image: docker.io/searxng/searxng:2026.11.11-248b8ffc0
           # A fresh secret key per start, so there is no Secret to keep
           # (settings.yaml says what that costs). Then upstream's entrypoint.
           command:
