@@ -47,7 +47,7 @@ spec:
       # HostRebootRequired, which then says why to look.
       prometheusUrl: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
       alertFiringOnly: true
-      alertFilterRegexp: ^(Watchdog|InfoInhibitor|HostRebootRequired|HostSecurityUpdatesPending|PiholeUpdatePending|ContainerImageCriticalCVE|ContainerImageCriticalCVEDigest|ContainerImageOSEndOfLife)$
+      alertFilterRegexp: ^(Watchdog|InfoInhibitor|HostRebootRequired|HostSecurityUpdatesPending|PiholeUpdatePending|ContainerImageCriticalCVE|ContainerImageOSEndOfLife)$
 
       # Hold the lock for two hours after a node is back, so the next node
       # waits while Ceph recovers what the first one missed. Two nodes a
