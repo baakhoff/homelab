@@ -12,7 +12,7 @@
 # The tag published is the upstream version below, so Renovate can offer the
 # next one to the Deployment that pins it. Bumping FROM here is the first of
 # the two PRs an upgrade takes - README.md.
-FROM ghcr.io/paperless-ngx/paperless-ngx:3.2.1
+FROM ghcr.io/paperless-ngx/paperless-ngx:3.4.2
 
 RUN apt-get update \
  && apt-get install --yes --quiet --no-install-recommends \
