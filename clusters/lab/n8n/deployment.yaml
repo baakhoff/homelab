@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: n8n
-          image: docker.io/n8nio/n8n:2.40.7
+          image: docker.io/n8nio/n8n:2.47.2
           # Not read-only at the root: Code nodes run in task runners that
           # the main process starts, and community nodes install under the
           # home directory. Neither has one fixed place to mount over.
