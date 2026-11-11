@@ -140,9 +140,11 @@ spec:
               mountPath: /tmp
         # Full-text search. On loopback: only Karakeep talks to it, so
         # nothing outside the pod can, whatever the NetworkPolicy says.
+        # --upgrade-db: a newer Meilisearch refuses a data directory an older
+        # one wrote unless told to upgrade it in place.
         - name: meilisearch
-          image: docker.io/getmeili/meilisearch:v1.41.0
-          args: ["meilisearch", "--http-addr", "127.0.0.1:7700", "--db-path", "/meili_data/data.ms"]
+          image: docker.io/getmeili/meilisearch:v1.56.1
+          args: ["meilisearch", "--http-addr", "127.0.0.1:7700", "--db-path", "/meili_data/data.ms", "--upgrade-db"]
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
