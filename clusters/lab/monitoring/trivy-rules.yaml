@@ -9,8 +9,17 @@
 # A second rule catches images whose OS no longer gets fixes at all, which
 # the first cannot see.
 #
-# One alert per image, grouped by Alertmanager into one message per
-# namespace. It re-notifies weekly rather than twice a day (the route in
+# Two rules for the CVEs, split by who can do something about them:
+#   - the images this lab builds (ghcr.io/baakhoff/...): one alert per image.
+#     A rebuild fixes those, so each alert has an action.
+#   - everyone else's: one alert for all of them together, with the count.
+#     On the first day there were eighty per-image alerts, most for a single
+#     library CVE in an image whose project had not published a newer one;
+#     nothing could be done about those, and they would never have cleared.
+#     What can be done is merging Renovate's PRs, and one weekly line with a
+#     number that should go down says that as well as eighty do.
+#
+# All of them re-notify weekly rather than twice a day (the route in
 # helmrelease.yaml): the fix is usually an upstream rebuild, and that is not
 # hurried by a reminder every twelve hours.
 apiVersion: monitoring.coreos.com/v1
@@ -32,7 +41,7 @@ spec:
         - alert: ContainerImageCriticalCVE
           expr: |-
             max by (namespace, image_registry, image_repository, image_tag) (
-              max_over_time(trivy_image_vulnerabilities{severity="Critical"}[3h])
+              max_over_time(trivy_image_vulnerabilities{severity="Critical", image_repository=~"baakhoff/.+"}[3h])
             ) > 0
           for: 1h
           labels:
@@ -40,10 +49,30 @@ spec:
           annotations:
             summary: "{{ $labels.image_repository }}:{{ $labels.image_tag }} has {{ $value }} critical CVE(s) with a fix"
             description: >-
-              A newer package fixes them. Check whether a newer image is out
-              (Renovate's dashboard, or the project's releases) and update to
-              it. kubectl -n {{ $labels.namespace }} get vulnerabilityreports -o wide
+              A newer package fixes them, and this image is built here:
+              rebuild it on a newer base, or upgrade the package in its
+              Dockerfile. kubectl -n {{ $labels.namespace }} get vulnerabilityreports -o wide
               lists the reports; kubectl describe on one names its CVEs.
+
+        # Everyone else's images, counted. Never per image: see the top of
+        # this file. An image is counted once per namespace it runs in.
+        - alert: ContainerImageCriticalCVEDigest
+          expr: |-
+            count(
+              max by (namespace, image_registry, image_repository, image_tag) (
+                max_over_time(trivy_image_vulnerabilities{severity="Critical", image_repository!~"baakhoff/.+"}[3h])
+              ) > 0
+            ) > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $value }} third-party image(s) run with a critical CVE that a newer package fixes"
+            description: >-
+              Merging Renovate's open PRs is what brings this down; what is
+              left after that waits for its project to publish a newer image.
+              kubectl get vulnerabilityreports -A -o wide lists them, with the
+              count of critical CVEs in each.
 
         # The other half of ignoreUnfixed. An image built on an OS release
         # that has reached its end of life gets no fixed packages, so its CVEs
