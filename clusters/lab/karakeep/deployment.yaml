@@ -141,7 +141,7 @@ spec:
         # Full-text search. On loopback: only Karakeep talks to it, so
         # nothing outside the pod can, whatever the NetworkPolicy says.
         - name: meilisearch
-          image: docker.io/getmeili/meilisearch:v1.41.0
+          image: docker.io/getmeili/meilisearch:v1.56.1
           args: ["meilisearch", "--http-addr", "127.0.0.1:7700", "--db-path", "/meili_data/data.ms"]
           securityContext:
             allowPrivilegeEscalation: false
