@@ -35,14 +35,14 @@ and no layers.
 - **Alerted, per image:** `ContainerImageCriticalCVE`, for each image this
   lab builds (`ghcr.io/baakhoff/...`) with at least one of those CRITICAL
   ones, after an hour. A rebuild fixes these.
-- **Alerted, as one number:** `ContainerImageCriticalCVEDigest`, how many of
-  everyone else's images have one. One Telegram message a week. Most of
-  those wait for their project to publish a newer image, and an alert for
-  each would never clear; the number should go down when Renovate's PRs are
-  merged.
+- **Not alerted:** everyone else's images. Most of their CVEs wait for the
+  project to publish a newer image, and when it does Renovate opens a PR,
+  which is the notice. The reports are still made, for looking up.
 - **Also alerted:** `ContainerImageOSEndOfLife`, for each image built on an OS
   release that no longer gets security fixes. Its CVEs never count as
-  fixable, so the other two would never see them.
+  fixable, so the first would never see them. Two images whose projects
+  have published nothing newer are left out by name
+  (`../monitoring/trivy-rules.yaml`).
 
 The fix is a newer image. Usually Renovate already has a PR open for it, or
 will on Monday; its dashboard issue can open one sooner. If upstream has not

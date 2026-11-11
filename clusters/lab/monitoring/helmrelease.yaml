@@ -256,7 +256,7 @@ spec:
             # reminder twice a day.
             - receiver: telegram
               matchers:
-                - alertname =~ "ContainerImageCriticalCVE|ContainerImageCriticalCVEDigest|ContainerImageOSEndOfLife|HostRebootRequired|PiholeUpdatePending"
+                - alertname =~ "ContainerImageCriticalCVE|ContainerImageOSEndOfLife|HostRebootRequired|PiholeUpdatePending"
               repeat_interval: 168h
             # Same destination, shorter leash: a critical nags hourly
             # until it is resolved or silenced.

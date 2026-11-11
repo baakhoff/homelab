@@ -9,19 +9,21 @@
 # A second rule catches images whose OS no longer gets fixes at all, which
 # the first cannot see.
 #
-# Two rules for the CVEs, split by who can do something about them:
-#   - the images this lab builds (ghcr.io/baakhoff/...): one alert per image.
-#     A rebuild fixes those, so each alert has an action.
-#   - everyone else's: one alert for all of them together, with the count.
-#     On the first day there were eighty per-image alerts, most for a single
-#     library CVE in an image whose project had not published a newer one;
-#     nothing could be done about those, and they would never have cleared.
-#     What can be done is merging Renovate's PRs, and one weekly line with a
-#     number that should go down says that as well as eighty do.
+# Alerts only where this lab can do something:
+#   - a critical CVE in an image built here (ghcr.io/baakhoff/...): a rebuild
+#     fixes it, so each image gets an alert.
+#   - an image on an end-of-life OS, unless it is on the short list below of
+#     images whose project has published nothing newer.
 #
-# All of them re-notify weekly rather than twice a day (the route in
-# helmrelease.yaml): the fix is usually an upstream rebuild, and that is not
-# hurried by a reminder every twelve hours.
+# Everyone else's images do not alert at all. On the first day there were
+# eighty alerts, most for one library CVE in an image whose project had not
+# published a newer one, and Telegram got a message each time one of them
+# changed. For those the fix arrives as a Renovate PR, and that PR is the
+# notice; the reports stay for looking up
+# (kubectl get vulnerabilityreports -A -o wide).
+#
+# What does alert re-notifies weekly rather than twice a day (the route in
+# helmrelease.yaml).
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -54,36 +56,22 @@ spec:
               Dockerfile. kubectl -n {{ $labels.namespace }} get vulnerabilityreports -o wide
               lists the reports; kubectl describe on one names its CVEs.
 
-        # Everyone else's images, counted. Never per image: see the top of
-        # this file. An image is counted once per namespace it runs in.
-        - alert: ContainerImageCriticalCVEDigest
-          expr: |-
-            count(
-              max by (namespace, image_registry, image_repository, image_tag) (
-                max_over_time(trivy_image_vulnerabilities{severity="Critical", image_repository!~"baakhoff/.+"}[3h])
-              ) > 0
-            ) > 0
-          for: 1h
-          labels:
-            severity: warning
-          annotations:
-            summary: "{{ $value }} third-party image(s) run with a critical CVE that a newer package fixes"
-            description: >-
-              Merging Renovate's open PRs is what brings this down; what is
-              left after that waits for its project to publish a newer image.
-              kubectl get vulnerabilityreports -A -o wide lists them, with the
-              count of critical CVEs in each.
-
         # The other half of ignoreUnfixed. An image built on an OS release
         # that has reached its end of life gets no fixed packages, so its CVEs
         # never count as fixable and the rule above never sees them. This
         # asks only whether the base is still supported. The answer is a
         # newer image too, or, if upstream has stopped publishing, another
         # project.
+        #
+        # Left out by name: images whose project has no newer release, so
+        # the alert could only repeat. Take one off the list when its
+        # project publishes again, or when the app is replaced.
+        #   kafbat/kafka-ui      - Renovate finds nothing newer than 1.5.0
+        #   corentinth/it-tools  - no release since 2024
         - alert: ContainerImageOSEndOfLife
           expr: |-
             max by (namespace, image_registry, image_repository, image_tag, image_os_family, image_os_name) (
-              max_over_time(trivy_image_info{image_os_eosl="true"}[3h])
+              max_over_time(trivy_image_info{image_os_eosl="true", image_repository!~"kafbat/kafka-ui|corentinth/it-tools"}[3h])
             ) > 0
           for: 1h
           labels:
