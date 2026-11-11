@@ -36,7 +36,7 @@ spec:
         - name: chrome
           # Karakeep's build of Chrome Headless Shell, tested against its
           # crawler. Versioned separately from Karakeep.
-          image: ghcr.io/karakeep-app/karakeep-chrome:154.0.8037.57-r1
+          image: ghcr.io/karakeep-app/karakeep-chrome:157.0.8103.38-r1
           # Appended to the image's own command, which already sets
           # --no-sandbox (the pod is the sandbox) and listens for the
           # crawler on 9222. The rest as upstream's compose file passes them.
