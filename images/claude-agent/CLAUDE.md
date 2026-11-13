@@ -33,8 +33,14 @@ to sign in again.
   `pdftotext` and `pdftoppm`; `pandoc`; LibreOffice
   (`soffice --headless --convert-to pdf FILE`).
 - Media: ImageMagick (`convert`) and `ffmpeg`.
-- A screenshot of a web page:
-  `chromium --headless --no-sandbox --screenshot=OUT.png --window-size=1280,800 URL`
+- A picture of a web page, to look at or to send:
+  `page-shot URL OUT.png` takes the whole page top to bottom. Add `--tiles`
+  when you want to read it yourself: a tall image is shrunk when you open
+  it, and the tiles (`OUT-01.png`, ...) stay legible. `--viewport` takes the
+  first screen only; `page-shot --help` lists the rest.
+- A page that needs clicking, typing or a login: Playwright for Python is
+  installed; launch with
+  `p.chromium.launch(executable_path="/usr/bin/chromium", args=["--no-sandbox"])`.
 - Anything else in Python: `uv run --with PACKAGE script.py`. There is no
   `pip` for the system Python.
 - `git`, `gh`, `glab`, `jq`, `curl`.

@@ -69,7 +69,8 @@ RUN apt-get update \
 #                      (--no-sandbox because the pod has no capabilities to
 #                      build a sandbox with; the pod is the sandbox)
 #   fonts-*          - without them a rendered page or PDF is boxes; DejaVu
-#                      and Liberation cover Latin and Cyrillic, Noto the rest
+#                      and Liberation cover Latin and Cyrillic, Noto the
+#                      rest, noto-cjk Chinese, Japanese and Korean
 # This is most of the image's size, about a gigabyte. A separate layer from
 # the toolchain above, so a change to either does not rebuild the other.
 RUN apt-get update \
@@ -81,7 +82,7 @@ RUN apt-get update \
       poppler-utils imagemagick ffmpeg pandoc \
       libreoffice-writer libreoffice-calc libreoffice-impress \
       chromium \
-      fonts-dejavu-core fonts-liberation fonts-noto-core fonts-noto-color-emoji \
+      fonts-dejavu-core fonts-liberation fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/* \
  && python3 -c "import yaml, requests, lxml, pypdf, reportlab, docx, openpyxl, PIL, pandas, matplotlib" \
  && pdftotext -v && pandoc --version | head -1 && soffice --version && chromium --version
@@ -96,6 +97,17 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /usr/local/bin/
 # already there from apt and uv leaves it alone.
 RUN uv pip install --system --break-system-packages --no-cache python-pptx==1.0.2 \
  && python3 -c "import pptx, lxml, PIL, pandas"
+
+# Playwright, to drive the Chromium above: a picture of a whole page top to
+# bottom, where `chromium --screenshot` gives the first screen only, and
+# clicking and typing when a page needs it. Only the library - it uses the
+# system Chromium (executable_path=/usr/bin/chromium) and downloads no
+# browser of its own. Not in Debian either, hence PyPI and a pin.
+# page-shot is the small command sessions call for the picture.
+RUN uv pip install --system --break-system-packages --no-cache playwright==1.56.0 \
+ && python3 -c "import playwright.sync_api"
+COPY page-shot /usr/local/bin/page-shot
+RUN chmod 0755 /usr/local/bin/page-shot && page-shot --help > /dev/null
 
 # gh from the project's own release, NOT from Debian. bookworm ships 2.23.0 -
 # February 2023 - and a CLI that old does not merely lack features, it makes

@@ -14,7 +14,8 @@ Beyond the toolchain, three things every session in every pod gets:
 
 - **Tools for documents and pictures.** The Python libraries for PDF, Word,
   Excel and PowerPoint files, poppler, pandoc, ImageMagick, ffmpeg,
-  LibreOffice and a headless Chromium with fonts. The skills a session lists
+  LibreOffice, and a headless Chromium with fonts and Playwright; `page-shot`
+  takes a picture of a whole web page. The skills a session lists
   for those files call them; without them each skill failed at its first
   import. About a gigabyte of the image.
 - **`/etc/claude-code/CLAUDE.md`** (`CLAUDE.md` here): instructions Claude Code
