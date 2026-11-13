@@ -18,6 +18,13 @@ Beyond the toolchain, three things every session in every pod gets:
   takes a picture of a whole web page. The skills a session lists
   for those files call them; without them each skill failed at its first
   import. About a gigabyte of the image.
+- **Tools to check a change with.** helm, kustomize, kubeconform, yq,
+  gitleaks, trivy, shellcheck and actionlint, so a session can render a
+  chart, validate a manifest, scan an image tag or a commit before it opens
+  a pull request. Pinned in the Dockerfile and bumped by Renovate. No sops
+  and no flux: a pod has no key and no cluster access.
+- **OCR.** tesseract with English, Russian, Serbian (both scripts) and
+  Kazakh.
 - **`/etc/claude-code/CLAUDE.md`** (`CLAUDE.md` here): instructions Claude Code
   loads in every session, whatever the project. It says where a file meant
   for the person has to be put, `.outbox/` in the working directory, because

@@ -23,6 +23,28 @@ ARG GH_VERSION=2.101.0
 ARG GLAB_VERSION=1.119.0
 ARG KUBECTL_VERSION=1.37.2
 
+# The tools further down that come from their projects' own releases or from
+# PyPI. Each pin has a `# renovate:` line above it, which one regex manager in
+# renovate.json5 reads, so adding a tool here is two lines and no new rule.
+# renovate: datasource=github-releases depName=helm/helm extractVersion=^v(?<version>.*)$
+ARG HELM_VERSION=4.3.1
+# renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.*)$
+ARG KUSTOMIZE_VERSION=5.8.3
+# renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.*)$
+ARG KUBECONFORM_VERSION=0.8.0
+# renovate: datasource=github-releases depName=mikefarah/yq extractVersion=^v(?<version>.*)$
+ARG YQ_VERSION=4.54.3
+# renovate: datasource=github-releases depName=gitleaks/gitleaks extractVersion=^v(?<version>.*)$
+ARG GITLEAKS_VERSION=8.30.1
+# renovate: datasource=github-releases depName=aquasecurity/trivy extractVersion=^v(?<version>.*)$
+ARG TRIVY_VERSION=0.76.2
+# renovate: datasource=github-releases depName=rhysd/actionlint extractVersion=^v(?<version>.*)$
+ARG ACTIONLINT_VERSION=1.7.12
+# renovate: datasource=pypi depName=python-pptx
+ARG PYTHON_PPTX_VERSION=1.0.2
+# renovate: datasource=pypi depName=playwright
+ARG PLAYWRIGHT_VERSION=1.56.0
+
 # The toolchain an agent can use inside its pod. Kept general on purpose: a
 # project that needs more (a database client, another language) gets its own
 # image FROM this one, rather than this list growing for everybody.
@@ -42,11 +64,20 @@ ARG KUBECTL_VERSION=1.37.2
 #   python3, venv   - the Python projects; uv below does the real work
 #   build-essential - native extensions in Python and Node dependencies
 #   procps, less, jq, curl, unzip - an agent inspects its own environment
+#   file, zip, tree, rsync, dnsutils (dig) - the same, the small things
+#                     reached for without thinking and missed when absent
+#   sqlite3, postgresql-client - a look inside a database file or dump; no
+#                     pod reaches the lab's databases, the NetworkPolicy
+#                     sees to that, so psql here is for a project's own
+#   shellcheck      - for the shell scripts written here; `bash -n` only
+#                     says a script parses
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates curl git openssh-client netcat-openbsd \
       python3 python3-venv build-essential \
       procps less jq unzip \
+      file zip tree rsync dnsutils \
+      sqlite3 postgresql-client shellcheck \
  && rm -rf /var/lib/apt/lists/*
 
 # What the document and image skills call. Every session lists skills for PDF,
@@ -68,6 +99,9 @@ RUN apt-get update \
 #                      chromium --headless --no-sandbox --screenshot=out.png URL
 #                      (--no-sandbox because the pod has no capabilities to
 #                      build a sandbox with; the pod is the sandbox)
+#   tesseract-ocr-*  - reads text out of a scan or a photo, in English and
+#                      the household's other languages (Russian, Serbian in
+#                      both scripts, Kazakh)
 #   fonts-*          - without them a rendered page or PDF is boxes; DejaVu
 #                      and Liberation cover Latin and Cyrillic, Noto the
 #                      rest, noto-cjk Chinese, Japanese and Korean
@@ -82,10 +116,12 @@ RUN apt-get update \
       poppler-utils imagemagick ffmpeg pandoc \
       libreoffice-writer libreoffice-calc libreoffice-impress \
       chromium \
+      tesseract-ocr tesseract-ocr-rus tesseract-ocr-srp tesseract-ocr-srp-latn tesseract-ocr-kaz \
       fonts-dejavu-core fonts-liberation fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/* \
  && python3 -c "import yaml, requests, lxml, pypdf, reportlab, docx, openpyxl, PIL, pandas, matplotlib" \
- && pdftotext -v && pandoc --version | head -1 && soffice --version && chromium --version
+ && pdftotext -v && pandoc --version | head -1 && soffice --version && chromium --version \
+ && tesseract --list-langs
 
 # uv: the Python package manager the Python projects use. Copied from its own
 # image so the version is pinned here and Renovate bumps it like any other.
@@ -95,7 +131,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /usr/local/bin/
 # the one thing here installed into the system Python from PyPI. Pinned.
 # Everything it needs that Debian does have (lxml, Pillow, XlsxWriter) is
 # already there from apt and uv leaves it alone.
-RUN uv pip install --system --break-system-packages --no-cache python-pptx==1.0.2 \
+RUN uv pip install --system --break-system-packages --no-cache "python-pptx==${PYTHON_PPTX_VERSION}" \
  && python3 -c "import pptx, lxml, PIL, pandas"
 
 # Playwright, to drive the Chromium above: a picture of a whole page top to
@@ -104,7 +140,7 @@ RUN uv pip install --system --break-system-packages --no-cache python-pptx==1.0.
 # system Chromium (executable_path=/usr/bin/chromium) and downloads no
 # browser of its own. Not in Debian either, hence PyPI and a pin.
 # page-shot is the small command sessions call for the picture.
-RUN uv pip install --system --break-system-packages --no-cache playwright==1.56.0 \
+RUN uv pip install --system --break-system-packages --no-cache "playwright==${PLAYWRIGHT_VERSION}" \
  && python3 -c "import playwright.sync_api"
 COPY page-shot /usr/local/bin/page-shot
 RUN chmod 0755 /usr/local/bin/page-shot && page-shot --help > /dev/null
@@ -164,6 +200,65 @@ RUN set -eux; \
     install -m 0755 /tmp/kubectl /usr/local/bin/kubectl; \
     rm -f /tmp/kubectl; \
     kubectl version --client
+
+# What an agent checks its own change with before it opens a pull request.
+# Until these, a manifest was checked by reading it: a Helm values change
+# that the chart could not render sat broken in the cluster for a month
+# (clusters/lab/logging/alloy.yaml), and thirty image updates were merged
+# with nobody able to say whether the new tags fixed their CVEs.
+#   helm, kustomize - render a chart or an overlay to what would be applied
+#   kubeconform     - the rendered manifests against the Kubernetes schemas
+#   yq              - read and edit YAML as YAML, not as text
+#   gitleaks        - scan a commit for secrets before it is pushed; this
+#                     repository is public and has a .gitleaks.toml
+#   trivy           - scan an image tag for CVEs before proposing it
+#   actionlint      - the GitHub workflows, as shellcheck is for scripts
+# From each project's releases, pinned above, and checked against the
+# sha256 the project publishes where it publishes one plainly (all but yq).
+# Not here on purpose: sops and flux. Secrets and the cluster are the
+# person's; a pod has no key and no API access, and the binaries would only
+# invite attempts that fail.
+RUN set -eux; \
+    cd /tmp; \
+    get() { curl -fsSL -o "$2" "$1"; }; \
+    check() { echo "$1  $2" | sha256sum -c -; }; \
+    sum_of() { grep " $1\$" "$2" | cut -d' ' -f1; }; \
+    \
+    get "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" helm.tgz; \
+    check "$(curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz.sha256sum" | cut -d' ' -f1)" helm.tgz; \
+    tar -xzf helm.tgz linux-amd64/helm; install -m 0755 linux-amd64/helm /usr/local/bin/helm; \
+    \
+    base="https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}"; \
+    get "$base/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" kustomize.tgz; get "$base/checksums.txt" sums; \
+    check "$(sum_of "kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" sums)" kustomize.tgz; \
+    tar -xzf kustomize.tgz kustomize; install -m 0755 kustomize /usr/local/bin/kustomize; \
+    \
+    base="https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}"; \
+    get "$base/kubeconform-linux-amd64.tar.gz" kubeconform.tgz; get "$base/CHECKSUMS" sums; \
+    check "$(sum_of kubeconform-linux-amd64.tar.gz sums)" kubeconform.tgz; \
+    tar -xzf kubeconform.tgz kubeconform; install -m 0755 kubeconform /usr/local/bin/kubeconform; \
+    \
+    get "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64" yq; \
+    install -m 0755 yq /usr/local/bin/yq; \
+    \
+    base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"; \
+    get "$base/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks.tgz; get "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt" sums; \
+    check "$(sum_of "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" sums)" gitleaks.tgz; \
+    tar -xzf gitleaks.tgz gitleaks; install -m 0755 gitleaks /usr/local/bin/gitleaks; \
+    \
+    base="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"; \
+    get "$base/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy.tgz; get "$base/trivy_${TRIVY_VERSION}_checksums.txt" sums; \
+    check "$(sum_of "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" sums)" trivy.tgz; \
+    tar -xzf trivy.tgz trivy; install -m 0755 trivy /usr/local/bin/trivy; \
+    \
+    base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"; \
+    get "$base/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" actionlint.tgz; get "$base/actionlint_${ACTIONLINT_VERSION}_checksums.txt" sums; \
+    check "$(sum_of "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" sums)" actionlint.tgz; \
+    tar -xzf actionlint.tgz actionlint; install -m 0755 actionlint /usr/local/bin/actionlint; \
+    \
+    rm -rf /tmp/*; \
+    helm version --short; kustomize version; kubeconform -v; yq --version; \
+    gitleaks version; trivy --version; actionlint -version; shellcheck --version | head -2
 
 RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force
