@@ -150,6 +150,13 @@ spec:
           tty: true
           stdin: true
           env:
+            # Lets the session send files to the app. Sessions that
+            # `claude remote-control` starts otherwise have no upload route
+            # and every file is refused ("not on a project thread"):
+            # anthropics/claude-code#97301. Undocumented; take it out when
+            # that issue is closed.
+            - name: CLAUDE_CODE_BRIEF_UPLOAD
+              value: "1"
             - name: PROJECT
               value: homelab
             - name: REPO_URL
