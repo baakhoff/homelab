@@ -20,7 +20,7 @@ FROM node:24-bookworm-slim
 # exact shape.
 ARG CLAUDE_CODE_VERSION=2.1.319
 ARG GH_VERSION=2.101.0
-ARG GLAB_VERSION=1.119.0
+ARG GLAB_VERSION=1.130.0
 ARG KUBECTL_VERSION=1.37.2
 
 # The toolchain an agent can use inside its pod. Kept general on purpose: a
