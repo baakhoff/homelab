@@ -33,8 +33,36 @@ to sign in again.
   `pdftotext` and `pdftoppm`; `pandoc`; LibreOffice
   (`soffice --headless --convert-to pdf FILE`).
 - Media: ImageMagick (`convert`) and `ffmpeg`.
-- A screenshot of a web page:
-  `chromium --headless --no-sandbox --screenshot=OUT.png --window-size=1280,800 URL`
+- A picture of a web page, to look at or to send:
+  `page-shot URL OUT.png` takes the whole page top to bottom. Add `--tiles`
+  when you want to read it yourself: a tall image is shrunk when you open
+  it, and the tiles (`OUT-01.png`, ...) stay legible. `--viewport` takes the
+  first screen only; `page-shot --help` lists the rest.
+- A page that needs clicking, typing or a login: Playwright for Python is
+  installed; launch with
+  `p.chromium.launch(executable_path="/usr/bin/chromium", args=["--no-sandbox"])`.
 - Anything else in Python: `uv run --with PACKAGE script.py`. There is no
   `pip` for the system Python.
-- `git`, `gh`, `glab`, `jq`, `curl`.
+- Text in a scan or a photo: `tesseract IMAGE out -l eng+rus` (also `srp`,
+  `srp_latn`, `kaz`).
+- `git`, `gh`, `glab`, `jq`, `yq`, `curl`, `file`, `zip`, `tree`, `rsync`,
+  `dig`, `sqlite3`, `psql`.
+
+## Checking a change before the pull request
+
+Run what applies and say in the pull request what you ran. "Not tested" is
+for what none of these can reach.
+
+- A Helm chart's values: `helm template` the chart with them. A values
+  change the chart cannot render fails in the cluster, not in review.
+- Kubernetes manifests: `kubeconform -strict -ignore-missing-schemas FILE`,
+  and `kustomize build DIR` where there is a kustomization.
+- YAML: read and edit it with `yq`, not with text replacement.
+- Shell scripts: `shellcheck`. GitHub workflows: `actionlint`.
+- A new image tag: `trivy image --severity CRITICAL --ignore-unfixed IMAGE`
+  before proposing it.
+- Before a push to a public repository: `gitleaks git --staged` or
+  `gitleaks dir .` on what you changed.
+
+`sops` and `flux` are not installed on purpose: secrets and the cluster are
+the person's to handle.

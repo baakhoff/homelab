@@ -225,6 +225,21 @@
       extractVersionTemplate: "^v(?<version>.*)$",
     },
     {
+      // Every other pinned tool in the agent image: the checking tools from
+      // their projects' releases (helm, kustomize, kubeconform, yq, gitleaks,
+      // trivy, actionlint) and the two Python libraries Debian does not
+      // package. Each ARG there has a `# renovate:` line above it saying
+      // where its versions are listed, so a tool added to the Dockerfile is
+      // watched without a rule added here. Scoped to that one file, for the
+      // reason the backup rule below gives.
+      customType: "regex",
+      description: "Tools pinned in the agent image by a # renovate: line",
+      managerFilePatterns: ["/^images/claude-agent/Dockerfile$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\nARG \\S+=(?<currentValue>\\S+)",
+      ],
+    },
+    {
       // Neither manager above can see an image reference that is not an
       // `image:` field, and clusters/lab/backup/ has one: the driver passes
       // the restic image to the Jobs it creates, so it travels as an env var.
