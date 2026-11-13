@@ -55,9 +55,10 @@ RUN apt-get update \
 # import. From Debian, not pip: bookworm's Python refuses a system-wide pip
 # install, and these get Debian's security updates with the rest.
 #   python3-*        - the libraries the skills import: pypdf and reportlab
-#                      (PDF), docx, openpyxl and pptx (Office files), PIL
+#                      (PDF), docx and openpyxl (Office files), PIL
 #                      (images), pandas and matplotlib (tables and charts),
-#                      yaml, requests and lxml
+#                      yaml, requests and lxml. python-pptx is the one
+#                      bookworm does not package; it follows uv below
 #   poppler-utils    - pdftotext and pdftoppm: a PDF's text, a PDF as images
 #   imagemagick, ffmpeg - converting and resizing images, audio and video
 #   pandoc           - between Markdown, HTML and docx
@@ -75,19 +76,26 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       python3-yaml python3-requests python3-lxml \
       python3-pypdf python3-reportlab \
-      python3-docx python3-openpyxl python3-pptx \
+      python3-docx python3-openpyxl python3-xlsxwriter \
       python3-pil python3-pandas python3-matplotlib \
       poppler-utils imagemagick ffmpeg pandoc \
       libreoffice-writer libreoffice-calc libreoffice-impress \
       chromium \
       fonts-dejavu-core fonts-liberation fonts-noto-core fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/* \
- && python3 -c "import yaml, requests, lxml, pypdf, reportlab, docx, openpyxl, pptx, PIL, pandas, matplotlib" \
+ && python3 -c "import yaml, requests, lxml, pypdf, reportlab, docx, openpyxl, PIL, pandas, matplotlib" \
  && pdftotext -v && pandoc --version | head -1 && soffice --version && chromium --version
 
 # uv: the Python package manager the Python projects use. Copied from its own
 # image so the version is pinned here and Renovate bumps it like any other.
 COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /usr/local/bin/
+
+# python-pptx, the one document library bookworm has no package for, so it is
+# the one thing here installed into the system Python from PyPI. Pinned.
+# Everything it needs that Debian does have (lxml, Pillow, XlsxWriter) is
+# already there from apt and uv leaves it alone.
+RUN uv pip install --system --break-system-packages --no-cache python-pptx==1.0.2 \
+ && python3 -c "import pptx, lxml, PIL, pandas"
 
 # gh from the project's own release, NOT from Debian. bookworm ships 2.23.0 -
 # February 2023 - and a CLI that old does not merely lack features, it makes
