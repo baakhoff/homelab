@@ -2,10 +2,29 @@
 
 The container image for the agent pods in `clusters/lab/agents/`: Node, the
 Claude Code CLI at a pinned version, git with `gh` and `glab` — both pinned too, and
-both from their own releases rather than from Debian — Python with `uv`, and an
+both from their own releases rather than from Debian — Python with `uv`, the
+tools the document skills call, and an
 entrypoint that runs `claude remote-control` — in a project it clones, or in an
 empty directory you clone into yourself. What the pods are and how one is
 bootstrapped: [the runbook](../../docs/runbooks/agent-pods.md).
+
+## What a session finds in it
+
+Beyond the toolchain, three things every session in every pod gets:
+
+- **Tools for documents and pictures.** The Python libraries for PDF, Word,
+  Excel and PowerPoint files, poppler, pandoc, ImageMagick, ffmpeg,
+  LibreOffice and a headless Chromium with fonts. The skills a session lists
+  for those files call them; without them each skill failed at its first
+  import. About a gigabyte of the image.
+- **`/etc/claude-code/CLAUDE.md`** (`CLAUDE.md` here): instructions Claude Code
+  loads in every session, whatever the project. It says where a file meant
+  for the person has to be put, `.outbox/` in the working directory, because
+  the app reads a sent file back from the pod and refuses any other place.
+  `.outbox/` is in the machine-wide gitignore, so nothing sent is committed.
+- **Mobile push notifications turned on.** The entrypoint sets the two
+  settings `/config` would, where they are absent; server mode has no
+  terminal to run `/config` in.
 
 ## Two shapes of pod, one entrypoint
 

@@ -96,6 +96,29 @@ while [ ! -f "$marker" ]; do
   sleep 60
 done
 
+# Mobile push notifications are off until someone turns them on in /config,
+# and server mode has no terminal to run /config in. Turned on here, in the
+# settings file on the volume, only where the key is absent: a choice made
+# by hand afterwards, either way, is left alone.
+#   agentPushNotifEnabled   - Claude may push when it decides to
+#   inputNeededNotifEnabled - a push when a permission prompt or a question
+#                             is waiting
+settings="$CLAUDE_CONFIG_DIR/settings.json"
+[ -s "$settings" ] || echo '{}' > "$settings"
+if updated=$(jq 'reduce ("agentPushNotifEnabled", "inputNeededNotifEnabled") as $k (.; if has($k) then . else .[$k] = true end)' "$settings"); then
+  if [ "$updated" != "$(jq . "$settings")" ]; then
+    printf '%s\n' "$updated" > "$settings.tmp" && mv "$settings.tmp" "$settings"
+    echo "settings: mobile push notifications turned on"
+  fi
+else
+  echo "settings: $settings is not valid JSON, left as it is"
+fi
+
+# A connector that failed to sign in once is remembered in this file, and
+# every session then reports it as needing authentication although its calls
+# work. Starting clean costs one sign-in check per connector.
+rm -f "$CLAUDE_CONFIG_DIR/mcp-needs-auth-cache.json"
+
 # --spawn worktree gives every session started from a device its own git
 # worktree, so two sessions on one project never edit the same files. It needs
 # a repository at the working directory to branch from, which a general slot

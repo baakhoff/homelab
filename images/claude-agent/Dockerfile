@@ -49,6 +49,42 @@ RUN apt-get update \
       procps less jq unzip \
  && rm -rf /var/lib/apt/lists/*
 
+# What the document and image skills call. Every session lists skills for PDF,
+# Word, Excel and PowerPoint files and for charts, and until this layer the
+# image had none of the tools they use, so each one failed at its first
+# import. From Debian, not pip: bookworm's Python refuses a system-wide pip
+# install, and these get Debian's security updates with the rest.
+#   python3-*        - the libraries the skills import: pypdf and reportlab
+#                      (PDF), docx, openpyxl and pptx (Office files), PIL
+#                      (images), pandas and matplotlib (tables and charts),
+#                      yaml, requests and lxml
+#   poppler-utils    - pdftotext and pdftoppm: a PDF's text, a PDF as images
+#   imagemagick, ffmpeg - converting and resizing images, audio and video
+#   pandoc           - between Markdown, HTML and docx
+#   libreoffice-*    - converts Office files to PDF and back, which is how a
+#                      session checks what a document it wrote looks like
+#   chromium         - a headless browser, for a screenshot of a page:
+#                      chromium --headless --no-sandbox --screenshot=out.png URL
+#                      (--no-sandbox because the pod has no capabilities to
+#                      build a sandbox with; the pod is the sandbox)
+#   fonts-*          - without them a rendered page or PDF is boxes; DejaVu
+#                      and Liberation cover Latin and Cyrillic, Noto the rest
+# This is most of the image's size, about a gigabyte. A separate layer from
+# the toolchain above, so a change to either does not rebuild the other.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      python3-yaml python3-requests python3-lxml \
+      python3-pypdf python3-reportlab \
+      python3-docx python3-openpyxl python3-pptx \
+      python3-pil python3-pandas python3-matplotlib \
+      poppler-utils imagemagick ffmpeg pandoc \
+      libreoffice-writer libreoffice-calc libreoffice-impress \
+      chromium \
+      fonts-dejavu-core fonts-liberation fonts-noto-core fonts-noto-color-emoji \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -c "import yaml, requests, lxml, pypdf, reportlab, docx, openpyxl, pptx, PIL, pandas, matplotlib" \
+ && pdftotext -v && pandoc --version | head -1 && soffice --version && chromium --version
+
 # uv: the Python package manager the Python projects use. Copied from its own
 # image so the version is pinned here and Renovate bumps it like any other.
 COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /usr/local/bin/
@@ -114,6 +150,19 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh
+
+# Instructions every session in a pod gets, whatever project it is in: where
+# to put a file meant for the person, and what the image carries. Claude Code
+# reads /etc/claude-code/CLAUDE.md on every start, and it lives in the image,
+# not on the volume, so it changes with a commit like everything else here.
+COPY CLAUDE.md /etc/claude-code/CLAUDE.md
+
+# .outbox/ is where a session puts a file it sends to the person (CLAUDE.md
+# above says why it has to be inside the working directory). Ignored for
+# every repository on the machine, so no project needs a line for it and
+# nothing sent this way is ever committed by accident.
+RUN printf '.outbox/\n' > /etc/gitignore \
+ && git config --system core.excludesFile /etc/gitignore
 
 # The `node` user (uid 1000) ships with the base image. The pod mounts its
 # PersistentVolume over /home/node, so everything under that path - the CLI's
