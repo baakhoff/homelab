@@ -25,7 +25,7 @@ FROM apache/airflow:3.4.0-python3.12
 #                       (pipelines/dags/bambu.py) calls Bambu Lab's cloud
 #                       through the same curl_cffi, and bambu_login.py names
 #                       its version too.
-ARG COSMOS_VERSION=1.15.1
+ARG COSMOS_VERSION=1.16.0
 ARG TELETHON_VERSION=1.45.0
 ARG GARMINCONNECT_VERSION=0.3.20
 ARG CURL_CFFI_VERSION=0.16.0
