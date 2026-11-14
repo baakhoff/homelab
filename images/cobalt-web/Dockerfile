@@ -10,7 +10,7 @@
 # same version, for the Deployment to pin - README.md has the two-PR flow.
 FROM ghcr.io/imputnet/cobalt:11.7.1 AS api
 
-FROM node:24.21.0-alpine AS build
+FROM node:26.13.0-alpine AS build
 WORKDIR /src
 RUN apk add --no-cache git
 COPY --from=api /app/.git .git
