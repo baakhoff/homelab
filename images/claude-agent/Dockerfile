@@ -19,7 +19,7 @@ FROM node:24-bookworm-slim
 # CI workflow reads this line to tag the image, so the ARG line must keep this
 # exact shape.
 ARG CLAUDE_CODE_VERSION=2.1.319
-ARG GH_VERSION=2.101.0
+ARG GH_VERSION=2.103.3
 ARG GLAB_VERSION=1.119.0
 ARG KUBECTL_VERSION=1.37.2
 
