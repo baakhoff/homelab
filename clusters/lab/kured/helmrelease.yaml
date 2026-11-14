@@ -60,6 +60,17 @@ spec:
       drainTimeout: 30m
       forceReboot: false
 
+      # Never a node with an agent pod on it (clusters/lab/agents/). A drain
+      # evicts the pod, and with it whatever its sessions were running: a
+      # reboot at 05:30 cost one slot four background agents twelve hours
+      # into their work, and the app went on showing them as running. Those
+      # pods are few and long-lived, so in practice this is "the nodes that
+      # host agents are rebooted by hand": HostRebootRequired says when one
+      # has waited three days, and the README says how. kured checks for the
+      # pods before it cordons anything, so a held node is not drained.
+      blockingPodSelector:
+        - app.kubernetes.io/part-of=agents
+
     resources:
       requests:
         cpu: 10m

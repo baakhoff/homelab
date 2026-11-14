@@ -19,6 +19,15 @@ why: `helmrelease.yaml`.
 - **A drain that takes over 30 minutes is given up**, the node uncordoned,
   and tried again the next hour. Usually Ceph was not healthy, which its own
   disruption budgets enforce.
+- **A node with an agent pod on it is never rebooted by kured.** The drain
+  would end whatever the pod's sessions are running. When
+  `HostRebootRequired` fires for such a node, pick a moment when its agent
+  pods are idle (`kubectl -n agents get pods -o wide` shows which are on
+  it) and reboot it by hand:
+  `kubectl drain <node> --ignore-daemonsets --delete-emptydir-data`, then
+  `ssh <node>.lab sudo reboot`, then `kubectl uncordon <node>` once it is
+  `Ready`. One node at a time, and wait for Ceph to report `HEALTH_OK`
+  before the next.
 - **To hold reboots for a while** - a long job running, guests over:
   `kubectl -n kured annotate ds kured weave.works/kured-node-lock='{"nodeID":"manual"}'`,
   and the same with `weave.works/kured-node-lock-` to release it.
