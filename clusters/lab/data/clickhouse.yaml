@@ -121,7 +121,7 @@ spec:
       containers:
         - name: clickhouse
           # An LTS line (x.3 and x.8 are ClickHouse's long-term releases).
-          image: docker.io/clickhouse/clickhouse-server:26.8.15.10
+          image: docker.io/clickhouse/clickhouse-server:26.10.3.7
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

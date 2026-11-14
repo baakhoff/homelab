@@ -94,7 +94,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: repair
-              image: docker.io/clickhouse/clickhouse-server:26.8.15.10
+              image: docker.io/clickhouse/clickhouse-server:26.10.3.7
               command: ["bash", "/scripts/repair.sh"]
               env:
                 - name: CLICKHOUSE_PASSWORD
