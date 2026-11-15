@@ -287,6 +287,10 @@ kubectl -n agents logs deploy/slot-4 --tail=20
 kubectl -n agents describe pod -l app.kubernetes.io/name=slot-4 | grep -iA3 'last state\|restart count'
 ```
 
+- **`not logged in: run this ...` every minute.** The pod's Claude login has
+  lapsed. Run the command the log prints, open the URL it shows, paste the
+  code back. The server starts within a minute; nothing else from the
+  bootstrap needs repeating.
 - **`not bootstrapped yet: waiting for ...` every minute.** A new slot that
   nobody has logged in to. Do the [bootstrap](#bootstrap-once-per-pod) against
   this slot's Deployment.
