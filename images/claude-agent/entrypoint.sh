@@ -119,6 +119,19 @@ fi
 # work. Starting clean costs one sign-in check per connector.
 rm -f "$CLAUDE_CONFIG_DIR/mcp-needs-auth-cache.json"
 
+# A login can lapse on a pod that was bootstrapped long ago - the stored
+# token expires or is revoked - and `claude remote-control` then exits at
+# once with "You must be logged in". Left to that, the pod restarts every
+# few minutes for ever (slot-3 did, 191 times in sixteen hours), and it
+# cannot be fixed from outside: there is no running container to exec into.
+# So this waits instead, like the bootstrap wait above, and says what to do.
+# The server starts by itself within a minute of the login.
+until claude auth status 2>/dev/null | jq -e '.loggedIn == true' > /dev/null; do
+  echo "not logged in: run this, then wait a minute:"
+  echo "  kubectl -n agents exec -it deploy/$PROJECT -- claude auth login"
+  sleep 60
+done
+
 # --spawn worktree gives every session started from a device its own git
 # worktree, so two sessions on one project never edit the same files. It needs
 # a repository at the working directory to branch from, which a general slot
