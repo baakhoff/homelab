@@ -85,6 +85,12 @@ fi
 mkdir -p "$work"
 cd "$work"
 
+# Tell Prometheus when this pod's login runs out (login-metrics says why).
+# Started before the waits below, so a pod that is waiting for a login is
+# reported too. In the background and detached from the terminal: the server
+# this script becomes at the end must be the only reader of it.
+login-metrics < /dev/null > /dev/null 2>&1 &
+
 # The one-time bootstrap is interactive and this script cannot do it:
 # `claude auth login` needs a browser round-trip, and both the workspace-trust
 # dialog and Remote Control's "Enable Remote Control? (y/n)" want a person.

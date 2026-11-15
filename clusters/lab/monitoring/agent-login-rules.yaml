@@ -1,0 +1,49 @@
+# The agent pods' Claude logins (clusters/lab/agents/). A claude.ai login
+# ends 30 days after `claude auth login`, however much the pod is used, and
+# nothing renews it but a person signing in through a browser
+# (anthropics/claude-code#108586). A pod past the date serves no sessions,
+# and it is found out when someone needs it. These say so beforehand.
+#
+# The numbers come from each pod (images/claude-agent/login-metrics) through
+# the PodMonitor in clusters/lab/agents/. A pod still running an image from
+# before the exporter reports nothing and is not covered until it restarts.
+#
+# The fix for both, per pod named in the alert:
+#   kubectl -n agents exec -it deploy/<pod> -c claude -- claude auth login
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agent-login
+  namespace: monitoring
+spec:
+  groups:
+    - name: agent-login
+      rules:
+        # Three days ahead: time to do every pod that is close in one
+        # sitting, so that they run out together next month as well.
+        - alert: AgentLoginExpiring
+          expr: |-
+            claude_login_present == 1
+            and
+            (claude_login_expires_timestamp_seconds - time()) < 3 * 86400
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: the Claude login runs out in {{ $value | humanizeDuration }}"
+            description: >-
+              After that the pod serves no sessions. Renew it when the pod is
+              idle: kubectl -n agents exec -it deploy/<pod> -c claude -- claude auth login
+              (docs/runbooks/agent-pods.md).
+
+        # Already out, or never logged in: the pod is up and waiting.
+        - alert: AgentLoggedOut
+          expr: claude_login_present == 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }} has no Claude login and serves no sessions"
+            description: >-
+              Log it in: kubectl -n agents exec -it deploy/<pod> -c claude -- claude auth login
+              (docs/runbooks/agent-pods.md).

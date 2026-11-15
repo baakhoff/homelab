@@ -159,6 +159,11 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh
 
+# The date this pod's Claude login runs out, served to Prometheus on :9101.
+# The entrypoint starts it; the file itself says why it exists.
+COPY login-metrics /usr/local/bin/login-metrics
+RUN chmod 0755 /usr/local/bin/login-metrics
+
 # Instructions every session in a pod gets, whatever project it is in: where
 # to put a file meant for the person, and what the image carries. Claude Code
 # reads /etc/claude-code/CLAUDE.md on every start, and it lives in the image,

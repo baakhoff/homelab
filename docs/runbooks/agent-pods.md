@@ -288,9 +288,7 @@ kubectl -n agents describe pod -l app.kubernetes.io/name=slot-4 | grep -iA3 'las
 ```
 
 - **`not logged in: run this ...` every minute.** The pod's Claude login has
-  lapsed. Run the command the log prints, open the URL it shows, paste the
-  code back. The server starts within a minute; nothing else from the
-  bootstrap needs repeating.
+  ended. See [When the login expires](#when-the-login-expires).
 - **`not bootstrapped yet: waiting for ...` every minute.** A new slot that
   nobody has logged in to. Do the [bootstrap](#bootstrap-once-per-pod) against
   this slot's Deployment.
@@ -348,21 +346,30 @@ expects `yes`, then `no`. A `yes` to the second means the Role in
 
 ## When the login expires
 
-`/status` in a session shows the login row and warns three days ahead. Renew
-with `claude auth login` through `kubectl exec`, as above. The marker file
-stays.
+A claude.ai login ends 30 days after `claude auth login`, however much the
+pod is used; nothing renews it but signing in again
+([anthropics/claude-code#108586](https://github.com/anthropics/claude-code/issues/108586)).
 
-Once it has ended, the pod crash-loops on `You must be logged in to use Remote
-Control`, and there is nothing to exec into. Log in from a throwaway pod on the
-same node and volume instead - the volume is ReadWriteOnce, so the node has to
-be the one the slot is on (`kubectl -n agents get pods -o wide`). For slot-4 on
-node03:
+Three days ahead, `AgentLoginExpiring` names the pod in Telegram. Each pod
+reports its date to Prometheus (`images/claude-agent/login-metrics`), and
+this lists them all:
 
 ```bash
-kubectl -n agents run slot-4-login --rm -it --restart=Never --image=ghcr.io/baakhoff/claude-agent:2.1.280 --overrides='{"spec":{"nodeName":"node03","securityContext":{"runAsNonRoot":true,"runAsUser":1000,"runAsGroup":1000,"fsGroup":1000,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"slot-4-login","image":"ghcr.io/baakhoff/claude-agent:2.1.280","command":["claude","auth","login"],"stdin":true,"tty":true,"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}},"resources":{"requests":{"cpu":"50m","memory":"64Mi"},"limits":{"memory":"1Gi"}},"volumeMounts":[{"name":"home","mountPath":"/home/node"}]}],"volumes":[{"name":"home","persistentVolumeClaim":{"claimName":"slot-4"}}]}}'
+for p in brand epicurus homelab scratch slot-1 slot-2 slot-3; do printf '%-10s ' $p; kubectl -n agents exec deploy/$p -c claude -- jq -r '.claudeAiOauth.refreshTokenExpiresAt / 1000 | todate' /home/node/.claude/.credentials.json; done
 ```
 
-The slot picks the login up at its next restart.
+Renew with the login alone; the marker file stays and nothing else from the
+bootstrap is repeated. Doing every pod that is close in one sitting keeps
+them running out together the next month:
+
+```bash
+kubectl -n agents exec -it deploy/homelab -c claude -- claude auth login
+```
+
+Once a login has ended, the pod stays up and waits: its log says
+`not logged in: run this ...` every minute, `AgentLoggedOut` fires after half
+an hour, and the server starts within a minute of the login. A session that
+was open when the login ended does not reconnect; start a new one.
 
 ## An ssh key on the volume
 
