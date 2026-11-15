@@ -4,6 +4,10 @@
 # (anthropics/claude-code#108586). A pod past the date serves no sessions,
 # and it is found out when someone needs it. These say so beforehand.
 #
+# The numbers come from each pod (images/claude-agent/login-metrics) through
+# the PodMonitor in clusters/lab/agents/. A pod still running an image from
+# before the exporter reports nothing and is not covered until it restarts.
+#
 # The fix for both, per pod named in the alert:
 #   kubectl -n agents exec -it deploy/<pod> -c claude -- claude auth login
 apiVersion: monitoring.coreos.com/v1
