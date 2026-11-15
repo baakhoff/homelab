@@ -85,3 +85,29 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+---
+# The one way in: Prometheus reads each pod's login expiry date from the
+# small exporter the image runs on 9101 (images/claude-agent/login-metrics;
+# the alert is clusters/lab/monitoring/agent-login-rules.yaml). Nothing else
+# in a pod listens there, and nothing else may connect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: agents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: agents
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9101
