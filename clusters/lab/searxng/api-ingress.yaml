@@ -1,0 +1,37 @@
+# A second door into SearXNG, for programs outside the cluster that search
+# through the JSON API (an agent on the workstation). A program cannot do
+# the Pocket ID login the main Ingress demands, so this one takes a
+# password instead and opens exactly one path: /search. No preferences
+# page, no image proxy, no stats — everything else on this host is a 404.
+#
+# The client puts the name and password in the URL
+# (https://NAME:PASSWORD@search-api.lab.baakhoff.com) and adds
+# /search?q=...&format=json itself.
+#
+# A password rather than an allow-list of addresses, for the reason given
+# in monitoring/prometheus-api-ingress.yaml: nginx sees a node as the
+# source, not the caller.
+#
+# The htpasswd line lives in searxng-api-auth.sops.yaml, as APR1
+# (`openssl passwd -apr1`).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: searxng-api
+  namespace: searxng
+  annotations:
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: searxng-api-auth
+    nginx.ingress.kubernetes.io/auth-realm: searxng-api
+spec:
+  rules:
+    - host: search-api.lab.baakhoff.com
+      http:
+        paths:
+          - path: /search
+            pathType: Exact
+            backend:
+              service:
+                name: searxng
+                port:
+                  number: 80
