@@ -195,6 +195,14 @@ unset BPW
 The file is on brand's home volume, so it outlives a restart. Rotating is
 the same block again, then the schema job (Setup, step 2).
 
+## lab-mcp's user
+
+The tools server (`clusters/lab/lab-mcp/`) reads the warehouse as the
+`labmcp` user: the same three layers as brand, read only, with a profile
+that stops a result at 5000 rows. Its own name, so its queries can be told
+apart in `system.query_log`. The schema job creates it once the
+`clickhouse-labmcp` Secret exists; that README has the commands.
+
 ## CloudBeaver's user
 
 CloudBeaver (`clusters/lab/cloudbeaver/`) reads the warehouse as the

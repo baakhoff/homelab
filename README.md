@@ -48,6 +48,7 @@ accounts, the only login its TV apps know.
 | [Stirling-PDF](https://www.stirlingpdf.com) | Merges, splits, reorders and edits PDFs, and turns a stack of images into one PDF. |
 | [cobalt](https://github.com/imputnet/cobalt) | Saves video and audio from a link, streamed straight to the device with nothing kept on the server. |
 | [SearXNG](https://github.com/searxng/searxng) | Private web search: one query to dozens of engines, results merged, nothing tracked; the agents search through it too. |
+| [lab-mcp](images/lab-mcp/README.md) | The lab's own [MCP](https://modelcontextprotocol.io) server: notes, tasks, photos, documents, the house and the warehouse as tools for an AI agent running on a local model. |
 | [IT-Tools](https://github.com/CorentinTh/it-tools) | About eighty small browser-side tools: encoders, formatters, generators and converters. |
 | [Firefly III](https://github.com/firefly-iii/firefly-iii) | Household finances: accounts in any currency, budgets, recurring bills and reports. |
 | [n8n](https://n8n.io) | Visual automations: schedules, emails and webhooks wired to any service in or outside the lab. |

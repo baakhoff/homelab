@@ -1,0 +1,31 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Not behind the Pocket ID gate: the caller is a program, which cannot do
+# the browser login. The server itself checks a bearer token on every
+# request (MCP_TOKEN in the Secret), and answers 401 without it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lab-mcp
+  namespace: lab-mcp
+  annotations:
+    # A media download or an OCR run answers when it is done, which can be
+    # minutes; nginx's default would cut it at 60 s.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "900"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "900"
+    # Files go in and out at /files/<name>; the server's own cap is 1 GiB.
+    nginx.ingress.kubernetes.io/proxy-body-size: 1g
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+spec:
+  rules:
+    - host: mcp.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lab-mcp
+                port:
+                  number: 80

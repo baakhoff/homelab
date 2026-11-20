@@ -14,6 +14,19 @@ spec:
   podSelector: {}
   policyTypes: [Ingress, Egress]
   ingress:
+    # lab-mcp, the tools server for agents outside the cluster
+    # (clusters/lab/lab-mcp/), with its own key. The other half of this
+    # door is the egress rule in its networkpolicy.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: lab-mcp
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: lab-mcp
+      ports:
+        - protocol: TCP
+          port: 8080
     - from:
         - namespaceSelector:
             matchLabels:
