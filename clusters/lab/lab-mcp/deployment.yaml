@@ -34,7 +34,7 @@ spec:
           # The tag is images/lab-mcp/VERSION. A code change bumps both in
           # one commit; until the new image is built the old pod keeps
           # serving, because the rollout waits for the new one to be ready.
-          image: ghcr.io/baakhoff/lab-mcp:0.1.0
+          image: ghcr.io/baakhoff/lab-mcp:0.1.1
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

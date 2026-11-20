@@ -408,7 +408,7 @@ async def tasks_list(search: str = "", include_done: bool = False, limit: int = 
 
 @tool
 async def task_save(title: str = "", id: int = 0, project: str = "", description: str = "", due: str = "", done: bool | None = None) -> str:
-    """Add a task, or change one. With `id`: update that task (only the fields given). Without: create it in `project` (name or id; the first project if empty). `due` is a date or date-time like 2026-12-01 or 2026-12-01T18:00:00Z."""
+    """Add a task, or change one (to finish or delete tasks use task_done / task_delete). With `id`: update that task (only the fields given). Without: create it in `project` (name or id; the first project if empty). `due` is a date or date-time like 2026-12-01 or 2026-12-01T18:00:00Z."""
     if due and re.fullmatch(r"\d{4}-\d{2}-\d{2}", due):
         due += "T12:00:00Z"
     if id:
@@ -436,6 +436,47 @@ async def task_save(title: str = "", id: int = 0, project: str = "", description
         body["due_date"] = due
     created = await ask("tasks", "PUT", f"/projects/{match[0]['id']}/tasks", json_body=body)
     return f"Created {_task_line(created)} in {match[0]['title']!r}"
+
+
+def _ids(ids: Any) -> list[int]:
+    """One id or several, as numbers, a list, or text like "3, 4 5"."""
+    if isinstance(ids, str):
+        ids = re.findall(r"\d+", ids)
+    elif not isinstance(ids, (list, tuple)):
+        ids = [ids]
+    try:
+        found = list(dict.fromkeys(int(i) for i in ids))
+    except (TypeError, ValueError):
+        raise ToolError("ids are task numbers, like [12, 15]")
+    if not found:
+        raise ToolError("give at least one task id, like [12, 15]")
+    if len(found) > 100:
+        raise ToolError("at most 100 tasks in one call")
+    return found
+
+
+@tool
+async def task_done(ids: list[int] | int | str, done: bool = True) -> str:
+    """Mark one or many tasks as done in a single call, e.g. ids=[12, 15, 19]. done=False reopens them."""
+    lines = []
+    for task_id in _ids(ids):
+        try:
+            task = await ask("tasks", "GET", f"/tasks/{task_id}")
+            task["done"] = bool(done)
+            lines.append(_task_line(await ask("tasks", "POST", f"/tasks/{task_id}", json_body=task)))
+        except ToolError as exc:
+            lines.append(f"#{task_id} FAILED: {_one_line(exc, 160)}")
+    return "\n".join(lines)
+
+
+@tool
+async def task_delete(ids: list[int] | int | str) -> str:
+    """Delete one or many tasks for good, in a single call, e.g. ids=[12, 15]. Only when the person asked to delete; to finish a task use task_done."""
+    lines = []
+    for task_id in _ids(ids):
+        reply = await services.call(services.get("tasks"), "DELETE", f"/tasks/{task_id}")
+        lines.append(f"#{task_id} deleted" if reply.ok else f"#{task_id} FAILED: HTTP {reply.status} {_one_line(reply.text, 120)}")
+    return "\n".join(lines)
 
 
 # --- links (Karakeep) -------------------------------------------------------------
