@@ -1,0 +1,31 @@
+apiVersion: v1
+data:
+    LABMCP_PASSWORD: ENC[AES256_GCM,data:wKBNs8T5Si5xhwT9ax6EIABphfLcFV+mrVgP6eCbp95gVVQm6Q11jMpUT8PewB7SAxl1KOKfp3En/gxQ6Ymvcw==,iv:kpuZdfeLFUkF9xumX74jqUwQMDTpY+N9UOW+MLUGFQ0=,tag:GDgXn5R260OqDbW+MVAZ3Q==,type:str]
+kind: Secret
+metadata:
+    name: clickhouse-labmcp
+    namespace: data
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBySmxnSXRlV0tMYUUxaTE5
+            WGtSM2p2SU9iQ0EydUZGaFluTnlud0Mxc0U4CjBXOEh0YUhMWDB1TUkrenpSQ2hp
+            TXFxOENnVVJURTYxQSt2OXAyTlZ0eVEKLS0tIFQvY293L1NWMXN5SmtoYVFhbWFT
+            VGg3U0c0SGhmRi9MdndPQ0k5ZklUNk0KHh0xK9LQUAngVwOMhJ8iQgBORBCvhgQj
+            swvh7LTHD6VxfmjlZef+L5b622npfiF5KYNL11H6G+aeDzb5zMIbeA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age12mpq9jh86v2jrttmjqjmw2xfkcs98s8555cr2nz8654w4rwjs3ms8293q7
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB6SXZTQnRqd1o0NnpkNzcr
+            OVZJVEQ5eGczeDc4aUJjRkRUZkdOZXhMdG1FCkUwY243ejg1VElKWGIvN1FJWllO
+            MlVCMU54eEhZTkNscnBEQ3Y3a0V5UUEKLS0tIDFnZ2JJeXI1WUJabTl5ZjhFZ3ZE
+            QjZGNEUxWmczMXNQSmFWRjcycE9mcmMKxX/k4V665kOKHfK3/0YrxFx+x5Z2qmsf
+            DEqsDGTnYwjHKXcL1Rly8d2Bt1gpTZjvdb4ptclLuK5nQvo7dG6G/Q==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-20T18:20:49Z"
+    mac: ENC[AES256_GCM,data:0gx2XMihBwFtyOXlUv1mUKPpndERSTINWbYRsDb4ZAH524FaX7lL7YlAUPBh+iBBT06VR1SJcH3QYVoPCjtZxNOqSFsIWX9q/1/cnPxnED3YPtmsfXHiN2otFCo3Gee9rHEf64KKf3dZmy0dBCLHlEJ7S01aU5lDQBXtKhnkTA8=,iv:RkkVNPGcTEXPrZmDLnjVJgefRJg3t5FtXM4G22Dt2hE=,tag:t3WSAfyOZeJ4zLkd5V056g==,type:str]
+    version: 3.13.3
