@@ -173,6 +173,8 @@ kubectl create secret generic clickhouse-labmcp --namespace data \
 sops --encrypt --in-place clusters/lab/data/clickhouse-labmcp.sops.yaml
 ```
 
+On the Mac's zsh, the `read` line is `read -rs "value?$name (Enter to skip): "; echo`.
+
 Keep the terminal open for step 4, then `unset TOKEN CHPW value args`.
 Commit both files. The warehouse user appears at the schema job's next run,
 within the hour.
