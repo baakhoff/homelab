@@ -51,6 +51,10 @@ def lab(request: httpx.Request) -> httpx.Response:
             return httpx.Response(201, json={"id": 8, "project_id": 2, "done": False, **body})
         if path == "/api/v1/tasks/7" and request.method == "GET":
             return httpx.Response(200, json={"id": 7, "title": "Buy salt", "done": False, "project_id": 1, "priority": 3})
+        if path == "/api/v1/tasks/7" and request.method == "DELETE":
+            return httpx.Response(200, json={"message": "Successfully deleted."})
+        if path == "/api/v1/tasks/99":
+            return httpx.Response(404, json={"message": "The task does not exist."})
         if path == "/api/v1/tasks/7" and request.method == "POST":
             assert body["done"] is True and body["priority"] == 3
             return httpx.Response(200, json=body)
@@ -173,6 +177,11 @@ def test_tasks():
     assert run(tools.tasks_list()) == "#7 [open] Buy salt (project 1)"
     assert "Created #8 [open] Fix tap due 2026-12-01 12:00 (project 2) in 'House'" == run(tools.task_save(title="Fix tap", project="house", due="2026-12-01"))
     assert run(tools.task_save(id=7, done=True)).startswith("Updated #7 [done]")
+    assert run(tools.task_done([7, 99])).splitlines()[0].startswith("#7 [done] Buy salt")
+    assert "#99 FAILED" in run(tools.task_done("7, 99"))
+    assert run(tools.task_delete([7, 99])).splitlines() == ["#7 deleted", '#99 FAILED: HTTP 404 {"message":"The task does not exist."}']
+    with pytest.raises(core.ToolError):
+        run(tools.task_done([]))
 
 
 def test_links_photos_documents(pretend_lab):

@@ -4,6 +4,9 @@ REST. Unusual: PUT creates and POST updates. An update replaces the whole
 object, so GET it first, change fields, and POST all of it back.
 api_find("tasks", "keyword") searches the full API.
 
+For finishing or deleting several tasks at once, the task_done and
+task_delete tools take a list of ids in one call.
+
 ## Endpoints
 - GET /projects            PUT /projects {"title": "..."}          DELETE /projects/{id}
 - GET /tasks?s=text&filter=done = false&sort_by=due_date&order_by=asc&per_page=50

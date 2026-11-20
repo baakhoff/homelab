@@ -196,7 +196,12 @@ mcp_servers:
     url: "https://mcp.lab.baakhoff.com/mcp"
     headers:
       Authorization: "Bearer ${LAB_MCP_TOKEN}"
+    supports_parallel_tool_calls: true
 ```
+
+The last line lets Hermes run several of this server's tools at once
+instead of one per turn. It is off by default for every MCP server, and
+safe here: the server keeps nothing between calls.
 
 **5. Check.**
 
