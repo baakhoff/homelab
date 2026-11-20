@@ -19,9 +19,9 @@ no: its Ingress asks for `X-Auth-Request-Email`, which this answers with
 because of `OAUTH2_PROXY_SET_XAUTHREQUEST`, and Firefly signs that address in.
 `clusters/lab/firefly/` has why that is safe there. Not behind it: anything
 that speaks OIDC itself (Grafana, Headlamp) — native login gives the app an
-identity to attach roles to, this gives it a yes. Nor the two doors made
-for programs, which cannot do a browser login and carry a secret instead:
-`search-api` (`clusters/lab/searxng/`) and `mcp` (`clusters/lab/lab-mcp/`). Mealie and Outline are
+identity to attach roles to, this gives it a yes. Nor the door made for
+programs, which cannot do a browser login and carry a token instead: `mcp`
+(`clusters/lab/lab-mcp/`). Mealie and Outline are
 the exceptions that have both, for the reasons their Ingresses give. And not
 Vaultwarden, which holds the passkeys; the Pocket ID README says why.
 

@@ -33,18 +33,9 @@ The door is a NetworkPolicy on each side: `egress-searxng` in
 
 ## From a program outside the cluster
 
-A program cannot sign in at the gate. A second address,
-`search-api.lab.baakhoff.com`, takes a name and password instead and serves
-only `/search` (`api-ingress.yaml`):
-
-```
-curl -s 'https://NAME:PASSWORD@search-api.lab.baakhoff.com/search?q=test&format=json' \
-  | jq '.results | length'
-```
-
-The password's hash is in `searxng-api-auth.sops.yaml`. To change it, write
-a new `auth` line there (`NAME:` followed by `openssl passwd -apr1`) and
-update the program's URL.
+Through the tools server only (`clusters/lab/lab-mcp/`): its `web_search`
+tool calls the JSON API from inside the cluster, and the server has its own
+token. SearXNG itself has no address that skips the gate.
 
 ## Login
 
@@ -118,8 +109,8 @@ how long it took.
 
 **Who** is `user_email`, the Pocket ID address of the person signed in at
 the gate. ingress-nginx passes it on as `X-Auth-Request-Email`, and the
-access log records it. It is empty for the agent pods and for the
-password address, which come in without the gate.
+access log records it. It is empty for the agent pods and the tools
+server, which come in without the gate.
 SearXNG keeps no history of its own. Its web server logs each request with
 its query string, the collectors carry that line to `raw.logs` like any
 other, and the model keeps the searches past `ods.logs`'s 90 days. That is
