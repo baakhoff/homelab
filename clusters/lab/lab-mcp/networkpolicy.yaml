@@ -1,0 +1,224 @@
+# What the tools server may reach, and what may reach it.
+#
+# In: ingress-nginx only. The server checks its own token on top.
+#
+# Out: cluster DNS; one door per lab service it has tools for, to that
+# service's pods and port and nothing else in its namespace; and the public
+# internet on 80 and 443, for web_read, web_download and media files. Not
+# the house LAN, not the tailnet, not the Kubernetes API, not the rest of
+# the cluster.
+#
+# Each service door has a matching ingress rule on the far side where that
+# namespace has an ingress policy (the README lists them), and both halves
+# are needed. Policies are evaluated after Service DNAT, so the ports are
+# the pods' container ports, not the Services' port 80.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lab-mcp
+  namespace: lab-mcp
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Outline.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: notes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: outline
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Vikunja.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vikunja
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vikunja
+      ports:
+        - protocol: TCP
+          port: 3456
+    # Karakeep.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: karakeep
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: karakeep
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Immich.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: immich
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: immich-server
+      ports:
+        - protocol: TCP
+          port: 2283
+    # Paperless.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: paperless
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: paperless
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Mealie.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mealie
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mealie
+      ports:
+        - protocol: TCP
+          port: 9000
+    # Home Assistant.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: home-assistant
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: home-assistant
+      ports:
+        - protocol: TCP
+          port: 8123
+    # The Firefly broker, which holds Firefly's token.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firefly-broker
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firefly-broker
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Manyfold.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: manyfold
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: manyfold
+      ports:
+        - protocol: TCP
+          port: 3214
+    # Dawarich.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dawarich
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: dawarich
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Stirling-PDF.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: stirling-pdf
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: stirling-pdf
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Cobalt.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cobalt
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cobalt
+      ports:
+        - protocol: TCP
+          port: 8080
+    # SearXNG.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: searxng
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: searxng
+      ports:
+        - protocol: TCP
+          port: 8080
+    # ClickHouse over HTTP, as the read-only labmcp user.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clickhouse
+      ports:
+        - protocol: TCP
+          port: 8123
+    # Prometheus, read only.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9090
+    # The public internet, and only it: every private range is cut out, so
+    # a URL handed to web_read cannot be pointed at the house or the cluster.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443

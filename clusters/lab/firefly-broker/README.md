@@ -9,13 +9,15 @@ credential.
 
     [an agent's tools] --HTTP--> [firefly-broker] --HTTP--> [Firefly /api/v1]
 
-Its caller is the `brand` agent pod (`clusters/lab/agents/brand.yaml`).
+Its callers are the `brand` agent pod (`clusters/lab/agents/brand.yaml`) and
+the tools server (`clusters/lab/lab-mcp/`).
 
 ## How it is reached
 
 `http://firefly-broker.firefly-broker.svc.cluster.local/v1/...` - from
-the brand pod, and from nowhere else: `networkpolicy.yaml` here admits only
-its pods, and `clusters/lab/agents/networkpolicy-brand.yaml` is the matching
+the brand pod and the tools server, and from nowhere else:
+`networkpolicy.yaml` here admits only their pods (the tools server's egress
+half is `clusters/lab/lab-mcp/networkpolicy.yaml`), and `clusters/lab/agents/networkpolicy-brand.yaml` is the matching
 egress door out of the agents namespace, which otherwise reaches nothing in
 the lab. Another agent needs a rule in both. `/v1/...` maps onto Firefly's `/api/v1/...`; the broker
 replaces the caller's Authorization header with the token, strips the login

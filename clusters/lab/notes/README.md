@@ -158,9 +158,10 @@ is affected.
   pick the version, Restore.
 - **Drafts are private** until published, and `documents.list` does not
   return them, so they reach neither the warehouse nor another account.
-- **Only `brand` among the agents.** Another pod gets access with a key and
-  a door in `networkpolicy.yaml` plus an egress rule on its side, like
-  brand's.
+- **Only `brand` among the agent pods.** Another pod gets access with a key
+  and a door in `networkpolicy.yaml` plus an egress rule on its side, like
+  brand's. An agent outside the cluster comes in through the tools server
+  (`clusters/lab/lab-mcp/`), which has such a door and its own key.
 - **No email.** No SMTP is configured, so there are no notification mails
   and no email sign-in; Pocket ID is the only way in.
 - **Sizes.** Postgres and the attachments volume are 5Gi each, expandable in

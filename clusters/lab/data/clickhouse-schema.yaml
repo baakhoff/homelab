@@ -152,6 +152,31 @@ data:
       GRANT SELECT ON dm.* TO brand;
     "
 
+    # lab-mcp's user (clusters/lab/lab-mcp/): the tools server that agents
+    # outside the cluster reach the lab through. The same three modelled
+    # layers as brand, read only, with its own name so its queries can be
+    # told apart in system.query_log. A result stops at 5000 rows instead of
+    # failing: the reader is a language model, and more than that is no use
+    # to it. Skipped until the clickhouse-labmcp Secret exists.
+    if [ -n "${LABMCP_PASSWORD:-}" ]; then
+      ch --query "
+        CREATE SETTINGS PROFILE IF NOT EXISTS labmcp;
+        ALTER SETTINGS PROFILE labmcp SETTINGS
+          readonly = 2 CONST,
+          max_memory_usage = 1000000000 CONST,
+          max_execution_time = 60 CONST,
+          max_threads = 2 CONST,
+          max_result_rows = 5000 CONST,
+          result_overflow_mode = 'break' CONST,
+          max_concurrent_queries_for_user = 4 CONST;
+        CREATE USER IF NOT EXISTS labmcp IDENTIFIED WITH sha256_password BY '$LABMCP_PASSWORD';
+        ALTER USER labmcp IDENTIFIED WITH sha256_password BY '$LABMCP_PASSWORD' SETTINGS PROFILE 'labmcp';
+        GRANT SELECT ON ods.* TO labmcp;
+        GRANT SELECT ON ads.* TO labmcp;
+        GRANT SELECT ON dm.* TO labmcp;
+      "
+    fi
+
     # CloudBeaver's user (clusters/lab/cloudbeaver/): reads every database,
     # system included, and writes nothing - readonly = 2 lets a client
     # change settings, never data or schema. The profile keeps one query
@@ -287,6 +312,15 @@ spec:
                     secretKeyRef:
                       name: clickhouse-brand
                       key: BRAND_PASSWORD
+                # Created by hand, the same value as CLICKHOUSE_PASSWORD in
+                # clusters/lab/lab-mcp/secret.sops.yaml (its README). Optional,
+                # so this job runs the same before that Secret exists.
+                - name: LABMCP_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-labmcp
+                      key: LABMCP_PASSWORD
+                      optional: true
                 # Created by hand, the same value as READER_CLICKHOUSE in
                 # clusters/lab/cloudbeaver/secret.sops.yaml (its README).
                 - name: CLOUDBEAVER_PASSWORD

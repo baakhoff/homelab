@@ -17,7 +17,8 @@ Two doors, deliberately different:
   OIDC phase replaces it).
 - **The Service, from inside only.**
   `http://vikunja.vikunja.svc.cluster.local` (port 80 -> 3456), reachable
-  from the `brand` agent pod, Airflow's scheduler and n8n, and nowhere else:
+  from the `brand` agent pod, Airflow's scheduler, n8n and the tools server
+  (`clusters/lab/lab-mcp/`), and nowhere else:
   `networkpolicy.yaml` here admits them. `brand` also needs its egress door
   out of the agents namespace, `clusters/lab/agents/networkpolicy-brand.yaml`;
   another agent needs a rule in both. n8n has no egress policy, so the rule
