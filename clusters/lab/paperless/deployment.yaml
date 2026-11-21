@@ -223,7 +223,7 @@ spec:
         # is switched off and there is no volume: it holds the task queue and
         # the read cache, both rebuilt from the database.
         - name: redis
-          image: redis:8.10.2-alpine
+          image: redis:8.10.3-alpine
           args: ["redis-server", "--save", "", "--appendonly", "no"]
           securityContext:
             allowPrivilegeEscalation: false
