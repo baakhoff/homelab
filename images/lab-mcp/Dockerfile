@@ -2,7 +2,8 @@
 # outside the cluster (clusters/lab/lab-mcp/README.md says what and why).
 #
 # A small Python server and nothing else: every tool is an HTTP call to a
-# service in the cluster, or pypdf working on a file in the scratch volume.
+# service in the cluster, or pypdf and Pillow working on a file in the
+# scratch volume.
 # The version in VERSION is the image's tag; the Deployment pins it.
 FROM python:3.13.18-slim-trixie
 

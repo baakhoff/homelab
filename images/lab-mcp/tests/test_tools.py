@@ -1,10 +1,12 @@
 """The tools against a pretend lab: every upstream is an httpx mock.
 
-Run from images/lab-mcp:  uv run --with-requirements requirements.txt --with pytest --with reportlab pytest -q
+Run from images/lab-mcp:  PYTHONPATH=. uv run --with-requirements requirements.txt --with pytest --with reportlab pytest -q
 """
 
 import asyncio
+import io
 import json
+import zipfile
 import os
 
 import httpx
@@ -20,6 +22,16 @@ from lab_mcp import core, services, tools  # noqa: E402
 
 SEEN: list[httpx.Request] = []
 PHOTO = "11111111-2222-3333-4444-555555555555"
+PHOTO2 = "22222222-2222-3333-4444-555555555555"
+ANNA, BORIS, NOBODY = (f"{n}aaaaaaa-0000-0000-0000-000000000000" for n in "abc")
+
+
+def picture(width: int, height: int) -> bytes:
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGB", (width, height), "navy").save(out, "JPEG")
+    return out.getvalue()
 
 
 def lab(request: httpx.Request) -> httpx.Response:
@@ -76,6 +88,24 @@ def lab(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json={"assets": {"items": [{"id": PHOTO, "originalFileName": "IMG_1.jpg", "type": "IMAGE", "localDateTime": "2026-07-04T12:30:00.000Z", "exifInfo": {"city": "Novi Sad", "country": "Serbia"}}]}})
         if path == f"/api/assets/{PHOTO}/thumbnail":
             return httpx.Response(200, content=b"\xff\xd8jpeg", headers={"content-type": "image/jpeg"})
+        if path == "/api/people":
+            return httpx.Response(200, json={"hasNextPage": False, "people": [{"id": ANNA, "name": "Anna"}, {"id": BORIS, "name": "Boris"}, {"id": NOBODY, "name": ""}]})
+        if path.endswith("/statistics"):
+            return httpx.Response(200, json={"assets": {ANNA: 12, BORIS: 40, NOBODY: 3}[path.split("/")[3]]})
+        if path == "/api/search/metadata":
+            assert body["personIds"] == [ANNA] and body["type"] == "IMAGE"
+            return httpx.Response(200, json={"assets": {"nextPage": "2", "items": [{"id": PHOTO2, "originalFileName": "IMG_2.jpg", "localDateTime": "2026-08-01T09:00:00.000Z"}]}})
+        if path == "/api/faces":
+            if request.url.params["id"] != PHOTO2:
+                return httpx.Response(200, json=[])
+            box = {"imageWidth": 200, "imageHeight": 100}
+            return httpx.Response(200, json=[
+                {**box, "boundingBoxX1": 0, "boundingBoxY1": 0, "boundingBoxX2": 90, "boundingBoxY2": 90, "person": {"id": BORIS}},
+                {**box, "boundingBoxX1": 150, "boundingBoxY1": 20, "boundingBoxX2": 170, "boundingBoxY2": 40, "person": {"id": ANNA}}])
+        if path == f"/api/assets/{PHOTO2}/thumbnail":
+            return httpx.Response(200, content=picture(400, 200), headers={"content-type": "image/jpeg"})
+        if path == f"/api/assets/{PHOTO2}/original":
+            return httpx.Response(200, content=b"heic bytes", headers={"content-type": "image/heic", "content-disposition": 'attachment; filename="IMG_2.HEIC"'})
     if host == "paperless":
         assert request.headers["authorization"] == "Token k"
         if path == "/api/documents/" and request.method == "GET":
@@ -195,6 +225,38 @@ def test_links_photos_documents(pretend_lab):
     assert "washer warranty.pdf" in run(tools.document_download(5))
     run(tools.file_write("note.txt", "hello"))
     assert "Handed note.txt" in run(tools.document_upload("note.txt", "A note"))
+
+
+def test_photo_people_and_export(pretend_lab):
+    from PIL import Image
+
+    people = run(tools.photos_people()).splitlines()
+    assert people == [f"Boris  [id {BORIS}]  40 photos", f"Anna  [id {ANNA}]  12 photos"]
+    assert "(no name)" in run(tools.photos_people(include_unnamed=True))
+    listed = run(tools.photos_by_person("anna"))
+    assert f"[id {PHOTO2}]" in listed and "face 150,20,170,40 of 200x100" in listed and "page=2" in listed
+    with pytest.raises(tools.ToolError, match="People: Anna, Boris"):
+        run(tools.photos_by_person("Zed"))
+
+    # A face crop: Anna's box, scaled from the 200x100 the faces were found
+    # on to the 400x200 picture, squared with the margin. The photo with no
+    # face is reported and left out.
+    answer = run(tools.photos_export(f"{PHOTO2}, {PHOTO}", crop="face", person="Anna", margin=0.5))
+    assert "Anna-faces.zip" in answer and "1 faces of Anna" in answer and f"{PHOTO} FAILED" in answer
+    with zipfile.ZipFile(pretend_lab / "Anna-faces.zip") as archive:
+        assert archive.namelist() == [f"{PHOTO2}.jpg"]
+        assert Image.open(io.BytesIO(archive.read(f"{PHOTO2}.jpg"))).size == (80, 80)
+
+    answer = run(tools.photos_export([PHOTO, PHOTO2], save_as="set"))
+    assert "set.zip" in answer and "2 photos" in answer
+    with zipfile.ZipFile(pretend_lab / "set.zip") as archive:
+        assert sorted(archive.namelist()) == [f"{PHOTO}.jpg", f"{PHOTO2}.jpg"]
+    run(tools.photos_export(PHOTO2, size="original", save_as="raw.zip"))
+    with zipfile.ZipFile(pretend_lab / "raw.zip") as archive:
+        assert archive.namelist() == [f"{PHOTO2}.heic"]
+    assert sorted(p.name for p in pretend_lab.iterdir()) == ["Anna-faces.zip", "raw.zip", "set.zip"]
+    with pytest.raises(tools.ToolError, match="not \"original\""):
+        run(tools.photos_export(PHOTO2, size="original", crop="face"))
 
 
 def test_recipes_home_money():

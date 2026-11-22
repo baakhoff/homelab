@@ -46,11 +46,18 @@ A service whose key is not in the Secret is listed to the agent as "not set
 up yet" and its tools answer with that. So the keys can be added one at a
 time.
 
-There are about 35 tools. Named ones cover the daily things (`notes_search`,
+There are about 40 tools. Named ones cover the daily things (`notes_search`,
 `task_save`, `photos_search`, `documents_search`, `home_call`,
 `money_transactions`, `warehouse_query`, `web_search`, `web_read`,
 `pdf_merge`, ...). `api_call` reaches any other endpoint of a listed
 service, and `api_find` tells the model which endpoints there are.
+
+For building a set of pictures, `photos_people` lists the people Immich
+recognized, `photos_by_person` gives one person's photos with the place of
+their face in each, and `photos_export` puts up to 300 photos into one zip,
+whole or cut to a square around the face. The Immich key needs
+`person.read`, `person.statistics`, `face.read`, `asset.read` and
+`asset.view` for these, and `asset.download` for originals.
 
 ### Files
 
@@ -247,4 +254,9 @@ kubectl -n lab-mcp logs deploy/lab-mcp --tail=50
   missing or has no `MCP_TOKEN`.
 - **`ErrImagePull`:** the image is still building, or the package is
   private.
+- **The agent does not see a new or renamed tool:** Hermes reads the tool
+  list once, when its gateway starts. Restart the gateway on the machine
+  the agent runs on.
+- **A photo tool answers HTTP 403:** the Immich key lacks one of the
+  permissions listed under "What it reaches".
 - **Restart it:** `kubectl -n lab-mcp delete pod -l app.kubernetes.io/name=lab-mcp`
