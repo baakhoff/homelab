@@ -47,7 +47,7 @@ deserve one.
 
 ```
 cd images/lab-mcp
-uv run --with-requirements requirements.txt --with pytest --with reportlab pytest -q
+PYTHONPATH=. uv run --with-requirements requirements.txt --with pytest --with reportlab pytest -q
 ```
 
 The tests answer for every upstream with made-up data, so they prove the

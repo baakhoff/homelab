@@ -1,7 +1,7 @@
 # photos: Immich, the photo and video library
 
 REST with JSON. Ids are UUIDs. An image or video answer is saved to the
-workspace. What the key may do is set where the key was made in Immich.
+workspace. Many at once: photos_export. What the key may do is set where the key was made in Immich.
 
 ## Endpoints
 - POST /search/smart {"query": "dog on a beach", "size": 20, "takenAfter": "2026-01-01T00:00:00Z", "city": "..."}
@@ -16,6 +16,14 @@ workspace. What the key may do is set where the key was made in Immich.
 - GET /albums/{id}     PATCH /albums/{id} {"albumName": "...", "description": "..."}     DELETE /albums/{id}
 - PUT /albums/{id}/assets {"ids": ["..."]}                  DELETE with the same body takes them out
 - GET /people          GET /people/{id}      PUT /people/{id} {"name": "..."}
+- GET /people/{id}/statistics            how many photos the person is in
+- GET /faces?id={asset id}               the faces in one photo: person, and the box in pixels of imageWidth x imageHeight
+- POST /search/metadata {"personIds": ["..."], "size": 50}   one person's photos
+
+## People and datasets
+photos_people lists the people, photos_by_person one person's photos with
+the face boxes, and photos_export puts many photos, whole or cut to the
+face, into one zip in the workspace. Use those before the endpoints above.
 - GET /tags            GET /memories         GET /server/statistics
 - GET /timeline/buckets      GET /search/explore      GET /map/markers
 

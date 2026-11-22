@@ -8,10 +8,12 @@ offers, and api_find says what that is.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import mimetypes
 import re
+from pathlib import Path
 from typing import Any
 
 from . import core, services
@@ -538,6 +540,199 @@ async def photo_get(id: str, original: bool = False) -> str:
     if not reply.ok or not reply.saved:
         raise ToolError(f"Immich answered HTTP {reply.status}: {(reply.text or '')[:200]}")
     return f"Saved {core.describe(reply.saved)}"
+
+
+_UUID = r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}"
+
+
+async def _each(items: list[Any], work: Any, at_once: int = 6) -> list[Any]:
+    """`work` on every item, a few at a time, answers in the same order."""
+    gate = asyncio.Semaphore(at_once)
+
+    async def one(item: Any) -> Any:
+        async with gate:
+            return await work(item)
+
+    return await asyncio.gather(*(one(item) for item in items))
+
+
+async def _people() -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    for page in range(1, 21):
+        data = await ask("photos", "GET", "/people", params={"size": 500, "page": page, "withHidden": "false"})
+        found += data.get("people") or []
+        if not data.get("hasNextPage"):
+            break
+    return found
+
+
+async def _person(person: str) -> tuple[str, str]:
+    """A person's (id, name) from a name or an id."""
+    wanted = str(person).strip()
+    if not wanted:
+        raise ToolError("say which person: a name or an id from photos_people")
+    people = await _people()
+    if re.fullmatch(_UUID, wanted):
+        return wanted.lower(), next((p.get("name") or "" for p in people if p.get("id") == wanted.lower()), "")
+    named = [p for p in people if p.get("name")]
+    match = [p for p in named if p["name"].lower() == wanted.lower()] or [p for p in named if wanted.lower() in p["name"].lower()]
+    if len(match) != 1:
+        names = ", ".join(sorted(p["name"] for p in (match or named))[:60]) or "nobody has a name yet"
+        raise ToolError(f"{'several people match' if match else 'no person named'} {wanted!r}. People: {names}")
+    return match[0]["id"], match[0]["name"]
+
+
+def _face(faces: list[dict[str, Any]], person_id: str = "") -> dict[str, Any] | None:
+    """The person's face among a photo's faces, or the largest when no person is given."""
+    if person_id:
+        faces = [f for f in faces if (f.get("person") or {}).get("id") == person_id]
+    faces = [f for f in faces if f.get("imageWidth") and f.get("imageHeight")]
+    return max(faces, key=lambda f: (f["boundingBoxX2"] - f["boundingBoxX1"]) * (f["boundingBoxY2"] - f["boundingBoxY1"]), default=None)
+
+
+async def _faces(asset_id: str) -> list[dict[str, Any]]:
+    return await ask("photos", "GET", "/faces", params={"id": asset_id}) or []
+
+
+@tool
+async def photos_people(search: str = "", include_unnamed: bool = False, limit: int = 100) -> str:
+    """List the people the photo library (Immich) recognized, with how many photos each is in, most first. `search` filters by name. People without a name are left out unless include_unnamed is true."""
+    people = [p for p in await _people() if (include_unnamed or p.get("name")) and search.lower() in (p.get("name") or "").lower()]
+    people = people[: max(1, min(int(limit), 300))]
+
+    async def count(person: dict[str, Any]) -> int:
+        try:
+            return int((await ask("photos", "GET", f"/people/{person['id']}/statistics") or {}).get("assets", 0))
+        except ToolError:
+            return -1
+
+    counts = await _each(people, count, 8)
+    rows = sorted(zip(counts, people), key=lambda row: -row[0])
+    lines = [f"{p.get('name') or '(no name)'}  [id {p['id']}]  {'?' if n < 0 else n} photos" for n, p in rows]
+    return "\n".join(lines) if lines else "No people match."
+
+
+@tool
+async def photos_by_person(person: str, limit: int = 40, page: int = 1) -> str:
+    """The photos one person is in, newest first: each photo's id and where that person's face is, as `face x1,y1,x2,y2 of WIDTHxHEIGHT` in pixels. `person` is a name or an id from photos_people. For the pictures themselves pass the ids to photos_export; `page` gives the next batch."""
+    person_id, name = await _person(person)
+    data = await ask("photos", "POST", "/search/metadata", json_body={
+        "personIds": [person_id], "type": "IMAGE", "size": max(1, min(int(limit), 200)), "page": max(1, int(page)),
+    })
+    found = data.get("assets") or {}
+    items = found.get("items") or []
+
+    async def line(asset: dict[str, Any]) -> str:
+        text = f"{asset.get('originalFileName')}  [id {asset.get('id')}]  {str(asset.get('localDateTime'))[:16].replace('T', ' ')}"
+        try:
+            face = _face(await _faces(asset["id"]), person_id)
+        except ToolError:
+            face = None
+        if face:
+            text += (f"  face {face['boundingBoxX1']},{face['boundingBoxY1']},{face['boundingBoxX2']},{face['boundingBoxY2']}"
+                     f" of {face['imageWidth']}x{face['imageHeight']}")
+        return text
+
+    lines = await _each(items, line, 8)
+    if not lines:
+        return f"No photos of {name or person}."
+    if found.get("nextPage"):
+        lines.append(f"[more: call again with page={found['nextPage']}]")
+    return f"{len(items)} photos of {name or person_id}:\n" + "\n".join(lines)
+
+
+def _crop_face(source: Any, face: dict[str, Any], margin: float) -> bytes:
+    """A square JPEG around a face. The box is in the pixels of the image the
+    faces were found on, so it is scaled to the image in hand."""
+    import io
+
+    from PIL import Image, ImageOps
+
+    with Image.open(source) as opened:
+        image = ImageOps.exif_transpose(opened).convert("RGB")
+    sx, sy = image.width / face["imageWidth"], image.height / face["imageHeight"]
+    x1, y1, x2, y2 = face["boundingBoxX1"] * sx, face["boundingBoxY1"] * sy, face["boundingBoxX2"] * sx, face["boundingBoxY2"] * sy
+    side = min(max(x2 - x1, y2 - y1) * (1 + 2 * margin), image.width, image.height)
+    left = min(max((x1 + x2) / 2 - side / 2, 0), image.width - side)
+    top = min(max((y1 + y2) / 2 - side / 2, 0), image.height - side)
+    out = io.BytesIO()
+    image.crop((round(left), round(top), round(left + side), round(top + side))).save(out, "JPEG", quality=92)
+    return out.getvalue()
+
+
+@tool
+async def photos_export(
+    ids: list[str] | str, size: str = "preview", crop: str = "", person: str = "", margin: float = 0.4, save_as: str = "",
+) -> str:
+    """Put many photos into the workspace as ONE zip, in a single call, e.g. to build a dataset: ids from photos_search or photos_by_person, up to 300.
+    size: "preview" (screen size JPEG, the default), "thumbnail" (small) or "original" (the file as uploaded).
+    crop="face" cuts each photo to a square around one face: `person`'s (a name or id) when given, else the largest face in the photo. `margin` is the space kept around the face, as a share of its size. Cropping needs size "preview" or "thumbnail"."""
+    import zipfile
+
+    if isinstance(ids, str):
+        ids = re.findall(_UUID, ids)
+    ids = list(dict.fromkeys(str(i).strip().lower() for i in ids or []))
+    if not ids or not all(re.fullmatch(_UUID, i) for i in ids):
+        raise ToolError("ids are photo ids, the ones in square brackets from photos_search or photos_by_person")
+    if len(ids) > 300:
+        raise ToolError("at most 300 photos in one call")
+    size, crop = str(size).strip().lower(), str(crop).strip().lower()
+    if size not in ("preview", "thumbnail", "original"):
+        raise ToolError('size is "preview", "thumbnail" or "original"')
+    if crop in ("none", "no", "false"):
+        crop = ""
+    if crop not in ("", "face"):
+        raise ToolError('crop is "face" or empty')
+    if crop and size == "original":
+        raise ToolError('cropping works on size "preview" or "thumbnail", not "original"')
+    margin = max(0.0, min(float(margin), 3.0))
+    person_id, name = await _person(person) if (crop and person) else ("", "")
+    svc = services.get("photos")
+    core.sweep()
+    target = core.work_path(save_as or (f"{name or 'faces'}-faces.zip" if crop else "photos.zip"))
+    if target.suffix.lower() != ".zip":
+        target = target.with_name(target.name + ".zip")
+    failed: list[str] = []
+    done = 0
+
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_STORED) as archive:
+
+        async def one(asset_id: str) -> None:
+            nonlocal done
+            temp = f"export-{asset_id}.part"
+            try:
+                if size == "original":
+                    reply = await services.call(svc, "GET", f"/assets/{asset_id}/original", save_as=temp, timeout=600)
+                else:
+                    reply = await services.call(svc, "GET", f"/assets/{asset_id}/thumbnail", params={"size": size}, save_as=temp)
+                if not reply.ok or not reply.saved:
+                    raise ToolError(f"HTTP {reply.status} {_one_line(reply.text, 100)}")
+                if crop:
+                    face = _face(await _faces(asset_id), person_id)
+                    if face is None:
+                        raise ToolError(f"no face of {name or 'anyone'} found in it")
+                    archive.writestr(f"{asset_id}.jpg", await asyncio.to_thread(_crop_face, reply.saved, face, margin))
+                else:
+                    kind = reply.headers.get("content-type", "").split(";")[0].strip()
+                    named = re.search(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", reply.headers.get("content-disposition", ""), re.I)
+                    ext = Path(named.group(1)).suffix.lower() if named else ""
+                    archive.write(reply.saved, f"{asset_id}{ext or mimetypes.guess_extension(kind) or '.jpg'}")
+                done += 1
+            except ToolError as exc:
+                failed.append(f"{asset_id} FAILED: {_one_line(exc, 160)}")
+            except Exception as exc:  # a picture Pillow cannot read
+                failed.append(f"{asset_id} FAILED: {type(exc).__name__}: {_one_line(exc, 120)}")
+            finally:
+                core.work_path(temp).unlink(missing_ok=True)
+
+        await _each(ids, one, 4)
+
+    if not done:
+        target.unlink(missing_ok=True)
+        raise ToolError("nothing was exported:\n" + "\n".join(failed[:20]))
+    what = f"faces of {name}" if crop and name else "faces" if crop else "photos"
+    return (f"Saved {core.describe(target)}: {done} {what}, named by photo id"
+            + (f"\n{len(failed)} left out:\n" + "\n".join(failed[:40]) if failed else ""))
 
 
 # --- documents (Paperless) -----------------------------------------------------------
