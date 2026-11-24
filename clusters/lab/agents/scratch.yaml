@@ -115,7 +115,15 @@ spec:
               cpu: 250m
               memory: 512Mi
             limits:
-              memory: 3Gi
+              # 6Gi, not the 3Gi of the template, and accounted for in
+              # resourcequota.yaml. On 2026-11-24 this container was
+              # OOM-killed 47 times in a row at 3Gi, each about 37 seconds
+              # after it started: the server resumed a session that at once
+              # ran `pnpm install` and `pnpm -r test` (vitest workers) on a
+              # Node project, the kill took the server with it, and the next
+              # start resumed the same session. A loop a larger limit ends,
+              # where a restart cannot.
+              memory: 6Gi
           volumeMounts:
             - name: home
               mountPath: /home/node
