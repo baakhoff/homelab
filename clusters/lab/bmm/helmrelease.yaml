@@ -13,7 +13,7 @@ spec:
   interval: 1h
   url: oci://ghcr.io/baakhoff/charts/bmm
   ref:
-    tag: 0.1.0
+    tag: 0.1.1
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
