@@ -25,6 +25,7 @@ data:
     STEAM_API_KEY: ENC[AES256_GCM,data:LpM9jPqw9O9WgMWcT937aK1y49v0s7rDxwQvGbpRdyWAMiIVgKj1OmzYXkk=,iv:BxllYCQhaIepRsaENcjhBQRlnHt48n4bfPOzYlcDhak=,tag:DkRjyfyr7HNJVlsdjhd3zQ==,type:str]
     STEAM_ID: ENC[AES256_GCM,data:vXlmzv4DmeJh39Cl0/M42RWjAGV5Vdq3,iv:3VY/gRAfFlQGHPH9qw0l4bkr8LMLUdBmUR7nT7keq2M=,tag:HrBs6+Huhv7e6M0ag8/GSQ==,type:str]
     BAMBU_TOKEN: ENC[AES256_GCM,data:f8Kq0FktN+yosKWsDBkVk35bBmfTpAVddPvzJ2IgjoBXdeFs+1MFYDYEqHlnXPE9YH2yhu/y61CYzbrsDAjNpexrDjYRLWcUjHmyNbEIt9LTFThHf4f5HacSwwjbNGMbQ/1VJR/HHH9gaFMMBguyqG+HrupwnzyE0r2I8jqKjO1RHIimqFAgNNdzYWBnk2BtPWNma6Q1Bhf0/YsvpjZfuOdtSEcKaWxtF8JbbSrV1kNs2uvvpbdThynpWtk0xR4u,iv:EPHqX4CSG0UIZyLiEyW0zJVFB8gcfLk9HcQPWD33FnM=,tag:hLPj50YUvWbM5RDc/7ASEg==,type:str]
+    BMM_API_TOKEN: ENC[AES256_GCM,data:ccAMzH0v+StnlYyitN+wscuXyH0P94KXSP3wsYFq516HZ7PjIIuv+hmLscIK4obTD3Mz9lDEEYLBlReF2L99wg==,iv:840YYUCWXqF5XCFMfFIhMauEqm3u9xr9Lhy8LUq8+HU=,tag:quY3DsdchUjQi6Kb7eImUA==,type:str]
 kind: Secret
 metadata:
     name: airflow-sources
@@ -50,6 +51,6 @@ sops:
             -----END AGE ENCRYPTED FILE-----
           recipient: age1cs7j6rqdtw698l29az54ltjepnflpa5apg3zwx45ehdtwtfe89kqvj5mee
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-11-05T14:49:01Z"
-    mac: ENC[AES256_GCM,data:HpQ4KapfjdKVW+AhNTEeGQElD66LnOqB8V1HcT3BdgWHYnwCyJ3HMgy7c8MKZEiUQVx3N4zFsSGupv3uIGpu/6Qp6LyR1lz2aaaL7AgOppOU+1LuyEo5gKEq+ETVMbprLZc8iVOPk1+1Dx+f5UIAQyY/mWvZriCMFZMtByw8kn4=,iv:4ZNMDm8X+LpUtaGErgPwvB8LK3108UVaUOwRCJRIrzs=,tag:K0/OJ5Ggx3yvQPdvdNYSqA==,type:str]
+    lastmodified: "2026-11-24T21:46:05Z"
+    mac: ENC[AES256_GCM,data:oYPbsalhIsDYlG1GCQ/anaD0wmzi27j/ELbaI4m/oYdVaf40Voq50AQAbOZBmVCB4GiOujU6KLwZrAykClgzOHBwKimPvIz13uJRDafjdokHEsJ79FKPcrGIpPRI1WZlUZ1HKdnq3PnJuhYsD7eq5UdwiE8M65HsiIGi5VP9AQk=,iv:v0p8JX7P07NdBWx1h1LKi5e8z3GraSo6FUQhjTmHlQY=,tag:DoJNJLGVAlabeLVdjzMcRA==,type:str]
     version: 3.13.3
