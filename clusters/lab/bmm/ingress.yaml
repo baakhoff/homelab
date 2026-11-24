@@ -1,0 +1,40 @@
+# No tls: block - the controller serves the lab wildcard as its default
+# certificate, like every other Ingress here.
+#
+# Behind the oauth2-proxy gate as well as BMM's own Pocket ID login, the
+# rule for every host here. In practice it is one passkey: the gate asks for
+# it, and BMM's sign-in finds the Pocket ID session already there.
+#
+# The gate covers the API too, so a program outside the cluster cannot use
+# an API token through this address. Inside the cluster the Service is
+# reached directly: that is how lab-mcp and Airflow call it. It also keeps
+# a fresh instance from being claimed by whoever finds it first.
+#
+# The Service is the chart's: `bmm`, port 80 (helmrelease.yaml).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bmm
+  namespace: bmm
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: BMM
+    gethomepage.dev/group: Tools
+    gethomepage.dev/icon: mdi-bullhorn
+    gethomepage.dev/description: Social media accounts, posts and their schedule
+    # Explicit because there is no tls block for Homepage to infer https from.
+    gethomepage.dev/href: https://bmm.lab.baakhoff.com
+spec:
+  rules:
+    - host: bmm.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bmm
+                port:
+                  number: 80

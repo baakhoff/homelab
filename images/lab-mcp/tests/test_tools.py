@@ -15,7 +15,7 @@ import pytest
 os.environ.update(
     OUTLINE_API_KEY="k", VIKUNJA_API_TOKEN="k", KARAKEEP_API_KEY="k", IMMICH_API_KEY="k", PAPERLESS_API_TOKEN="k",
     MEALIE_API_TOKEN="k", HOME_ASSISTANT_TOKEN="k", CLICKHOUSE_PASSWORD="k", MANYFOLD_CLIENT_ID="i",
-    MANYFOLD_CLIENT_SECRET="s",
+    MANYFOLD_CLIENT_SECRET="s", BMM_API_TOKEN="k",
 )
 
 from lab_mcp import core, services, tools  # noqa: E402
@@ -136,6 +136,9 @@ def lab(request: httpx.Request) -> httpx.Response:
         if path == "/v1/transactions":
             assert request.url.params["start"] == "2026-11-01"
             return httpx.Response(200, json={"data": [{"id": "9", "attributes": {"transactions": [{"date": "2026-11-02T00:00:00+01:00", "type": "withdrawal", "amount": "12.500000000000", "currency_code": "EUR", "source_name": "Main", "destination_name": "Shop", "description": "Bread", "category_name": "Groceries"}]}}]})
+    if host == "bmm" and path == "/api/v1/auth/me":
+        assert request.headers["authorization"] == "Bearer k"
+        return httpx.Response(200, json={"via": "token", "scopes": ["audit:read"]})
     if host == "manyfold":
         if path == "/oauth/token":
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 7200})
@@ -293,6 +296,8 @@ def test_api_call_and_find():
     assert run(tools.api_call("tasks", "PUT", "/labels", body='{"title": "x"}')) == 'HTTP 201\n{"id":3,"title":"x"}'
     assert run(tools.api_call("models", "GET", "/models")) == 'HTTP 200\n{"totalItems":0}'
     assert run(tools.api_call("metrics", "GET", "/alerts")).startswith("HTTP 200")
+    assert '"scopes":["audit:read"]' in run(tools.api_call("social", "GET", "/auth/me"))
+    assert "GET /auth/me" in run(tools.api_find("social"))
     assert run(tools.api_call("tasks", "GET", "/nope")).startswith("HTTP 404")
     assert "Endpoints" in run(tools.api_find("notes"))
     for bad in [("metrics", "POST", "/admin/tsdb/snapshot"), ("tasks", "GET", "/../admin"), ("tasks", "GET", "http://evil/"), ("nothing", "GET", "/")]:

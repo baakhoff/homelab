@@ -71,6 +71,14 @@ models:
     columns:
       - name: tag_id
         tests: [not_null, unique]
+  - name: bmm_audit
+    columns:
+      - name: event_id
+        tests: [not_null, unique]
+  - name: bmm_tokens
+    columns:
+      - name: token_id
+        tests: [not_null, unique]
   - name: manyfold_models
     columns:
       - name: model_id

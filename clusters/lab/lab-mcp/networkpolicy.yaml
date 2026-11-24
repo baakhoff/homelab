@@ -74,6 +74,18 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
+    # BMM.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: bmm
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: bmm
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: 3000
     # Immich.
     - to:
         - namespaceSelector:

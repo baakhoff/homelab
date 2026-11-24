@@ -30,6 +30,7 @@ At <https://mcp.lab.baakhoff.com/mcp>. The code is
 | `notes` | Outline | an API key | read and write |
 | `tasks` | Vikunja | an API token | read and write |
 | `links` | Karakeep | an API key | read and write |
+| `social` | BMM | an API token, with the scopes to give | what the token allows |
 | `photos` | Immich | an API key | what the key allows |
 | `documents` | Paperless-ngx | an API token | read and write |
 | `recipes` | Mealie | an API token | read and write |
@@ -150,6 +151,7 @@ later.
 | Vikunja | Settings → API Tokens, with the permissions to give | `VIKUNJA_API_TOKEN` |
 | Karakeep | Settings → API Keys → New | `KARAKEEP_API_KEY` |
 | Immich | Account settings → API keys → New, with the permissions to give | `IMMICH_API_KEY` |
+| BMM | API tokens → New, with the scopes to give | `BMM_API_TOKEN` |
 | Paperless | My Profile → API Auth Token | `PAPERLESS_API_TOKEN` |
 | Mealie | Profile → Manage Your API Tokens | `MEALIE_API_TOKEN` |
 | Home Assistant | your profile → Security → Long-lived access tokens | `HOME_ASSISTANT_TOKEN` |
@@ -167,7 +169,7 @@ TOKEN=$(openssl rand -hex 32)
 CHPW=$(openssl rand -hex 24)
 args=(--from-literal=MCP_TOKEN="$TOKEN" --from-literal=CLICKHOUSE_PASSWORD="$CHPW")
 for name in OUTLINE_API_KEY VIKUNJA_API_TOKEN KARAKEEP_API_KEY IMMICH_API_KEY PAPERLESS_API_TOKEN \
-            MEALIE_API_TOKEN HOME_ASSISTANT_TOKEN MANYFOLD_CLIENT_ID MANYFOLD_CLIENT_SECRET DAWARICH_API_KEY; do
+            BMM_API_TOKEN MEALIE_API_TOKEN HOME_ASSISTANT_TOKEN MANYFOLD_CLIENT_ID MANYFOLD_CLIENT_SECRET DAWARICH_API_KEY; do
   read -rsp "$name (Enter to skip): " value; echo
   [ -n "$value" ] && args+=(--from-literal="$name=$value")
 done
@@ -237,7 +239,8 @@ it has an API worth giving an agent:
    container port.
 3. If the service's namespace has an ingress policy, a matching rule
    there. Today those are Outline, Vikunja, Karakeep, Immich, Manyfold,
-   Mealie, Dawarich, SearXNG, `firefly-broker` and ClickHouse.
+   Mealie, Dawarich, BMM (in its HelmRelease), SearXNG, `firefly-broker`
+   and ClickHouse.
 4. Its key in the Secret, a row in both tables above.
 
 ## When something fails

@@ -1,0 +1,98 @@
+# BMM, from its own Helm chart: the server and its Postgres. README.md says
+# what it is and gives the setup order.
+#
+# The chart is an OCI artifact published beside the image, pinned to one
+# version. Renovate's flux manager proposes each new one as a pull request,
+# and BMM migrates its own database when the new version starts.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: bmm
+  namespace: bmm
+spec:
+  interval: 1h
+  url: oci://ghcr.io/baakhoff/charts/bmm
+  ref:
+    tag: 0.1.0
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bmm
+  namespace: bmm
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: bmm
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  # The client ID Pocket ID gave, from the Secret made by hand
+  # (secret.sops.yaml, README.md step 2). The chart takes it as a plain
+  # value and the client secret from a Secret; both live in the one Secret,
+  # so neither is in this file. Until the Secret exists this release waits,
+  # "values reference not found", and installs by itself once it does.
+  valuesFrom:
+    - kind: Secret
+      name: bmm-lab
+      valuesKey: client-id
+      targetPath: oidc.clientId
+  values:
+    config:
+      # The address in the sign-in redirect and what marks the session
+      # cookie Secure. Set here because the chart's own Ingress is off.
+      publicUrl: https://bmm.lab.baakhoff.com
+      # Behind ingress-nginx, so the audit log records the real client
+      # address from X-Forwarded-For.
+      trustProxy: true
+      # No password form: the only way in is Pocket ID. The first person
+      # through it becomes the admin (README.md, "How login works").
+      passwordLogin: false
+    oidc:
+      issuer: https://id.lab.baakhoff.com
+      name: Pocket ID
+      # Key client-secret of the same Secret.
+      existingSecret: bmm-lab
+    postgresql:
+      auth:
+        # Key password of the same Secret, and not the chart's generated
+        # one: a generated password lives only in the cluster, so a restore
+        # of the database volume into a rebuilt cluster would meet a new
+        # password it does not know.
+        existingSecret: bmm-lab
+      persistence:
+        size: 5Gi
+        storageClass: ceph-block
+    # ingress.yaml here instead, like every other host: the oauth2-proxy
+    # gate, the Homepage entry and no tls block.
+    ingress:
+      enabled: false
+    networkPolicy:
+      enabled: true
+      # Who may reach the web port; the chart's default is every pod in the
+      # cluster. The Postgres pod gets the chart's own policy: BMM only.
+      ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        # Airflow's ingest DAG, with a read-only token (README.md step 4).
+        # The other half is the egress rule in airflow's networkpolicy.yaml.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: airflow
+          podSelector:
+            matchLabels:
+              component: scheduler
+        # lab-mcp, the tools server for agents outside the cluster, with
+        # its own token (README.md step 5). The other half is in its
+        # networkpolicy.yaml.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: lab-mcp
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: lab-mcp

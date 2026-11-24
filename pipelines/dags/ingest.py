@@ -313,6 +313,22 @@ def _karakeep_pages(session: requests.Session, url: str):
         params["cursor"] = cursor
 
 
+def _bmm_pages(session: requests.Session, url: str):
+    """BMM's API: a list answers {"items": [...]}. The audit log comes
+    newest first, 200 at a time, with "nextBefore" naming where the next
+    page starts and null on the last one; the other lists come whole.
+    """
+    params = {"limit": 200} if url.endswith("/audit") else None
+    while True:
+        r = session.get(url, params=params, timeout=TIMEOUT)
+        body = _json(r, "items", url)
+        yield from body["items"]
+        before = body.get("nextBefore")
+        if params is None or not before:
+            return
+        params["before"] = before
+
+
 def _manyfold_pages(session: requests.Session, url: str):
     """Manyfold's API (v0, JSON-LD): a list answers {"member": [...]} with
     only each item's "@id" and name, paged by ?page= and a "view.next"
@@ -498,6 +514,18 @@ SOURCES = {
         "endpoints": ["models", "model_files", "creators", "collections"],
         "ids": {e: "@id" for e in ("models", "model_files", "creators", "collections")},
         "schedule": "10 4 * * *",
+    },
+    # BMM's audit log - every sign-in and change, saying whether a person
+    # or a token did it - and the API tokens that exist, without their
+    # secrets. A token with the audit:read and tokens:read scopes and no
+    # others - clusters/lab/bmm/README.md, step 4. Profiles, posts and
+    # analytics join when BMM has them.
+    "bmm": {
+        "base": "http://bmm.bmm.svc.cluster.local/api/v1",
+        "auth": ("Bearer", "BMM_API_TOKEN"),
+        "pages": _bmm_pages,
+        "endpoints": ["audit", "tokens"],
+        "schedule": "45 */6 * * *",
     },
 }
 
