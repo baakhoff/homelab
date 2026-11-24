@@ -4,16 +4,22 @@
 # The chart is an OCI artifact published beside the image, pinned to one
 # version. Renovate's flux manager proposes each new one as a pull request,
 # and BMM migrates its own database when the new version starts.
+#
+# A HelmRepository of type oci, and not the OCIRepository with `chartRef`
+# that BMM's own docs give. With that pair the helm-controller appends the
+# artifact's digest to the chart version, "0.1.0+99a9782e0da4", and chart
+# 0.1.0 writes the version into the label `helm.sh/chart` as it is. A "+"
+# is not allowed in a label, so the API server refused every object and the
+# install failed. Through a HelmRepository the version stays "0.1.0".
 apiVersion: source.toolkit.fluxcd.io/v1
-kind: OCIRepository
+kind: HelmRepository
 metadata:
   name: bmm
   namespace: bmm
 spec:
+  type: oci
   interval: 1h
-  url: oci://ghcr.io/baakhoff/charts/bmm
-  ref:
-    tag: 0.1.0
+  url: oci://ghcr.io/baakhoff/charts
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -22,9 +28,14 @@ metadata:
   namespace: bmm
 spec:
   interval: 1h
-  chartRef:
-    kind: OCIRepository
-    name: bmm
+  chart:
+    spec:
+      chart: bmm
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: bmm
+      interval: 1h
   install:
     remediation:
       retries: 3
