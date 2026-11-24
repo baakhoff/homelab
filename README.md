@@ -62,6 +62,7 @@ accounts, the only login its TV apps know.
 | [SparkyFitness](https://github.com/CodeWithCJ/SparkyFitness) | Calorie and macro tracking with an AI that logs meals from a photo, plus exercise and weight, with a phone app. |
 | [Outline](https://www.getoutline.com) | Notes and documents in a polished web editor, organised in collections, with every edit kept in its history; an agent reads and writes them too. |
 | [Karakeep](https://karakeep.app) | Links, notes and files saved from the browser or the phone's share menu, with a copy of each page kept, AI tags and summaries, and full-text search. |
+| [BMM](https://github.com/baakhoff/bmm) | Social media management with an API for everything its web app does: sign-in, scoped API tokens and an audit log today, accounts and scheduled posts next. |
 | [Dawarich](https://github.com/Freika/dawarich) | Location history from the phone on a map: trips, visits, countries and stats, a self-hosted Google Timeline. |
 | [Photon](https://github.com/komoot/photon) | Turns Dawarich's coordinates into streets, cities and places, from OpenStreetMap, without sending them out of the lab. |
 | [Immich](https://immich.app) | The family's photos and videos: phones back up to it, with faces, places and search in any language, and the library on the NAS. |
@@ -125,7 +126,8 @@ accounts, the only login its TV apps know.
   ([how](clusters/lab/plex/README.md)), and
   Outline for notes and documents ([how](clusters/lab/notes/README.md)), and
   Karakeep keeping saved links with a copy of each page ([how](clusters/lab/karakeep/README.md)), and
-  Manyfold for the 3D models ([how](clusters/lab/manyfold/README.md)), and n8n for
+  Manyfold for the 3D models ([how](clusters/lab/manyfold/README.md)), and
+  BMM for social media ([how](clusters/lab/bmm/README.md)), and n8n for
   automations between all of it ([how](clusters/lab/n8n/README.md)), and Kafka
   feeding ClickHouse, where every source's raw data is kept for querying
   ([how](clusters/lab/data/README.md)), and Airflow running the pipelines

@@ -24,6 +24,7 @@
 #   plex            32400
 #   karakeep        3000
 #   manyfold        3214
+#   bmm             3000
 #   cloudbeaver     its Postgres 5432, for the usage DAG
 #
 # And one more way in: CloudBeaver to Postgres, as its read-only role - the
@@ -195,6 +196,17 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: karakeep
+      ports:
+        - protocol: TCP
+          port: 3000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: bmm
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: bmm
+              app.kubernetes.io/component: server
       ports:
         - protocol: TCP
           port: 3000

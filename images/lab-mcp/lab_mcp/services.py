@@ -80,6 +80,11 @@ SERVICES: dict[str, Service] = {
             _svc("karakeep", "karakeep", "/api/v1"), ("KARAKEEP_API_KEY",), bearer("KARAKEEP_API_KEY"),
         ),
         Service(
+            "social", "BMM", "social media management: API tokens and the audit log today, profiles, accounts and posts as BMM gains them",
+            _svc("bmm", "bmm", "/api/v1"), ("BMM_API_TOKEN",), bearer("BMM_API_TOKEN"),
+            openapi="/openapi.json", spec_strip="/api/v1",
+        ),
+        Service(
             "photos", "Immich", "the photo and video library",
             _svc("immich-server", "immich", "/api"), ("IMMICH_API_KEY",),
             lambda: {"x-api-key": env("IMMICH_API_KEY")},

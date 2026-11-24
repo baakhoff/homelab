@@ -8,7 +8,7 @@ model is live a minute later, with no restart.
 
 | DAG | What it does | When |
 |---|---|---|
-| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline`, `ingest_immich`, `ingest_plex`, `ingest_karakeep`, `ingest_manyfold` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, Manyfold daily at 04:10, the rest every 6 hours |
+| `ingest_firefly`, `ingest_vikunja`, `ingest_mealie`, `ingest_paperless`, `ingest_sparkyfitness`, `ingest_dawarich`, `ingest_outline`, `ingest_immich`, `ingest_plex`, `ingest_karakeep`, `ingest_manyfold`, `ingest_bmm` | Snapshot the service's API into Kafka topic `raw.<source>` - one task per endpoint. Dawarich's points are the last week's, not all of them | Vikunja hourly, Dawarich daily at 03:40, Manyfold daily at 04:10, the rest every 6 hours |
 | `ingest_telegram` | Each logged-in Telegram account's private chats into `raw.telegram`, logged in as the account: new messages, and the last 3 days again for edits; the history in 40-minute portions on the first runs ([how](../../../pipelines/telegram.md)) | hourly, at :20 |
 | `ingest_proton` | A Proton Mail export, packed on the workstation and copied into the scheduler pod, into `raw.proton` ([how](../../../pipelines/proton.md)) | by hand |
 | `ingest_vk` | The VK data archive, packed on the workstation and copied into the scheduler pod, into `raw.vk` ([how](../../../pipelines/vk.md)) | by hand |
@@ -137,7 +137,8 @@ Immich's, steps 6 and 8 of `clusters/lab/immich/README.md` (step 8's
 with the Claude API key), and Plex's, step 6 of
 `clusters/lab/plex/README.md`, and Karakeep's, step 4 of
 `clusters/lab/karakeep/README.md`, and Manyfold's API application, step 5
-of `clusters/lab/manyfold/README.md`, and
+of `clusters/lab/manyfold/README.md`, and BMM's token, step 4 of
+`clusters/lab/bmm/README.md`, and
 Telegram's login, by `pipelines/tools/telegram_login.py` (`pipelines/telegram.md`).
 So is CloudBeaver's `CLOUDBEAVER_INGEST_PASSWORD`, for the usage DAG -
 `clusters/lab/cloudbeaver/README.md` - and Google's client and tokens, by
