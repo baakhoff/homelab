@@ -288,11 +288,42 @@ Download File, with *Export Password Secret Seed*) is the backup of record for
 everything above, the dataset key included. It is a secret: it lives in the
 password manager, not in a download folder.
 
-### The Windows share
+### The SMB shares
 
 | Share | Path | Purpose | Access |
 |---|---|---|---|
 | `personal` | `/mnt/tank/personal` | Default Share | the local user `baakh`, owner of the dataset |
+| `models` | `/mnt/tank/models` | Default Share | `baakh`, through the `manyfold` group |
+
+`models` is the same folder Manyfold mounts over NFS
+([the cluster's shares](#the-clusters-shares)), shared so that model folders
+can be copied in from a desktop. Two settings let `baakh` and Manyfold write
+beside each other there:
+
+- `baakh` has `manyfold` as an auxiliary group (Credentials → Users).
+- The folder is `2770`, so what is made in it gets the `manyfold` group:
+
+  ```
+  sudo chmod 2770 /mnt/tank/models
+  ```
+
+A folder made over SMB comes out as `drwxrwsr-x`, owner `baakh`, group
+`manyfold`: Manyfold can write its own files into it. The folders Manyfold
+makes itself are `drwxr-xr-x`, so over SMB they can be read and not changed.
+
+A group added to a user counts from the next connection. A Mac that already
+has `personal` open answers "You do not have permission to access this
+server" for `models` until every share of the NAS is ejected and opened
+again.
+
+From the Mac, each share once; with *Remember this password* it then opens
+without asking, and under System Settings → General → Login Items it opens
+at login:
+
+```
+open 'smb://baakh@nas.lab/personal'
+open 'smb://baakh@nas.lab/models'
+```
 
 From the Windows PC, in PowerShell:
 
@@ -319,6 +350,7 @@ films and the 3D models.
 | `manyfold` | 3002 | 3003 | `tank/models`, mode 770 |
 
 All have the password disabled, the `nologin` shell and no SMB access.
+`tank/models` is also an SMB share, for `baakh` ([above](#the-smb-shares)).
 TrueNAS numbers new users from 3000, clear of 1000, which is `baakh` here and
 the agent pods' user in the cluster. The pods that write run as these ids
 (`clusters/lab/immich/`, `clusters/lab/plex/`, `clusters/lab/manyfold/`).
@@ -386,6 +418,8 @@ addresses and nothing else.
 - Both snapshot tasks appear under Data Protection and have taken snapshots.
 - The Windows PC maps `\\nas.lab\personal` as `baakh`, and a second `robocopy`
   run copies nothing.
+- A folder made in `models` from the Mac shows on the NAS with group `3003`
+  and `w` for the group (`sudo ls -ln /mnt/tank/models`).
 - `/etc/exports` holds the `immich` and `media` shares and nothing else, each
   for the three node addresses with `all_squash` to its own user.
 - `tank/immich` is encrypted, unlocked after a reboot, and its exported key

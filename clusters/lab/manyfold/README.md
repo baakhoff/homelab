@@ -219,7 +219,9 @@ agent's `brand` user.
 
 - **Adding models**: upload in the web app (up to 1 GiB a file, zips
   unpacked), or copy folders onto the NAS share and run a scan from the
-  library's menu. A folder per model; Manyfold finds the rest.
+  library's menu. A folder per model; Manyfold finds the rest. The share
+  is `smb://nas.lab/models`
+  ([the NAS runbook](../../../docs/runbooks/nas-bring-up.md#the-smb-shares)).
 - **When the NAS is away, Manyfold waits.** The share is mounted `hard`:
   anything touching the library blocks until the NAS answers again. A pod
   started meanwhile waits in ContainerCreating.
