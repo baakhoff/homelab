@@ -53,6 +53,10 @@ spec:
     # sidecar's 256Mi stays as counted above:
     #   limits  32000Mi + 3072Mi    = 35072Mi
     #
+    # scratch followed, after 47 OOM kills in a row at 3Gi on 2026-11-24 -
+    # its file records the loop:
+    #   limits  35072Mi + 3072Mi    = 38144Mi
+    #
     # requests.cpu was previously "3" against a stated six times 250m, which is
     # 1.5 - the comment and the number disagreed. Corrected here rather than
     # scaled up, so the arithmetic above is the arithmetic in the file.
@@ -73,5 +77,5 @@ spec:
     # agent's build causes more mystery latency than it prevents.
     requests.cpu: "2150m"
     requests.memory: 4416Mi
-    limits.memory: 35072Mi
+    limits.memory: 38144Mi
     pods: "9"
