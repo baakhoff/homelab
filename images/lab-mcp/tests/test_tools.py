@@ -297,7 +297,7 @@ def test_api_call_and_find():
     assert run(tools.api_call("models", "GET", "/models")) == 'HTTP 200\n{"totalItems":0}'
     assert run(tools.api_call("metrics", "GET", "/alerts")).startswith("HTTP 200")
     assert '"scopes":["audit:read"]' in run(tools.api_call("social", "GET", "/auth/me"))
-    assert "GET /auth/me" in run(tools.api_find("social"))
+    assert "POST /posts/validate" in run(tools.api_find("social"))
     assert run(tools.api_call("tasks", "GET", "/nope")).startswith("HTTP 404")
     assert "Endpoints" in run(tools.api_find("notes"))
     for bad in [("metrics", "POST", "/admin/tsdb/snapshot"), ("tasks", "GET", "/../admin"), ("tasks", "GET", "http://evil/"), ("nothing", "GET", "/")]:

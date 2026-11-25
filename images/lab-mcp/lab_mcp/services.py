@@ -80,7 +80,7 @@ SERVICES: dict[str, Service] = {
             _svc("karakeep", "karakeep", "/api/v1"), ("KARAKEEP_API_KEY",), bearer("KARAKEEP_API_KEY"),
         ),
         Service(
-            "social", "BMM", "social media management: API tokens and the audit log today, profiles, accounts and posts as BMM gains them",
+            "social", "BMM", "social media management: profiles, their X and Instagram accounts, and posts drafted, scheduled or published",
             _svc("bmm", "bmm", "/api/v1"), ("BMM_API_TOKEN",), bearer("BMM_API_TOKEN"),
             openapi="/openapi.json", spec_strip="/api/v1",
         ),

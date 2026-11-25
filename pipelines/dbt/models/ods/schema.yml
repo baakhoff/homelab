@@ -75,6 +75,22 @@ models:
     columns:
       - name: event_id
         tests: [not_null, unique]
+  - name: bmm_profiles
+    columns:
+      - name: profile_id
+        tests: [not_null, unique]
+  - name: bmm_accounts
+    columns:
+      - name: account_id
+        tests: [not_null, unique]
+  - name: bmm_posts
+    columns:
+      - name: post_id
+        tests: [not_null, unique]
+  - name: bmm_post_targets
+    columns:
+      - name: target_id
+        tests: [not_null, unique]
   - name: bmm_tokens
     columns:
       - name: token_id

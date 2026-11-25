@@ -34,7 +34,7 @@ sources:
       - name: manyfold
         description: Manyfold API snapshots - the 3D models with their tags, creators and collections, every model's files with their sizes, and the creators and collections, one record per message in the ingest envelope.
       - name: bmm
-        description: BMM API snapshots - the audit log of every sign-in and change, and the API tokens without their secrets, one record per message in the ingest envelope.
+        description: BMM API snapshots - the profiles, the connected accounts, the posts with each network's answer, the audit log of every sign-in and change, and the API tokens without their secrets, one record per message in the ingest envelope.
       - name: telegram
         description: Telegram accounts' private chats, each record naming its account - the chats as snapshots, the messages as sent once and again when edited, one record per message in the ingest envelope.
       - name: proton

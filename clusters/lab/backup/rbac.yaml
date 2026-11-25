@@ -390,8 +390,9 @@ roleRef:
   kind: ClusterRole
   name: backup-driver
 ---
-# BMM: everything it knows is in its Postgres - the admin, the API tokens,
-# the audit log, and later the profiles, posts and schedule.
+# BMM: its Postgres - the profiles, accounts, posts and schedule, the API
+# tokens and the audit log - and the volume of uploaded images. Two
+# targets, one namespace.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

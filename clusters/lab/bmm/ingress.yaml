@@ -19,6 +19,8 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth
     nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Images for posts: BMM takes up to 20 MB a file.
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: BMM
     gethomepage.dev/group: Tools
