@@ -314,11 +314,15 @@ def _karakeep_pages(session: requests.Session, url: str):
 
 
 def _bmm_pages(session: requests.Session, url: str):
-    """BMM's API: a list answers {"items": [...]}. The audit log comes
-    newest first, 200 at a time, with "nextBefore" naming where the next
-    page starts and null on the last one; the other lists come whole.
+    """BMM's API: a list answers {"items": [...]}. The audit log and the
+    posts come newest first, a page at a time, with "nextBefore" naming
+    where the next page starts and null on the last one; the other lists
+    come whole. A post carries its images' details and, per account, how
+    publishing went.
     """
-    params = {"limit": 200} if url.endswith("/audit") else None
+    limits = {"audit": 200, "posts": 100}
+    key = url.rsplit("/", 1)[-1]
+    params = {"limit": limits[key]} if key in limits else None
     while True:
         r = session.get(url, params=params, timeout=TIMEOUT)
         body = _json(r, "items", url)
@@ -515,16 +519,17 @@ SOURCES = {
         "ids": {e: "@id" for e in ("models", "model_files", "creators", "collections")},
         "schedule": "10 4 * * *",
     },
-    # BMM's audit log - every sign-in and change, saying whether a person
-    # or a token did it - and the API tokens that exist, without their
-    # secrets. A token with the audit:read and tokens:read scopes and no
-    # others - clusters/lab/bmm/README.md, step 4. Profiles, posts and
-    # analytics join when BMM has them.
+    # BMM: the profiles, the accounts connected to them (never their
+    # access tokens), every post with what each network answered, the
+    # audit log - every sign-in and change, saying whether a person or a
+    # token did it - and the API tokens that exist, without their secrets.
+    # A token with only the read scopes for these -
+    # clusters/lab/bmm/README.md, step 5.
     "bmm": {
         "base": "http://bmm.bmm.svc.cluster.local/api/v1",
         "auth": ("Bearer", "BMM_API_TOKEN"),
         "pages": _bmm_pages,
-        "endpoints": ["audit", "tokens"],
+        "endpoints": ["profiles", "accounts", "posts", "audit", "tokens"],
         "schedule": "45 */6 * * *",
     },
 }

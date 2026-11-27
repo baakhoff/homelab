@@ -13,7 +13,7 @@ spec:
   interval: 1h
   url: oci://ghcr.io/baakhoff/charts/bmm
   ref:
-    tag: 0.1.2
+    tag: 0.2.0
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -52,6 +52,16 @@ spec:
       # No password form: the only way in is Pocket ID. The first person
       # through it becomes the admin (README.md, "How login works").
       passwordLogin: false
+      # Key secret-key of the same Secret: what encrypts the networks' app
+      # secrets and every account's access tokens in the database. Made by
+      # hand and not the chart's generated one, for the reason given at the
+      # database password below: with another key the stored credentials
+      # cannot be read, and every account has to be connected again.
+      secretKeyExistingSecret: bmm-lab
+    # Uploaded images, on the chart's own claim `bmm-data`.
+    persistence:
+      size: 5Gi
+      storageClass: ceph-block
     oidc:
       issuer: https://id.lab.baakhoff.com
       name: Pocket ID

@@ -78,14 +78,15 @@ whose loss would hurt most are written first:
 | 15 | `notes/outline-data` | the images and attachments in those documents |
 | 16 | `karakeep/karakeep-data` | saved links and the copies of their pages, which outlive the sites |
 | 17 | `manyfold/data-manyfold-postgres-0` | the 3D models' tags, creators and collections; the files themselves are on the NAS, each model's details beside them in `datapackage.json` |
-| 18 | `bmm/data-bmm-postgres-0` | BMM's accounts, API tokens and audit log, and later the profiles, posts and schedule |
-| 19-20 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
-| 21 | `minecraft/minecraft-data` | the world |
-| 22 | `plex/plex-config` | Plex's library database, watch history and settings; the films themselves are on the NAS |
-| 23 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
-| 24 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
-| 25 | `data/data-clickhouse-0` | the warehouse's history |
-| 26-33 | the eight `agents/*` volumes | session transcripts and unpushed work |
+| 18 | `bmm/data-bmm-postgres-0` | BMM's profiles, connected accounts (their access tokens encrypted), posts and schedule, API tokens and audit log |
+| 19 | `bmm/bmm-data` | the images uploaded to BMM for posts |
+| 20-21 | Grafana, Alertmanager | dashboards and silences; convenient, not critical |
+| 22 | `minecraft/minecraft-data` | the world |
+| 23 | `plex/plex-config` | Plex's library database, watch history and settings; the films themselves are on the NAS |
+| 24 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
+| 25 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
+| 26 | `data/data-clickhouse-0` | the warehouse's history |
+| 27-34 | the eight `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly

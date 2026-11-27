@@ -103,7 +103,10 @@ taken away from the agent on its side without touching the rest
 (`tools.exclude` in the agent's MCP settings).
 
 Home Assistant's `notify.*` services also send a message out, to whatever
-they are set up for.
+they are set up for. And BMM publishes: with a token that holds
+`posts:write`, the agent can post to the connected social accounts, with no
+confirmation step in between. The token's scopes are the limit
+(`clusters/lab/bmm/README.md`).
 
 ## Login
 

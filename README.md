@@ -62,7 +62,7 @@ accounts, the only login its TV apps know.
 | [SparkyFitness](https://github.com/CodeWithCJ/SparkyFitness) | Calorie and macro tracking with an AI that logs meals from a photo, plus exercise and weight, with a phone app. |
 | [Outline](https://www.getoutline.com) | Notes and documents in a polished web editor, organised in collections, with every edit kept in its history; an agent reads and writes them too. |
 | [Karakeep](https://karakeep.app) | Links, notes and files saved from the browser or the phone's share menu, with a copy of each page kept, AI tags and summaries, and full-text search. |
-| [BMM](https://github.com/baakhoff/bmm) | Social media management with an API for everything its web app does: sign-in, scoped API tokens and an audit log today, accounts and scheduled posts next. |
+| [BMM](https://github.com/baakhoff/bmm) | Social media management: profiles with their X and Instagram accounts, posts drafted, scheduled and published, and an API and MCP server for everything its web app does. |
 | [Dawarich](https://github.com/Freika/dawarich) | Location history from the phone on a map: trips, visits, countries and stats, a self-hosted Google Timeline. |
 | [Photon](https://github.com/komoot/photon) | Turns Dawarich's coordinates into streets, cities and places, from OpenStreetMap, without sending them out of the lab. |
 | [Immich](https://immich.app) | The family's photos and videos: phones back up to it, with faces, places and search in any language, and the library on the NAS. |
