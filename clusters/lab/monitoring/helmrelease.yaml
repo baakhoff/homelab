@@ -466,6 +466,14 @@ spec:
       grafana.ini:
         server:
           root_url: https://grafana.lab.baakhoff.com
+        # No usage reports to grafana.com and no update checks: they were
+        # about 9,000 DNS lookups a day at the Pi-hole, and Renovate already
+        # says when there is a new version.
+        analytics:
+          reporting_enabled: false
+          check_for_updates: false
+          check_for_plugin_updates: false
+          feedback_links_enabled: false
         # Sign in with a passkey via Pocket ID. The admin password in
         # grafana-admin stays as the break-glass login: the form is not
         # disabled, because the day Pocket ID is down is also the day you
