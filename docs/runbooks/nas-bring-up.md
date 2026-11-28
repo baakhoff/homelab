@@ -193,6 +193,7 @@ Two rules follow:
 | SSH | on, start automatically; key only, the workstation's key on `truenas_admin` |
 | Init script, Post Init | `ethtool -s enp2s0 wol g` |
 | Local user | `baakh`, UID 1000, SMB access |
+| Local user | `btermix`, Termix's SSH user: key only, sudo with a password, home `/mnt/tank/home/btermix` ([Termix](../../clusters/lab/termix/README.md)) |
 
 - **Update profile: General.** A fresh 25.10.7 install shows **Mission
   Critical**, a profile that is never offered General releases. Change it on
@@ -211,6 +212,10 @@ Two rules follow:
   and leaves password login off for `truenas_admin`; turning the service on and
   pasting the public key into the user (Credentials → Users, SSH Access) was all
   it took.
+- **A user with an SSH key needs a home.** TrueNAS writes the key into the
+  user's home directory, and refuses it for the default `/var/empty`. The
+  dataset `tank/home` (preset Generic) holds those homes, one folder each,
+  under the pool's snapshots like everything else.
 - **Wake-on-LAN needs a startup command.** TrueNAS has no WOL setting, and the
   `r8169` driver starts every boot with wake disabled, so a Post Init command
   arms it: `ethtool -s enp2s0 wol g`. The Pi wakes it as `wake-nodes nas`

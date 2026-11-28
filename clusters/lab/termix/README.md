@@ -131,18 +131,52 @@ Then open <https://servers.lab.baakhoff.com>: it goes straight to Pocket
 ID and back, and the account it makes is an admin. Then look in the Plugins
 tab: the standard image includes a telemetry plugin; turn it off.
 
-**5. The servers.** In Termix, make an SSH key (Credentials → New →
-Generate), then add each host with it. The public key goes into each
-host's `~/.ssh/authorized_keys`:
+**5. The servers.** In Termix, Credentials → New: username `btermix`,
+no password, and an Ed25519 key. If Generate does nothing, make one on a
+computer (`ssh-keygen -t ed25519 -f key -N "" -C termix`), paste the
+private half into the form and delete both files after.
 
-| Host | Address | User |
-|---|---|---|
-| node02, node03, node04 | `192.168.68.102` - `.104` | your user on the nodes |
-| exitnode | `192.168.68.65` | `baakh` |
-| NAS | `192.168.68.105` | `truenas_admin` - the key goes in TrueNAS, Credentials → Users → `truenas_admin` → Authorized Keys |
+Every server has a user of its own for Termix, **`btermix`**: what came
+through Termix shows as that user in the host's login log, and removing
+its key takes Termix's access away without touching anyone else's. It
+signs in with the key only and is in the sudo group, with a password of
+its own that sudo asks for. That password is in Vaultwarden, so a stolen
+Termix database gets a shell, not root.
 
-Stats need nothing installed on the host: Termix reads them over the same
-SSH connection.
+On the Pi and the Ubuntu nodes, with the public key in place of `KEY`,
+then a password for sudo:
+
+```bash
+sudo useradd -m -s /bin/bash -c Termix btermix
+sudo install -d -m 700 -o btermix -g btermix /home/btermix/.ssh
+echo 'KEY' | sudo install -m 600 -o btermix -g btermix /dev/stdin /home/btermix/.ssh/authorized_keys
+sudo usermod -aG sudo btermix
+sudo passwd btermix
+```
+
+On the NAS, in TrueNAS, Credentials → Users → Add: `btermix`, SMB and
+TrueNAS access off, SSH access on with the public key, SSH password login
+off, sudo commands **all** (not the passwordless kind). TrueNAS keeps an SSH
+key in the user's home, so the home is `/mnt/tank/home/btermix`, on the
+dataset `tank/home` ([NAS runbook](../../../docs/runbooks/nas-bring-up.md#6-truenas-settings)).
+Made while editing a user rather than adding one, the folder has to exist
+first: `sudo install -d -m 700 -o btermix -g btermix /mnt/tank/home/btermix`.
+
+| Host in Termix | Address |
+|---|---|
+| exitnode | `192.168.68.65` |
+| node02, node03, node04 | `192.168.68.102` - `.104` |
+| nas | `192.168.68.105` |
+
+All as `btermix`, port 22. Stats need nothing installed on the host:
+Termix reads them over the same SSH connection.
+
+**Remote desktop**, for a Mac or a Windows PC on the home network: Termix
+speaks VNC and RDP itself, no guacd. On the Mac, System Settings → General
+→ Sharing → Screen Sharing, and in Termix the host's Apple Remote Desktop
+with the macOS login. On Windows (Pro), Settings → System → Remote
+Desktop, and in Termix the host's RDP with the Windows login. Both have
+their addresses from DHCP: a reservation on the router keeps them fixed.
 
 ## What goes to the warehouse
 
