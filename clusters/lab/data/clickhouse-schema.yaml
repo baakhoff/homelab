@@ -281,7 +281,7 @@ spec:
                   mountPath: /scripts
           containers:
             - name: schema
-              image: docker.io/clickhouse/clickhouse-server:26.8.15.10
+              image: docker.io/clickhouse/clickhouse-server:26.11.2.4
               command: ["bash", "/scripts/schema.sh"]
               env:
                 - name: SOURCES
