@@ -15,7 +15,7 @@ At <https://servers.lab.baakhoff.com>, and on Homepage under Platform.
 | `deployment.yaml` | the app - nginx, the backend and its plugins in one container - and its settings |
 | `pvc.yaml` | SQLite and the plugins, on a 2 GiB Ceph volume |
 | `networkpolicy.yaml` | ingress-nginx in; out open but for the NAS, which gets SSH only |
-| `service.yaml`, `ingress.yaml` | `servers.lab.baakhoff.com`, behind the admin gate, with the Homepage tile |
+| `service.yaml`, `ingress.yaml` | `servers.lab.baakhoff.com`, behind the admin gate, with the Homepage tile; the plugins' own files past it |
 | `secret.sops.yaml` | the Pocket ID client and Termix's four keys - **created by hand, step 2** |
 
 The SSH connections start from the pod, not from the browser: the browser
@@ -113,14 +113,22 @@ sops --encrypt --in-place clusters/lab/backup/restic-repo-termix.sops.yaml
 The `grep` must print `namespace: termix` before you encrypt. Commit and
 push both files; the pre-commit hook checks that they are encrypted.
 
-**4. After the merge**, wait for the pod, then open
-<https://servers.lab.baakhoff.com>:
+**4. After the merge**, wait for the pod:
 
 ```bash
 kubectl -n termix rollout status deploy/termix --timeout=10m
 ```
 
-The page goes straight to Pocket ID and back. Then look in the Plugins
+A Termix with no users yet refuses every new account while registration
+is off - the first one included. So for the first sign-in, turn it on by
+hand; Flux sets it back at its next pass, since it differs from the repo:
+
+```bash
+kubectl -n termix set env deploy/termix ALLOW_REGISTRATION=true ALLOW_PASSWORD_LOGIN=true
+```
+
+Then open <https://servers.lab.baakhoff.com>: it goes straight to Pocket
+ID and back, and the account it makes is an admin. Then look in the Plugins
 tab: the standard image includes a telemetry plugin; turn it off.
 
 **5. The servers.** In Termix, make an SSH key (Credentials → New →
