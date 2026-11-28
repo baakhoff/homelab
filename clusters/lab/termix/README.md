@@ -15,7 +15,7 @@ At <https://servers.lab.baakhoff.com>, and on Homepage under Platform.
 | `deployment.yaml` | the app - nginx, the backend and its plugins in one container - and its settings |
 | `pvc.yaml` | SQLite and the plugins, on a 2 GiB Ceph volume |
 | `networkpolicy.yaml` | ingress-nginx in; out open but for the NAS, which gets SSH only |
-| `service.yaml`, `ingress.yaml` | `servers.lab.baakhoff.com`, behind the admin gate, with the Homepage tile; the plugins' own files past it |
+| `service.yaml`, `ingress.yaml` | `servers.lab.baakhoff.com`, behind the admin gate, with the Homepage tile; the plugins' three paths past it, where Termix checks its own login |
 | `secret.sops.yaml` | the Pocket ID client and Termix's four keys - **created by hand, step 2** |
 
 The SSH connections start from the pod, not from the browser: the browser

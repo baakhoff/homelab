@@ -34,12 +34,15 @@ spec:
                 port:
                   number: 80
 ---
-# The plugins' own files, past the gate. Termix runs each plugin in a
-# sandboxed frame, and the browser sends no cookies with what a sandboxed
-# frame loads - so the gate turned every one of these requests away and no
-# plugin started. Termix serves /plugin-assets without a login: the plugins'
-# code, the same for everyone, nothing of the lab's. Everything else stays
-# behind the Ingress above.
+# The plugins' three paths, past the gate - what Termix's docs ask of any
+# login proxy (configure/reverse-proxy, "Login proxies"). Termix runs each
+# plugin in a sandboxed frame, and the browser sends no cookies with what a
+# sandboxed frame asks for, so the gate turned every one of these requests
+# away: no plugin started, then the stats and the other plugin views
+# answered "Network Error". /plugin-assets is the plugins' code, the same
+# for everyone; on /plugin-api and /plugin-ws Termix checks its own login,
+# with a short token per plugin. Everything else stays behind the Ingress
+# above.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -51,6 +54,20 @@ spec:
       http:
         paths:
           - path: /plugin-assets
+            pathType: Prefix
+            backend:
+              service:
+                name: termix
+                port:
+                  number: 80
+          - path: /plugin-api
+            pathType: Prefix
+            backend:
+              service:
+                name: termix
+                port:
+                  number: 80
+          - path: /plugin-ws
             pathType: Prefix
             backend:
               service:
