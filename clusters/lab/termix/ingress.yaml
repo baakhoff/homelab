@@ -33,3 +33,27 @@ spec:
                 name: termix
                 port:
                   number: 80
+---
+# The plugins' own files, past the gate. Termix runs each plugin in a
+# sandboxed frame, and the browser sends no cookies with what a sandboxed
+# frame loads - so the gate turned every one of these requests away and no
+# plugin started. Termix serves /plugin-assets without a login: the plugins'
+# code, the same for everyone, nothing of the lab's. Everything else stays
+# behind the Ingress above.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: termix-plugin-assets
+  namespace: termix
+spec:
+  rules:
+    - host: servers.lab.baakhoff.com
+      http:
+        paths:
+          - path: /plugin-assets
+            pathType: Prefix
+            backend:
+              service:
+                name: termix
+                port:
+                  number: 80

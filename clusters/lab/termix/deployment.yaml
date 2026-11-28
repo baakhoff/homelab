@@ -119,13 +119,16 @@ spec:
             periodSeconds: 30
             failureThreshold: 4
           # Node, nginx in front of it, and each plugin in a process of its
-          # own (up to 256 MiB each, upstream's default).
+          # own (up to 256 MiB each, upstream's default). Right after the
+          # first sign-in 18 plugins ran at once, 1.4 GB together, against a
+          # first limit of 1.5 GiB; Termix stops a plugin unused for ten
+          # minutes, so most of the time it is far below this.
           resources:
             requests:
               cpu: 50m
-              memory: 384Mi
+              memory: 768Mi
             limits:
-              memory: 1536Mi
+              memory: 3Gi
           volumeMounts:
             - name: data
               mountPath: /app/data
