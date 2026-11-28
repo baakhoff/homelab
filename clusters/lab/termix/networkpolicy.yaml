@@ -1,0 +1,71 @@
+# Who may talk to Termix, and what it may talk to.
+#
+# In: ingress-nginx to the web port, and nothing else.
+#
+# Out: open, but for the NAS, which gets SSH and nothing more. Reaching
+# servers is Termix's job: the nodes, the exitnode and anything on the
+# internet you add, on whatever port their SSH listens on, and Pocket ID by
+# its public address for the sign-in. The NAS is the one address every
+# other open namespace is cut off from (docs/network.md, "Pods and the
+# LAN"), because its NFS shares admit the node addresses that pod traffic
+# leaves under; port 22 is not NFS, so SSH alone is let through.
+#
+# k3s enforces NetworkPolicy - see the agents policy for the smoke test.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: termix
+  namespace: termix
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: termix
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 192.168.68.105/32
+    - to:
+        - ipBlock:
+            cidr: 192.168.68.105/32
+      ports:
+        - protocol: TCP
+          port: 22
+---
+# The nightly backup's restic pod, and only it, out to the object-storage
+# bucket - as in the other namespaces. The backup driver starts that pod
+# here, beside the volume it reads (clusters/lab/backup/), and labels it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restic-backup-egress
+  namespace: termix
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restic-backup
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

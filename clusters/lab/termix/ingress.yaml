@@ -1,0 +1,35 @@
+# Behind the admin gate (lab-admins only) as well as Termix's own Pocket ID
+# sign-in: this page opens a shell on every server in the lab. In practice
+# it is one passkey. No tls: block - the controller serves the lab wildcard
+# as its default certificate, like every other Ingress here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: termix
+  namespace: termix
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth?allowed_groups=lab-admins
+    nginx.ingress.kubernetes.io/auth-signin: https://auth.lab.baakhoff.com/oauth2/start?rd=$scheme://$host$request_uri
+    # Terminals are WebSockets that stay open for hours; uploads through
+    # the file manager.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "86400"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "86400"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1g"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: Termix
+    gethomepage.dev/group: Platform
+    gethomepage.dev/icon: mdi-console
+    gethomepage.dev/description: Every server - terminal, stats, files
+    gethomepage.dev/href: https://servers.lab.baakhoff.com
+spec:
+  rules:
+    - host: servers.lab.baakhoff.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: termix
+                port:
+                  number: 80

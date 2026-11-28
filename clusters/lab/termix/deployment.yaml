@@ -1,0 +1,140 @@
+# Termix: every server in one browser page - an SSH terminal, the host's
+# CPU, memory, disk and network, a file manager over SFTP, its Docker
+# containers and SSH tunnels. https://servers.lab.baakhoff.com, behind the
+# admin gate. The SSH connections are made from this pod, not from the
+# browser, so what it may reach is networkpolicy.yaml's business.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: termix
+  namespace: termix
+spec:
+  # One replica on a ReadWriteOnce volume, with SQLite on it. Recreate, so
+  # the old pod has let go of the volume before the new one mounts it.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: termix
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: termix
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: termix
+          # The standard image: the terminal, files, stats, Docker, tunnels
+          # and single sign-on. `-full` adds some fifty plugins this does not
+          # need.
+          image: ghcr.io/termix-ssh/termix:26.11.3
+          # Upstream's own settings (docker/docker-compose.yml): root at the
+          # start for the hand-over to its user, with only the capabilities
+          # that needs.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+          env:
+            - name: PORT
+              value: "8080"
+            # The four keys come from the Secret (README, step 2), never
+            # made by the app and kept only on its volume: losing
+            # ENCRYPTION_KEY or DATABASE_KEY makes every saved password and
+            # SSH key unreadable, so they live in this repository, encrypted,
+            # beside the backup of the volume.
+            - name: TERMIX_REQUIRE_EXTERNAL_SECRETS
+              value: "true"
+            # ingress-nginx is the proxy in front: trust its X-Forwarded-For
+            # for the client's address, and build the sign-in callback with
+            # https.
+            - name: TRUSTED_PROXIES
+              value: 10.42.0.0/16
+            - name: EXTERNAL_FORCE_HTTPS
+              value: "true"
+            # --- Sign-in: Pocket ID only --------------------------------
+            # No password form and no sign-up: an account is made at its
+            # first sign-in through Pocket ID, whose client admits only
+            # lab-admins (README, step 1), and members of lab-admins are
+            # Termix admins, checked at every sign-in.
+            - name: ALLOW_PASSWORD_LOGIN
+              value: "false"
+            - name: ALLOW_REGISTRATION
+              value: "false"
+            - name: ALLOW_PASSWORD_RESET
+              value: "false"
+            - name: EXTERNAL_ALLOW_REGISTRATION
+              value: "true"
+            - name: OIDC_ENV_OVERRIDE
+              value: "true"
+            - name: OIDC_SILENT_LOGIN_DEFAULT
+              value: "true"
+            # The new callback, /plugin-api/sso/callback, not the one from
+            # before Termix 2.9.
+            - name: OIDC_LEGACY_CALLBACK
+              value: "false"
+            - name: OIDC_ISSUER_URL
+              value: https://id.lab.baakhoff.com
+            # The browser goes to the public name; the code exchange and
+            # userinfo go to the Service inside the cluster, like Grafana's.
+            - name: OIDC_AUTHORIZATION_URL
+              value: https://id.lab.baakhoff.com/authorize
+            - name: OIDC_TOKEN_URL
+              value: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/token
+            - name: OIDC_USERINFO_URL
+              value: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/userinfo
+            - name: OIDC_SCOPES
+              value: openid email profile groups
+            - name: OIDC_ADMIN_GROUP
+              value: lab-admins
+          # OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, JWT_SECRET, DATABASE_KEY,
+          # ENCRYPTION_KEY and INTERNAL_AUTH_TOKEN. Until the Secret exists
+          # the pod waits in CreateContainerConfigError.
+          envFrom:
+            - secretRef:
+                name: termix
+          ports:
+            - name: http
+              containerPort: 8080
+          # The web server answers once the backend behind it is up. The
+          # first start creates the database.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            failureThreshold: 4
+          # Node, nginx in front of it, and each plugin in a process of its
+          # own (up to 256 MiB each, upstream's default).
+          resources:
+            requests:
+              cpu: 50m
+              memory: 384Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: termix-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
