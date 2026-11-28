@@ -118,6 +118,7 @@ spec:
                     plex/plex-config
                     cloudbeaver/data-cloudbeaver-postgres-0
                     cloudbeaver/cloudbeaver-workspace
+                    termix/termix-data
                     data/data-clickhouse-0
                     agents/homelab
                     agents/brand

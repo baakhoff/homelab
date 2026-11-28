@@ -157,6 +157,10 @@ policy applies, and that is the one path the share is meant for.
 
 A new namespace with open egress gets the same file, `networkpolicy-no-nas.yaml`.
 
+One namespace may reach the NAS on purpose: Termix (`clusters/lab/termix/`),
+which opens SSH sessions to every server. Its policy keeps the same cut and
+lets port 22 through to the NAS, and nothing else - not NFS, not SMB.
+
 ## Names instead of addresses
 
 Pi-hole serves the house through the router's DHCP and the tailnet through

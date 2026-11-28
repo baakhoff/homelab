@@ -1,0 +1,12 @@
+# Pod Security baseline, like Manyfold's. Not restricted: Termix's image
+# starts as root, hands its data folder to its own user and runs the app as
+# that user, and starts each plugin as a user of its own - which needs
+# SETUID and SETGID. baseline still refuses anything privileged, host
+# networking and host paths.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: termix
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest

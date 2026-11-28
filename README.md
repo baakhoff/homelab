@@ -58,6 +58,7 @@ accounts, the only login its TV apps know.
 | [Apache Airflow](https://airflow.apache.org) | Runs the data pipelines: API snapshots into Kafka, and the dbt models. |
 | [dbt](https://www.getdbt.com) | The SQL models that build the warehouse's layers from the raw data. |
 | [CloudBeaver](https://github.com/dbeaver/cloudbeaver) | DBeaver in the browser: every database in the lab, read-only, with an SQL editor and result grids. |
+| [Termix](https://github.com/Termix-SSH/Termix) | Every server in one browser page: an SSH terminal, each host's CPU, memory and disk, files over SFTP, Docker containers and tunnels. |
 | [Mealie](https://mealie.io) | Recipes imported from any site by link, meal plans and shared shopping lists. |
 | [SparkyFitness](https://github.com/CodeWithCJ/SparkyFitness) | Calorie and macro tracking with an AI that logs meals from a photo, plus exercise and weight, with a phone app. |
 | [Outline](https://www.getoutline.com) | Notes and documents in a polished web editor, organised in collections, with every edit kept in its history; an agent reads and writes them too. |
@@ -133,7 +134,8 @@ accounts, the only login its TV apps know.
   ([how](clusters/lab/data/README.md)), and Airflow running the pipelines
   that pull the services' data in and the dbt models that shape it
   ([how](clusters/lab/airflow/README.md)), and CloudBeaver reading every
-  database in the lab from the browser ([how](clusters/lab/cloudbeaver/README.md)). Nightly restic backup of its volumes
+  database in the lab from the browser ([how](clusters/lab/cloudbeaver/README.md)), and Termix
+  opening a terminal on every server ([how](clusters/lab/termix/README.md)). Nightly restic backup of its volumes
   to object storage, taken from CSI snapshots so each one is atomic rather than
   crash-consistent ([how](clusters/lab/backup/README.md)).
 - **exitnode** — Pi-hole answering DNS for the house (through the router's DHCP)

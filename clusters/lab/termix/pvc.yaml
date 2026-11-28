@@ -1,0 +1,15 @@
+# Termix's SQLite database - the hosts, their saved passwords and SSH keys
+# (encrypted with ENCRYPTION_KEY), the users and the audit log - and its
+# plugins. In the nightly backup.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: termix-data
+  namespace: termix
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 2Gi

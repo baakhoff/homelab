@@ -85,8 +85,9 @@ whose loss would hurt most are written first:
 | 23 | `plex/plex-config` | Plex's library database, watch history and settings; the films themselves are on the NAS |
 | 24 | `cloudbeaver/data-cloudbeaver-postgres-0` | CloudBeaver's users and sessions; the shared connections are in git |
 | 25 | `cloudbeaver/cloudbeaver-workspace` | the SQL scripts and own connections saved in CloudBeaver |
-| 26 | `data/data-clickhouse-0` | the warehouse's history |
-| 27-34 | the eight `agents/*` volumes | session transcripts and unpushed work |
+| 26 | `termix/termix-data` | the servers saved in Termix and their passwords and SSH keys, encrypted with the key in its Secret |
+| 27 | `data/data-clickhouse-0` | the warehouse's history |
+| 28-35 | the eight `agents/*` volumes | session transcripts and unpushed work |
 
 Firefly is second because the household's books are the next thing that
 cannot be rebuilt, and because an agent can now delete through the Firefly
