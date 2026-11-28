@@ -16,6 +16,7 @@ At <https://servers.lab.baakhoff.com>, and on Homepage under Platform.
 | `pvc.yaml` | SQLite and the plugins, on a 2 GiB Ceph volume |
 | `networkpolicy.yaml` | ingress-nginx in; out open but for the NAS, which gets SSH only |
 | `service.yaml`, `ingress.yaml` | `servers.lab.baakhoff.com`, behind the admin gate, with the Homepage tile; the plugins' three paths past it, where Termix checks its own login |
+| `kubectl.yaml` | the cluster account the Kubernetes plugin uses: reads all but Secrets, opens pod shells, deletes pods, cordons and drains nodes |
 | `secret.sops.yaml` | the Pocket ID client and Termix's four keys - **created by hand, step 2** |
 
 The SSH connections start from the pod, not from the browser: the browser
@@ -177,6 +178,35 @@ speaks VNC and RDP itself, no guacd. On the Mac, System Settings → General
 with the macOS login. On Windows (Pro), Settings → System → Remote
 Desktop, and in Termix the host's RDP with the Windows login. Both have
 their addresses from DHCP: a reservation on the router keeps them fixed.
+
+## Kubernetes
+
+The Kubernetes plugin (installed from the Plugins tab) runs `kubectl` over
+SSH on a host; here node02, as `btermix`, with the kubeconfig of the
+cluster account in `kubectl.yaml`. It sees pods, logs, events, YAML, nodes,
+metrics and the custom resources, and can open a shell in a pod, delete a
+pod and cordon or drain a node. It cannot read a Secret's value - so the
+Helm section stays empty, Helm keeping its releases in Secrets - and cannot
+change a workload: that is git's job.
+
+The kubeconfig, made on the Mac from the account's token and written to
+node02 without the token touching the screen. In zsh, from anywhere:
+
+```bash
+T=$(kubectl -n termix get secret termix-kubectl -o jsonpath='{.data.token}' | base64 -d)
+CA=$(kubectl -n termix get secret termix-kubectl -o jsonpath='{.data.ca\.crt}')
+printf 'apiVersion: v1\nkind: Config\nclusters:\n- name: lab\n  cluster:\n    server: https://127.0.0.1:6443\n    certificate-authority-data: %s\nusers:\n- name: termix\n  user:\n    token: %s\ncontexts:\n- name: lab\n  context:\n    cluster: lab\n    user: termix\ncurrent-context: lab\n' "$CA" "$T" \
+  | ssh node02.lab 'umask 077 && cat > /tmp/btermix-kubeconfig'
+unset T CA
+ssh -t node02.lab 'sudo install -d -m 700 -o btermix -g btermix /home/btermix/.kube && sudo install -m 600 -o btermix -g btermix /tmp/btermix-kubeconfig /home/btermix/.kube/config && rm /tmp/btermix-kubeconfig'
+```
+
+Then in Termix, host node02 → Kubernetes: enabled, flavor **kubectl**,
+kubeconfig path `/home/btermix/.kube/config`, Run with sudo off. Turn on
+**Read only** if the edit buttons should not even try.
+
+To revoke it, delete the Secret `termix-kubectl`: the token stops working
+at once, Flux makes a new one, and the kubeconfig is made again as above.
 
 ## What goes to the warehouse
 
