@@ -1,0 +1,89 @@
+# The cluster account Termix's Kubernetes plugin uses. The plugin runs
+# kubectl over SSH on node02, as btermix, with this account's kubeconfig in
+# btermix's home (README, "Kubernetes") - not k3s's admin kubeconfig, which
+# would make a stolen Termix database the whole cluster.
+#
+# What it may do: read what Headlamp reads - every namespaced object but
+# Secrets (`view`), the nodes, volumes, CRDs, metrics and the lab's custom
+# resources (headlamp-cluster-reader, clusters/lab/headlamp/rbac.yaml) - and
+# the operations below. What it may not: read a Secret's value, or create,
+# edit, scale or delete any workload. Those go through git; Flux would undo
+# a change made here at its next pass anyway.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: termix-kubectl
+  namespace: termix
+automountServiceAccountToken: false
+---
+# A long-lived token for the kubeconfig: the plugin has no way to renew a
+# short one. Deleting this Secret revokes it; Flux makes a new one, and the
+# kubeconfig on node02 is made again from it.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: termix-kubectl
+  namespace: termix
+  annotations:
+    kubernetes.io/service-account.name: termix-kubectl
+type: kubernetes.io/service-account-token
+---
+# The operations: a shell in a pod, deleting a pod (how a workload is
+# restarted here - never `rollout restart`, which Flux undoes and so restarts
+# twice), and cordon, uncordon and drain for the nodes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: termix-operate
+rules:
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: termix-kubectl-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: termix-kubectl
+    namespace: termix
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: termix-kubectl-cluster-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: headlamp-cluster-reader
+subjects:
+  - kind: ServiceAccount
+    name: termix-kubectl
+    namespace: termix
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: termix-kubectl-operate
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: termix-operate
+subjects:
+  - kind: ServiceAccount
+    name: termix-kubectl
+    namespace: termix
